@@ -9,14 +9,14 @@ import games.pixscape.runtime.component.EntityIndexComponent;
 import games.pixscape.runtime.component.LayerComponent;
 import games.pixscape.runtime.component.TiledLayerComponent;
 import games.pixscape.runtime.component.spatial.SpatialBlocksComponent;
-import games.pixscape.runtime.render.TiledMapRenderState;
+import games.pixscape.runtime.render.TiledRenderState;
 import games.pixscape.runtime.service.AtlasAssetBinding;
 import games.pixscape.runtime.service.AtlasBindingTestFactory;
 import games.pixscape.runtime.service.AtlasRuntimeService;
 import games.pixscape.runtime.spatial.SpatialBlockData;
 import games.pixscape.runtime.spatial.SpatialLayerRuntimeRegistry;
 import games.pixscape.runtime.spatial.SpatialTileOrderCache;
-import games.pixscape.runtime.tiled.TiledMapLayerData;
+import games.pixscape.runtime.tiled.TiledLayerData;
 import games.pixscape.runtime.tiled.TiledProjection;
 import games.pixscape.runtime.tiled.profile.RuntimeTilesetAnchor;
 import games.pixscape.runtime.tiled.profile.RuntimeTilesetProfile;
@@ -36,7 +36,7 @@ public class RenderTiledSyncSpatialEditTest {
     public void adjacentUnanchoredBrushPiecesRenderDuringOpenMutationAndMatchFullRebuild() {
         OrthographicCamera camera = new OrthographicCamera(256f, 256f);
         camera.position.set(32f, 48f, 0f);
-        TiledMapRenderState state = new TiledMapRenderState(64);
+        TiledRenderState state = new TiledRenderState(64);
         SpatialLayerRuntimeRegistry registry = new SpatialLayerRuntimeRegistry();
         RenderTiledSyncSystem sync = new RenderTiledSyncSystem(camera, state,
                 new TestAtlas(), 1, null, profiles(1, 2, 3), registry);
@@ -51,7 +51,7 @@ public class RenderTiledSyncSpatialEditTest {
         TiledLayerComponent tiled = mapEntity.edit().create(TiledLayerComponent.class);
         tiled.spatialEnabled = true;
         tiled.atlasTag = "main";
-        TiledMapLayerData map = new TiledMapLayerData(8, 8, 16, 8, 4, TiledProjection.ISO);
+        TiledLayerData map = new TiledLayerData(8, 8, 16, 8, 4, TiledProjection.ISO);
         map.spatialEnabled = true;
         map.setTile(2, 2, 1);
         map.setTile(3, 2, 1);
@@ -101,7 +101,7 @@ public class RenderTiledSyncSpatialEditTest {
         Assert.assertTrue(order.rank(2, 2) >= 0);
     }
 
-    private static long[] keys(TiledMapLayerData map, TiledMapRenderState state, int[] xs, int gy) {
+    private static long[] keys(TiledLayerData map, TiledRenderState state, int[] xs, int gy) {
         long[] keys = new long[xs.length];
         for (int i = 0; i < xs.length; i++) keys[i] = state.sortKey[map.tiledRenderRefForTile(xs[i], gy)];
         return keys;

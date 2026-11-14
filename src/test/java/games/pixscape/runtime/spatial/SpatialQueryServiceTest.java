@@ -4,7 +4,7 @@ import com.badlogic.gdx.utils.IntArray;
 import games.pixscape.runtime.component.TransformComponent;
 import games.pixscape.runtime.component.spatial.SpatialHeightComponent;
 import games.pixscape.runtime.component.spatial.SpatialShapesComponent;
-import games.pixscape.runtime.tiled.TiledMapLayerData;
+import games.pixscape.runtime.tiled.TiledLayerData;
 import org.junit.Assert;
 import org.junit.Test;
 
@@ -104,7 +104,7 @@ public class SpatialQueryServiceTest {
     @Test
     public void tiledCellVolumeDefaultsAndExplicitSpatialValues() {
         SpatialQueryService service = new SpatialQueryService();
-        TiledMapLayerData map = new TiledMapLayerData(4, 4, 16, 16, 2);
+        TiledLayerData map = new TiledLayerData(4, 4, 16, 16, 2);
         map.setTile(1, 1, 10);
 
         SpatialVolume defaultVolume = service.buildTiledCellVolume(map, 1, 1);

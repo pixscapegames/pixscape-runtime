@@ -3,7 +3,7 @@ package games.pixscape.runtime.spatial;
 import games.pixscape.runtime.component.spatial.SpatialBlocksComponent;
 import games.pixscape.runtime.render.DrawList;
 import games.pixscape.runtime.render.RenderSourceDomain;
-import games.pixscape.runtime.tiled.TiledMapLayerData;
+import games.pixscape.runtime.tiled.TiledLayerData;
 import games.pixscape.runtime.tiled.TiledProjection;
 import org.junit.Test;
 
@@ -13,7 +13,7 @@ import static org.junit.Assert.assertEquals;
 public class SpatialBlockLinkActorTest {
     @Test
     public void actorsCrossingTheExplicitJunctionSeeTheSameFacesAsOneContinuousWall() {
-        TiledMapLayerData map = new TiledMapLayerData(8, 4, 64, 32, 4, TiledProjection.ISO);
+        TiledLayerData map = new TiledLayerData(8, 4, 64, 32, 4, TiledProjection.ISO);
         for (int y = 0; y < 4; y++) for (int x = 0; x < 8; x++) map.setTile(x, y, 1);
         SpatialBlocksComponent linked = new SpatialBlocksComponent();
         linked.blocks.add(wall(1, 1, 3));
@@ -30,7 +30,7 @@ public class SpatialBlockLinkActorTest {
         }
     }
 
-    private static int[] signature(SpatialProjectedFaceCache faces, TiledMapLayerData map, float x, float y) {
+    private static int[] signature(SpatialProjectedFaceCache faces, TiledLayerData map, float x, float y) {
         SpatialActorCollector actors = new SpatialActorCollector();
         actors.actorCount = 1;
         actors.actorSlot = new int[]{0};
@@ -75,7 +75,7 @@ public class SpatialBlockLinkActorTest {
         return signature;
     }
 
-    private static SpatialProjectedFaceCache project(SpatialBlocksComponent blocks, TiledMapLayerData map) {
+    private static SpatialProjectedFaceCache project(SpatialBlocksComponent blocks, TiledLayerData map) {
         SpatialCompiledLayerCache compiled = new SpatialCompiledLayerCache();
         compiled.ensure(blocks);
         SpatialProjectedFaceCache faces = new SpatialProjectedFaceCache();

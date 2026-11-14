@@ -38,7 +38,7 @@ public class LightGameplayApiTest {
         layers.enabled[0] = true;
         world = new World(new WorldConfigurationBuilder().with(dirty, new UpdateWorldGeometrySystem(),
                 new RenderSpriteSyncSystem(dynamic), new LightingGeometrySystem(dynamic,
-                        new TiledMapRenderState(1), queue, layers), new DirtyFlushSystem()).build());
+                        new TiledRenderState(1), queue, layers), new DirtyFlushSystem()).build());
         bindWorld(world);
         Field enabled = PixscapeEngine.class.getDeclaredField("lightingEnabled");
         enabled.setAccessible(true);

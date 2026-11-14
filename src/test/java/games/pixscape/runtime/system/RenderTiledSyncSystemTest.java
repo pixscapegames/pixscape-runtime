@@ -22,7 +22,7 @@ import games.pixscape.runtime.service.AtlasRuntimeService;
 import games.pixscape.runtime.spatial.SpatialBlockData;
 import games.pixscape.runtime.tiled.TileChunk;
 import games.pixscape.runtime.tiled.TileTransformFlags;
-import games.pixscape.runtime.tiled.TiledMapLayerData;
+import games.pixscape.runtime.tiled.TiledLayerData;
 import games.pixscape.runtime.tiled.TiledProjection;
 import games.pixscape.runtime.tiled.animation.TileAnimationDef;
 import games.pixscape.runtime.tiled.animation.TileAnimationDefData;
@@ -105,7 +105,7 @@ public class RenderTiledSyncSystemTest {
             f.world.process();
             int e = onlyMapEntity(f.world), ref = refFor(f.map, 0, 0);
             LightingSurface previous = f.tiledState.lightingSurfaces.get(ref);
-            MapLightingGeometry geometry = f.tiledState.lightingMaps.get(e);
+            TiledLayerLightingGeometry geometry = f.tiledState.lightingMaps.get(e);
             LightingSurface[] casters = geometry.casters.toArray(LightingSurface.class);
             long key = f.tiledState.sortKey[ref];
             SizedCountingAtlasRuntimeService atlas = (SizedCountingAtlasRuntimeService) f.atlas;
@@ -136,7 +136,7 @@ public class RenderTiledSyncSystemTest {
         try {
             f.world.process();
             int e = onlyMapEntity(f.world), ref = refFor(f.map, 0, 0);
-            MapLightingGeometry geometry = f.tiledState.lightingMaps.get(e);
+            TiledLayerLightingGeometry geometry = f.tiledState.lightingMaps.get(e);
             LightingSurface surface = f.tiledState.lightingSurfaces.get(ref);
             int count = geometry.casters.size, compiled = geometry.roundedGeometryCompilationCount();
             Assert.assertEquals(1, compiled);
@@ -161,7 +161,7 @@ public class RenderTiledSyncSystemTest {
         try {
             f.world.process();
             int e = onlyMapEntity(f.world), ref = refFor(f.map, 0, 0);
-            MapLightingGeometry geometry = f.tiledState.lightingMaps.get(e);
+            TiledLayerLightingGeometry geometry = f.tiledState.lightingMaps.get(e);
             int count = geometry.casters.size;
             LightingSurface first = f.tiledState.lightingSurfaces.get(ref);
             Assert.assertEquals(401, f.tiledState.textureHandle[ref]);
@@ -197,7 +197,7 @@ public class RenderTiledSyncSystemTest {
             f.world.process();
             int e = onlyMapEntity(f.world), ref = refFor(f.map, 0, 0);
             LightingSurface previous = f.tiledState.lightingSurfaces.get(ref);
-            MapLightingGeometry geometry = f.tiledState.lightingMaps.get(e);
+            TiledLayerLightingGeometry geometry = f.tiledState.lightingMaps.get(e);
             LightingSurface[] casters = geometry.casters.toArray(LightingSurface.class);
             long key = f.tiledState.sortKey[ref];
             // Simulate a late resource change, without its normal publication invalidation.
@@ -356,7 +356,7 @@ public class RenderTiledSyncSystemTest {
         f.world.process();
         f.tiledSync.prepareRuntimeAvailability();
         int entity = onlyMapEntity(f.world);
-        TiledRenderOrder order = f.tiledState.orderForMap(entity);
+        TiledRenderOrder order = f.tiledState.orderForLayer(entity);
         int prepared = order.preparationCount();
         for (int i = 0; i < 20; i++) {
             f.camera.position.x = i % 2 == 0 ? 16 : 48;
@@ -376,12 +376,12 @@ public class RenderTiledSyncSystemTest {
         Assert.assertEquals(++prepared, order.preparationCount());
         f.world.process();
         Assert.assertEquals(prepared, order.preparationCount());
-        f.world.getMapper(TiledLayerComponent.class).get(entity).data = new TiledMapLayerData(2, 2, 16, 16, 2);
+        f.world.getMapper(TiledLayerComponent.class).get(entity).data = new TiledLayerData(2, 2, 16, 16, 2);
         f.world.process();
-        Assert.assertNotSame(order, f.tiledState.orderForMap(entity));
+        Assert.assertNotSame(order, f.tiledState.orderForLayer(entity));
         f.world.delete(entity);
         f.world.process();
-        Assert.assertNull(f.tiledState.orderForMap(entity));
+        Assert.assertNull(f.tiledState.orderForLayer(entity));
         f.world.dispose();
     }
 
@@ -397,7 +397,7 @@ public class RenderTiledSyncSystemTest {
                 new games.pixscape.runtime.tiled.animation.TileAnimationDef(data);
         f.tiledSync.setAnimatedTileLookup(id -> id == 1 ? animation : null);
         f.world.process();
-        TiledRenderOrder order = f.tiledState.orderForMap(onlyMapEntity(f.world));
+        TiledRenderOrder order = f.tiledState.orderForLayer(onlyMapEntity(f.world));
         int prepared = order.preparationCount();
         TileChunk chunk = f.map.getChunk(0, 0);
         chunk.setAnimationFrameIndex(0, 1);
@@ -448,11 +448,11 @@ public class RenderTiledSyncSystemTest {
         fixture.world.process();
 
         Assert.assertEquals(2, fixture.drawList.size);
-        Assert.assertEquals(1, fixture.tiledState.getVisibleMapCount());
-        Assert.assertEquals(0, fixture.tiledState.visibleMapRefStart(0));
-        Assert.assertEquals(2, fixture.tiledState.visibleMapRefCount(0));
+        Assert.assertEquals(1, fixture.tiledState.getVisibleTileLayerCount());
+        Assert.assertEquals(0, fixture.tiledState.visibleTileLayerRefStart(0));
+        Assert.assertEquals(2, fixture.tiledState.visibleTileLayerRefCount(0));
         Assert.assertEquals(onlyMapEntity(fixture.world),
-                fixture.tiledState.visibleMapEntityId(0));
+                fixture.tiledState.visibleTileLayerEntityId(0));
     }
 
     @Test
@@ -467,11 +467,11 @@ public class RenderTiledSyncSystemTest {
         fixture.world.getMapper(EntityIndexComponent.class).get(mapEntity).zIndex = 25;
         fixture.world.process();
 
-        Assert.assertEquals(1, fixture.tiledState.getVisibleMapCount());
-        Assert.assertEquals(mapEntity, fixture.tiledState.visibleMapEntityId(0));
-        Assert.assertEquals(25, fixture.tiledState.visibleMapZIndex(0));
+        Assert.assertEquals(1, fixture.tiledState.getVisibleTileLayerCount());
+        Assert.assertEquals(mapEntity, fixture.tiledState.visibleTileLayerEntityId(0));
+        Assert.assertEquals(25, fixture.tiledState.visibleTileLayerZIndex(0));
         Assert.assertEquals(25, SortKey64.unpackZOrdered(
-                fixture.tiledState.visibleMapCompositionKey(0)));
+                fixture.tiledState.visibleTileLayerCompositionKey(0)));
         Assert.assertEquals(internalKey, fixture.tiledState.sortKey[firstRef]);
         Assert.assertEquals(compilations, fixture.tiledSync.persistentChunkCompilationCount());
     }
@@ -484,11 +484,11 @@ public class RenderTiledSyncSystemTest {
 
         index.zIndex = SortKey64.MIN_Z;
         fixture.world.process();
-        Assert.assertEquals(SortKey64.MIN_Z, fixture.tiledState.visibleMapZIndex(0));
+        Assert.assertEquals(SortKey64.MIN_Z, fixture.tiledState.visibleTileLayerZIndex(0));
 
         index.zIndex = SortKey64.MAX_Z;
         fixture.world.process();
-        Assert.assertEquals(SortKey64.MAX_Z, fixture.tiledState.visibleMapZIndex(0));
+        Assert.assertEquals(SortKey64.MAX_Z, fixture.tiledState.visibleTileLayerZIndex(0));
     }
 
     @Test(expected = IllegalStateException.class)
@@ -862,7 +862,7 @@ public class RenderTiledSyncSystemTest {
         OrthographicCamera camera = new OrthographicCamera(32f, 32f);
         camera.position.set(16f, 16f, 0f);
 
-        TiledMapRenderState tiledState = new TiledMapRenderState(16);
+        TiledRenderState tiledState = new TiledRenderState(16);
         LayerStateSOA layerState = new LayerStateSOA(4);
         layerState.enabled[0] = true;
         layerState.enabled[1] = true;
@@ -899,7 +899,7 @@ public class RenderTiledSyncSystemTest {
         TiledLayerComponent tiledA = createTiledMapEntity(world, layerCompA.layerIndex)
                 .edit().create(TiledLayerComponent.class);
         tiledA.atlasTag = "main";
-        tiledA.data = new TiledMapLayerData(4, 2, 16, 16, 2);
+        tiledA.data = new TiledLayerData(4, 2, 16, 16, 2);
         tiledA.data.setTile(0, 0, 1);
 
         Entity layerB = world.createEntity();
@@ -908,7 +908,7 @@ public class RenderTiledSyncSystemTest {
         TiledLayerComponent tiledB = createTiledMapEntity(world, layerCompB.layerIndex)
                 .edit().create(TiledLayerComponent.class);
         tiledB.atlasTag = "main";
-        tiledB.data = new TiledMapLayerData(4, 2, 16, 16, 2);
+        tiledB.data = new TiledLayerData(4, 2, 16, 16, 2);
         tiledB.data.originX = 128f;
         tiledB.data.setTile(2, 0, 2);
 
@@ -1111,20 +1111,20 @@ public class RenderTiledSyncSystemTest {
                 50f,
                 16f
         );
-        TiledMapLayerData sameLayerMap = addParallaxMap(
+        TiledLayerData sameLayerMap = addParallaxMap(
                 fixture.world, 0, 16f, 0f,
                 games.pixscape.runtime.tiled.TiledProjection.ORTHO);
         fixture.layerState.enabled[1] = true;
         fixture.layerState.parallaxX[1] = 2f;
         fixture.layerState.parallaxY[1] = 1f;
-        TiledMapLayerData otherLayerMap = addParallaxMap(
+        TiledLayerData otherLayerMap = addParallaxMap(
                 fixture.world, 1, 96f, 0f,
                 games.pixscape.runtime.tiled.TiledProjection.ORTHO);
 
         fixture.world.process();
 
         Assert.assertEquals(3, fixture.tiledState.getVisibleRefCount());
-        Assert.assertEquals(3, fixture.tiledState.getVisibleMapCount());
+        Assert.assertEquals(3, fixture.tiledState.getVisibleTileLayerCount());
         Assert.assertEquals(3, fixture.drawList.size);
         Assert.assertEquals(16f, sameLayerMap.originX, 0f);
         Assert.assertEquals(96f, otherLayerMap.originX, 0f);
@@ -1394,7 +1394,7 @@ public class RenderTiledSyncSystemTest {
         OrthographicCamera camera = new OrthographicCamera(32f, 32f);
         camera.position.set(16f, 16f, 0f);
 
-        TiledMapRenderState tiledState = new TiledMapRenderState(16);
+        TiledRenderState tiledState = new TiledRenderState(16);
         LayerStateSOA layerState = new LayerStateSOA(4);
         layerState.enabled[0] = true;
 
@@ -1435,7 +1435,7 @@ public class RenderTiledSyncSystemTest {
                 .edit().create(TiledLayerComponent.class);
         tiled.atlasTag = "main";
 
-        TiledMapLayerData map = new TiledMapLayerData(2, 2, 16, 16, 2);
+        TiledLayerData map = new TiledLayerData(2, 2, 16, 16, 2);
         map.setTile(0, 0, 1);
         map.setTile(1, 0, 0);
         map.setTile(0, 1, 99);
@@ -1449,7 +1449,7 @@ public class RenderTiledSyncSystemTest {
         OrthographicCamera camera = new OrthographicCamera(32f, 32f);
         camera.position.set(16f, 16f, 0f);
 
-        TiledMapRenderState tiledState = new TiledMapRenderState(16);
+        TiledRenderState tiledState = new TiledRenderState(16);
         LayerStateSOA layerState = new LayerStateSOA(4);
         layerState.enabled[0] = true;
 
@@ -1489,7 +1489,7 @@ public class RenderTiledSyncSystemTest {
                 .edit().create(TiledLayerComponent.class);
         tiled.atlasTag = "main";
 
-        TiledMapLayerData map = new TiledMapLayerData(4, 2, 16, 16, 2);
+        TiledLayerData map = new TiledLayerData(4, 2, 16, 16, 2);
 
         // Left chunk has a single valid tile.
         map.setTile(0, 0, 1);
@@ -1507,7 +1507,7 @@ public class RenderTiledSyncSystemTest {
         OrthographicCamera camera = new OrthographicCamera(32f, 32f);
         camera.position.set(16f, 16f, 0f);
 
-        TiledMapRenderState tiledState = new TiledMapRenderState(16);
+        TiledRenderState tiledState = new TiledRenderState(16);
         LayerStateSOA layerState = new LayerStateSOA(4);
         layerState.enabled[0] = true;
 
@@ -1543,7 +1543,7 @@ public class RenderTiledSyncSystemTest {
                 .edit().create(TiledLayerComponent.class);
         tiled.atlasTag = "main";
 
-        TiledMapLayerData map = new TiledMapLayerData(10, 10, 16, 16, 2);
+        TiledLayerData map = new TiledLayerData(10, 10, 16, 16, 2);
         map.setTile(0, 0, 1);
         map.setTile(9, 9, 2);
         tiled.data = map;
@@ -1555,7 +1555,7 @@ public class RenderTiledSyncSystemTest {
         OrthographicCamera camera = new OrthographicCamera(16f, 16f);
         camera.position.set(8f, 8f, 0f);
 
-        TiledMapRenderState tiledState = new TiledMapRenderState(16);
+        TiledRenderState tiledState = new TiledRenderState(16);
         LayerStateSOA layerState = new LayerStateSOA(4);
         layerState.enabled[0] = true;
 
@@ -1591,7 +1591,7 @@ public class RenderTiledSyncSystemTest {
                 .edit().create(TiledLayerComponent.class);
         tiled.atlasTag = "main";
 
-        TiledMapLayerData map = new TiledMapLayerData(4, 1, 16, 16, 4);
+        TiledLayerData map = new TiledLayerData(4, 1, 16, 16, 4);
         map.setTile(0, 0, 1);
         map.setTile(3, 0, 2);
         tiled.data = map;
@@ -1603,7 +1603,7 @@ public class RenderTiledSyncSystemTest {
         OrthographicCamera camera = new OrthographicCamera(16f, 16f);
         camera.position.set(8f, 8f, 0f);
 
-        TiledMapRenderState tiledState = new TiledMapRenderState(16);
+        TiledRenderState tiledState = new TiledRenderState(16);
         LayerStateSOA layerState = new LayerStateSOA(4);
         layerState.enabled[0] = true;
 
@@ -1637,7 +1637,7 @@ public class RenderTiledSyncSystemTest {
         TiledLayerComponent tiled = createTiledMapEntity(world, layer.layerIndex)
                 .edit().create(TiledLayerComponent.class);
         tiled.atlasTag = "main";
-        tiled.data = new TiledMapLayerData(2, 2, 16, 16, 2);
+        tiled.data = new TiledLayerData(2, 2, 16, 16, 2);
 
         return new Fixture(world, camera, tiledState, drawList, atlas, tiled.data, tiledSync, stats);
     }
@@ -1646,7 +1646,7 @@ public class RenderTiledSyncSystemTest {
         OrthographicCamera camera = new OrthographicCamera(32f, 32f);
         camera.position.set(16f, 16f, 0f);
 
-        TiledMapRenderState tiledState = new TiledMapRenderState(16);
+        TiledRenderState tiledState = new TiledRenderState(16);
         LayerStateSOA layerState = new LayerStateSOA(4);
         layerState.enabled[0] = true;
 
@@ -1679,7 +1679,7 @@ public class RenderTiledSyncSystemTest {
         TiledLayerComponent tiled = createTiledMapEntity(world, layer.layerIndex)
                 .edit().create(TiledLayerComponent.class);
         tiled.atlasTag = "main";
-        TiledMapLayerData map = new TiledMapLayerData(4, 4, 16, 16, 2,
+        TiledLayerData map = new TiledLayerData(4, 4, 16, 16, 2,
                 games.pixscape.runtime.tiled.TiledProjection.ISO);
         map.setTile(1, 1, 1);
         tiled.data = map;
@@ -1696,7 +1696,7 @@ public class RenderTiledSyncSystemTest {
         OrthographicCamera camera = new OrthographicCamera(viewportWidth, viewportHeight);
         camera.position.set(cameraX, cameraY, 0f);
 
-        TiledMapRenderState tiledState = new TiledMapRenderState(16);
+        TiledRenderState tiledState = new TiledRenderState(16);
         LayerStateSOA layerState = new LayerStateSOA(4);
         layerState.enabled[0] = true;
 
@@ -1730,7 +1730,7 @@ public class RenderTiledSyncSystemTest {
         TiledLayerComponent tiled = createTiledMapEntity(world, layer.layerIndex)
                 .edit().create(TiledLayerComponent.class);
         tiled.atlasTag = "main";
-        TiledMapLayerData map = new TiledMapLayerData(100, 100, 64, 32, 16,
+        TiledLayerData map = new TiledLayerData(100, 100, 64, 32, 16,
                 games.pixscape.runtime.tiled.TiledProjection.ISO);
         map.setTile(tileX, tileY, 1);
         tiled.data = map;
@@ -1778,7 +1778,7 @@ public class RenderTiledSyncSystemTest {
         OrthographicCamera camera = new OrthographicCamera(viewportWidth, viewportHeight);
         camera.position.set(cameraX, cameraY, 0f);
 
-        TiledMapRenderState tiledState = new TiledMapRenderState(16);
+        TiledRenderState tiledState = new TiledRenderState(16);
         LayerStateSOA layerState = new LayerStateSOA(4);
         layerState.enabled[0] = true;
 
@@ -1808,7 +1808,7 @@ public class RenderTiledSyncSystemTest {
                 .edit().create(TiledLayerComponent.class);
         tiled.atlasTag = "main";
 
-        TiledMapLayerData map = new TiledMapLayerData(1, 1, cellWidth, cellHeight, 1, projection);
+        TiledLayerData map = new TiledLayerData(1, 1, cellWidth, cellHeight, 1, projection);
         map.originX = 100f;
         map.originY = 200f;
         map.setTile(0, 0, tileId, transformFlags);
@@ -1817,7 +1817,7 @@ public class RenderTiledSyncSystemTest {
         return new Fixture(world, camera, tiledState, drawList, atlas, map, tiledSync, stats);
     }
 
-    private static TileChunk findChunk(TiledMapLayerData map, int cx, int cy) {
+    private static TileChunk findChunk(TiledLayerData map, int cx, int cy) {
         IntMap.Values<TileChunk> values = map.getChunks();
         while (values.hasNext()) {
             TileChunk chunk = values.next();
@@ -1873,7 +1873,7 @@ public class RenderTiledSyncSystemTest {
         return profiles;
     }
 
-    private static float[] expectedProfileQuad(TiledMapLayerData map,
+    private static float[] expectedProfileQuad(TiledLayerData map,
                                                RuntimeTilesetProfile profile,
                                                int spriteWidth,
                                                int spriteHeight) {
@@ -1891,7 +1891,7 @@ public class RenderTiledSyncSystemTest {
         return expected;
     }
 
-    private static int refFor(TiledMapLayerData map, int gx, int gy) {
+    private static int refFor(TiledLayerData map, int gx, int gy) {
         int ref = map.tiledRenderRefForTile(gx, gy);
         Assert.assertTrue("tile should have a render ref", ref >= 0);
         return ref;
@@ -1912,7 +1912,7 @@ public class RenderTiledSyncSystemTest {
         return mapEntity;
     }
 
-    private static boolean containsVisibleRef(TiledMapRenderState state, int ref) {
+    private static boolean containsVisibleRef(TiledRenderState state, int ref) {
         int[] refs = state.getVisibleRefs();
         for (int i = 0; i < state.getVisibleRefCount(); i++) {
             if (refs[i] == ref) return true;
@@ -1920,7 +1920,7 @@ public class RenderTiledSyncSystemTest {
         return false;
     }
 
-    private static void assertRefQuad(TiledMapRenderState state, int ref, float[] expected) {
+    private static void assertRefQuad(TiledRenderState state, int ref, float[] expected) {
         Assert.assertTrue("ref should be enabled", state.enabled[ref]);
         Assert.assertTrue("ref should be visible", state.visible[ref]);
         Assert.assertEquals(expected[0], state.x1[ref], 0.0001f);
@@ -1933,7 +1933,7 @@ public class RenderTiledSyncSystemTest {
         Assert.assertEquals(expected[7], state.y4[ref], 0.0001f);
     }
 
-    private static void assertVisualPadding(TiledMapLayerData map,
+    private static void assertVisualPadding(TiledLayerData map,
                                             float left,
                                             float right,
                                             float top,
@@ -1957,7 +1957,7 @@ public class RenderTiledSyncSystemTest {
         OrthographicCamera camera = new OrthographicCamera(32f, 32f);
         camera.position.set(cameraX, cameraY, 0f);
 
-        TiledMapRenderState tiledState = new TiledMapRenderState(16);
+        TiledRenderState tiledState = new TiledRenderState(16);
         FrameRenderQueue frameQueue = new FrameRenderQueue(16);
         LayerStateSOA layerState = new LayerStateSOA(4);
         layerState.enabled[0] = true;
@@ -1993,13 +1993,13 @@ public class RenderTiledSyncSystemTest {
                 )
                 .build());
 
-        TiledMapLayerData firstMap = addParallaxMap(world, 0, originX, originY, projection);
+        TiledLayerData firstMap = addParallaxMap(world, 0, originX, originY, projection);
         return new ParallaxFixture(
                 world, camera, tiledState, drawList, frameQueue, layerState,
                 displayOffsetResolver, firstMap);
     }
 
-    private static TiledMapLayerData addParallaxMap(World world,
+    private static TiledLayerData addParallaxMap(World world,
                                                     int layerIndex,
                                                     float originX,
                                                     float originY,
@@ -2007,7 +2007,7 @@ public class RenderTiledSyncSystemTest {
         TiledLayerComponent tiled = createTiledMapEntity(world, layerIndex)
                 .edit().create(TiledLayerComponent.class);
         tiled.atlasTag = "main";
-        TiledMapLayerData map = new TiledMapLayerData(1, 1, 16, 16, 1, projection);
+        TiledLayerData map = new TiledLayerData(1, 1, 16, 16, 1, projection);
         map.originX = originX;
         map.originY = originY;
         map.setTile(0, 0, 1);
@@ -2022,19 +2022,19 @@ public class RenderTiledSyncSystemTest {
     private static final class Fixture {
         final World world;
         final OrthographicCamera camera;
-        final TiledMapRenderState tiledState;
+        final TiledRenderState tiledState;
         final DrawList drawList;
         final CountingAtlasRuntimeService atlas;
-        final TiledMapLayerData map;
+        final TiledLayerData map;
         final RenderTiledSyncSystem tiledSync;
         final RenderStats stats;
 
         Fixture(World world,
                 OrthographicCamera camera,
-                TiledMapRenderState tiledState,
+                TiledRenderState tiledState,
                 DrawList drawList,
                 CountingAtlasRuntimeService atlas,
-                TiledMapLayerData map,
+                TiledLayerData map,
                 RenderTiledSyncSystem tiledSync,
                 RenderStats stats) {
             this.world = world;
@@ -2051,21 +2051,21 @@ public class RenderTiledSyncSystemTest {
     private static final class ParallaxFixture {
         final World world;
         final OrthographicCamera camera;
-        final TiledMapRenderState tiledState;
+        final TiledRenderState tiledState;
         final DrawList drawList;
         final FrameRenderQueue frameQueue;
         final LayerStateSOA layerState;
         final LayerDisplayOffsetResolver displayOffsetResolver;
-        final TiledMapLayerData firstMap;
+        final TiledLayerData firstMap;
 
         private ParallaxFixture(World world,
                                 OrthographicCamera camera,
-                                TiledMapRenderState tiledState,
+                                TiledRenderState tiledState,
                                 DrawList drawList,
                                 FrameRenderQueue frameQueue,
                                 LayerStateSOA layerState,
                                 LayerDisplayOffsetResolver displayOffsetResolver,
-                                TiledMapLayerData firstMap) {
+                                TiledLayerData firstMap) {
             this.world = world;
             this.camera = camera;
             this.tiledState = tiledState;

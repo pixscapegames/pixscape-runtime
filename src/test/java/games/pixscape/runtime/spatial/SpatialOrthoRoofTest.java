@@ -2,8 +2,8 @@ package games.pixscape.runtime.spatial;
 
 import games.pixscape.runtime.component.spatial.SpatialBlocksComponent;
 import games.pixscape.runtime.render.DynamicEntityRenderState;
-import games.pixscape.runtime.render.TiledMapRenderState;
-import games.pixscape.runtime.tiled.TiledMapLayerData;
+import games.pixscape.runtime.render.TiledRenderState;
+import games.pixscape.runtime.tiled.TiledLayerData;
 import games.pixscape.runtime.tiled.TiledProjection;
 import org.junit.Test;
 
@@ -185,7 +185,7 @@ public class SpatialOrthoRoofTest {
     }
 
     static final class Fixture {
-        final TiledMapLayerData map = new TiledMapLayerData(12, 12, 16, 16, 4, TiledProjection.ORTHO);
+        final TiledLayerData map = new TiledLayerData(12, 12, 16, 16, 4, TiledProjection.ORTHO);
         final SpatialBlocksComponent blocks = new SpatialBlocksComponent();
         final SpatialBlockData wall = new SpatialBlockData();
         final SpatialCompiledLayerCache compiled = new SpatialCompiledLayerCache();
@@ -193,7 +193,7 @@ public class SpatialOrthoRoofTest {
         final SpatialTileOrderCache order = new SpatialTileOrderCache();
         final SpatialActorCollector actor = new SpatialActorCollector();
         final DynamicEntityRenderState ecs = new DynamicEntityRenderState(4);
-        final TiledMapRenderState tiles = new TiledMapRenderState(32);
+        final TiledRenderState tiles = new TiledRenderState(32);
         final SpatialFaceRelationSolver solver = new SpatialFaceRelationSolver();
         final SpatialVisualAnchorSelector selector = new SpatialVisualAnchorSelector();
 

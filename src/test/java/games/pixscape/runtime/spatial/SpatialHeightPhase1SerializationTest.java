@@ -12,7 +12,7 @@ import games.pixscape.runtime.component.spatial.SpatialHeightComponent;
 import games.pixscape.runtime.component.spatial.SpatialShapesComponent;
 import games.pixscape.runtime.system.DirtyTrackerSystem;
 import games.pixscape.runtime.tiled.TileChunk;
-import games.pixscape.runtime.tiled.TiledMapLayerData;
+import games.pixscape.runtime.tiled.TiledLayerData;
 import org.junit.Assert;
 import org.junit.BeforeClass;
 import org.junit.Test;
@@ -109,7 +109,7 @@ public class SpatialHeightPhase1SerializationTest {
 
     @Test
     public void tiledCellsWithoutSpatialArraysDefaultToZero() {
-        TiledMapLayerData map = new TiledMapLayerData(2, 2, 16, 16, 2);
+        TiledLayerData map = new TiledLayerData(2, 2, 16, 16, 2);
         map.setTile(0, 0, 1);
 
         TileChunk chunk = map.getChunk(0, 0);
@@ -148,7 +148,7 @@ public class SpatialHeightPhase1SerializationTest {
         Assert.assertEquals(5, loadedTiled.sparseTileSpatialFlags(0));
         Assert.assertTrue(loadedTiled.hasSparseSpatialOverride(0));
 
-        TiledMapLayerData map = new TiledMapLayerData(4, 4, 16, 16, 2);
+        TiledLayerData map = new TiledLayerData(4, 4, 16, 16, 2);
         map.setTile(1, 2, loadedTiled.tileAssetIds.get(0), loadedTiled.tileTransformFlags.get(0));
         map.setTileSpatial(1, 2,
                 loadedTiled.sparseTileAltitude(0),
@@ -198,7 +198,7 @@ public class SpatialHeightPhase1SerializationTest {
 
         Assert.assertTrue(tiled.hasSparseSpatialOverride(0));
 
-        TiledMapLayerData map = new TiledMapLayerData(4, 4, 16, 16, 2);
+        TiledLayerData map = new TiledLayerData(4, 4, 16, 16, 2);
         map.defaultTileHeight = 12f;
         map.setTile(1, 2, tiled.tileAssetIds.get(0), tiled.tileTransformFlags.get(0));
         if (tiled.hasSparseSpatialOverride(0)) {

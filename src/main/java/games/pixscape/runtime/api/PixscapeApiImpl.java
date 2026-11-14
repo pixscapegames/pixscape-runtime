@@ -36,7 +36,7 @@ import games.pixscape.runtime.spatial.SpatialProjectedFaceCache;
 import games.pixscape.runtime.system.*;
 import games.pixscape.runtime.tiled.TileChunk;
 import games.pixscape.runtime.tiled.TileTransformFlags;
-import games.pixscape.runtime.tiled.TiledMapLayerData;
+import games.pixscape.runtime.tiled.TiledLayerData;
 import games.pixscape.runtime.tiled.TiledProjection;
 import games.pixscape.runtime.tiled.animation.TileAnimationDef;
 import games.pixscape.runtime.tiled.animation.TileAnimationPlayback;
@@ -3523,28 +3523,30 @@ public final class PixscapeApiImpl implements PixscapeAPI {
         }
 
         @Override
-        public TiledMapRef ofEntityId(int entityId) {
-            return new TiledMapRefImpl(engine, ecs, entityReferences.capture(entityId));
+        public TiledLayerRef ofEntityId(int entityId) {
+            return new TiledLayerRefImpl(engine, ecs, entityReferences.capture(entityId));
         }
 
         @Override
-        public TiledMapRef ofStableId(int stableId) {
+        public TiledLayerRef ofStableId(int stableId) {
             return ofEntityId(entities.entityIdOf(stableId));
         }
 
         @Override
-        public TiledMapRef requireEntityId(int entityId) {
-            TiledMapRef ref = ofEntityId(entityId);
-            if (!ref.exists())
-                throw new IllegalStateException("Tiled Map entity does not exist for entityId=" + entityId);
+        public TiledLayerRef requireEntityId(int entityId) {
+            TiledLayerRef ref = ofEntityId(entityId);
+            if (!ref.exists()) {
+                throw new IllegalStateException("Tile layer entity does not exist for entityId=" + entityId);
+            }
             return ref;
         }
 
         @Override
-        public TiledMapRef requireStableId(int stableId) {
-            TiledMapRef ref = ofStableId(stableId);
-            if (!ref.exists())
-                throw new IllegalStateException("Tiled Map entity does not exist for stableId=" + stableId);
+        public TiledLayerRef requireStableId(int stableId) {
+            TiledLayerRef ref = ofStableId(stableId);
+            if (!ref.exists()) {
+                throw new IllegalStateException("Tile layer entity does not exist for stableId=" + stableId);
+            }
             return ref;
         }
 
@@ -3554,20 +3556,20 @@ public final class PixscapeApiImpl implements PixscapeAPI {
         }
     }
 
-    static final class TiledMapRefImpl implements TiledMapRef {
+    static final class TiledLayerRefImpl implements TiledLayerRef {
         private final PixscapeEngine engine;
         private final ECSAPI ecs;
         private final EntityHandle handle;
-        private final TiledMapFacade map;
+        private final TiledLayerFacade layer;
         private final TileEditFacade tiles;
         private final TiledSpatialFacade spatial;
         private final TileAnimationControlFacade tileAnimations;
 
-        TiledMapRefImpl(PixscapeEngine engine, ECSAPI ecs, EntityHandle handle) {
+        TiledLayerRefImpl(PixscapeEngine engine, ECSAPI ecs, EntityHandle handle) {
             this.engine = engine;
             this.ecs = ecs;
             this.handle = handle;
-            this.map = new TiledMapFacadeImpl(engine, handle);
+            this.layer = new TiledLayerFacadeImpl(engine, handle);
             this.tiles = new TileEditFacadeImpl(engine, handle);
             this.spatial = new TiledSpatialFacadeImpl(handle);
             this.tileAnimations = new TileAnimationControlFacadeImpl(engine, handle);
@@ -3595,8 +3597,8 @@ public final class PixscapeApiImpl implements PixscapeAPI {
         }
 
         @Override
-        public TiledMapFacade map() {
-            return map;
+        public TiledLayerFacade layer() {
+            return layer;
         }
 
         @Override
@@ -3615,60 +3617,60 @@ public final class PixscapeApiImpl implements PixscapeAPI {
         }
     }
 
-    static final class TiledMapFacadeImpl implements TiledMapFacade {
+    static final class TiledLayerFacadeImpl implements TiledLayerFacade {
         private final PixscapeEngine engine;
         private final EntityHandle handle;
 
-        TiledMapFacadeImpl(PixscapeEngine engine, EntityHandle handle) {
+        TiledLayerFacadeImpl(PixscapeEngine engine, EntityHandle handle) {
             this.engine = engine;
             this.handle = handle;
         }
 
         @Override
         public int width() {
-            TiledMapLayerData d = data();
+            TiledLayerData d = data();
             return d != null ? d.mapWidth : 0;
         }
 
         @Override
         public int height() {
-            TiledMapLayerData d = data();
+            TiledLayerData d = data();
             return d != null ? d.mapHeight : 0;
         }
 
         @Override
         public int tileWidth() {
-            TiledMapLayerData d = data();
+            TiledLayerData d = data();
             return d != null ? d.tileWidth : 0;
         }
 
         @Override
         public int tileHeight() {
-            TiledMapLayerData d = data();
+            TiledLayerData d = data();
             return d != null ? d.tileHeight : 0;
         }
 
         @Override
         public int chunkSize() {
-            TiledMapLayerData d = data();
+            TiledLayerData d = data();
             return d != null ? d.chunkSize : 0;
         }
 
         @Override
         public int chunksX() {
-            TiledMapLayerData d = data();
+            TiledLayerData d = data();
             return d != null ? d.getChunksX() : 0;
         }
 
         @Override
         public int chunksY() {
-            TiledMapLayerData d = data();
+            TiledLayerData d = data();
             return d != null ? d.getChunksY() : 0;
         }
 
         @Override
         public boolean isInside(int x, int y) {
-            TiledMapLayerData d = data();
+            TiledLayerData d = data();
             return d != null && d.isInside(x, y);
         }
 
@@ -3679,7 +3681,7 @@ public final class PixscapeApiImpl implements PixscapeAPI {
         }
 
         @Override
-        public TiledMapFacade setAtlasTag(String atlasTag) {
+        public TiledLayerFacade setAtlasTag(String atlasTag) {
             TiledLayerComponent c = comp();
             if (c == null) return this;
             String normalized = isBlank(atlasTag) ? "main" : atlasTag;
@@ -3694,25 +3696,25 @@ public final class PixscapeApiImpl implements PixscapeAPI {
 
         @Override
         public TiledProjection projection() {
-            TiledMapLayerData d = data();
+            TiledLayerData d = data();
             return d != null ? d.projection : null;
         }
 
         @Override
-        public TiledMapFacade setVisible(boolean visible) {
-            TiledMapLayerData d = data();
+        public TiledLayerFacade setVisible(boolean visible) {
+            TiledLayerData d = data();
             if (d != null) d.visible = visible;
             return this;
         }
 
         @Override
-        public TiledMapFacade setCollisionEnabled(boolean enabled) {
-            TiledMapLayerData d = data();
+        public TiledLayerFacade setCollisionEnabled(boolean enabled) {
+            TiledLayerData d = data();
             if (d == null) return this;
             SceneMetaRuntime scene = engine.getActiveSceneMeta();
             if (enabled && scene != null && !scene.physicsEnabled) {
                 throw new IllegalStateException(
-                        "Cannot enable Tiled map collisions while scene physics is disabled.");
+                        "Cannot enable tile layer collisions while scene physics is disabled.");
             }
             if (d.collisionEnabled != enabled) {
                 d.collisionEnabled = enabled;
@@ -3725,10 +3727,10 @@ public final class PixscapeApiImpl implements PixscapeAPI {
         }
 
         @Override
-        public TiledMapFacade setOrigin(float x, float y) {
-            TiledMapLayerData d = data();
+        public TiledLayerFacade setOrigin(float x, float y) {
+            TiledLayerData d = data();
             if (d == null) return this;
-            requireFinite("Tiled map origin", x, y);
+            requireFinite("Tile layer origin", x, y);
             TiledLayerComponent c = comp();
             if (d.originX != x || d.originY != y) {
                 d.originX = x;
@@ -3745,59 +3747,59 @@ public final class PixscapeApiImpl implements PixscapeAPI {
 
         @Override
         public int worldToTileX(float worldX) {
-            TiledMapLayerData d = data();
+            TiledLayerData d = data();
             return d != null ? d.worldToTileX(worldX) : 0;
         }
 
         @Override
         public int worldToTileY(float worldY) {
-            TiledMapLayerData d = data();
+            TiledLayerData d = data();
             return d != null ? d.worldToTileY(worldY) : 0;
         }
 
         @Override
         public int worldToTileX(float worldX, float worldY) {
-            TiledMapLayerData d = data();
+            TiledLayerData d = data();
             return d != null ? d.worldToTileX(worldX, worldY) : 0;
         }
 
         @Override
         public int worldToTileY(float worldX, float worldY) {
-            TiledMapLayerData d = data();
+            TiledLayerData d = data();
             return d != null ? d.worldToTileY(worldX, worldY) : 0;
         }
 
         @Override
         public float tileToWorldX(int gx) {
-            TiledMapLayerData d = data();
+            TiledLayerData d = data();
             return d != null ? d.tileToWorldX(gx) : 0f;
         }
 
         @Override
         public float tileToWorldY(int gy) {
-            TiledMapLayerData d = data();
+            TiledLayerData d = data();
             return d != null ? d.tileToWorldY(gy) : 0f;
         }
 
         @Override
         public float tileToWorldX(int gx, int gy) {
-            TiledMapLayerData d = data();
+            TiledLayerData d = data();
             return d != null ? d.tileToWorldX(gx, gy) : 0f;
         }
 
         @Override
         public float tileToWorldY(int gx, int gy) {
-            TiledMapLayerData d = data();
+            TiledLayerData d = data();
             return d != null ? d.tileToWorldY(gx, gy) : 0f;
         }
 
         @Override
-        public TiledMapFacade resize(int width, int height) {
-            TiledMapLayerData d = data();
+        public TiledLayerFacade resize(int width, int height) {
+            TiledLayerData d = data();
             if (d != null) {
                 if (width <= 0 || height <= 0) {
                     throw new IllegalArgumentException(
-                            "Tiled map dimensions must be > 0, got "
+                            "Tile layer dimensions must be > 0, got "
                                     + width + " x " + height + ".");
                 }
                 d.rebuildWithNewSize(width, height);
@@ -3817,7 +3819,7 @@ public final class PixscapeApiImpl implements PixscapeAPI {
             return world.getMapper(TiledLayerComponent.class).getSafe(handle.entityId, null);
         }
 
-        private TiledMapLayerData data() {
+        private TiledLayerData data() {
             TiledLayerComponent c = comp();
             return c != null ? c.data : null;
         }
@@ -3833,7 +3835,7 @@ public final class PixscapeApiImpl implements PixscapeAPI {
         @Override
         public boolean enabled() {
             TiledLayerComponent c = comp();
-            TiledMapLayerData d = c != null ? c.data : null;
+            TiledLayerData d = c != null ? c.data : null;
             return (c != null && c.spatialEnabled) || (d != null && d.spatialEnabled);
         }
 
@@ -3841,7 +3843,7 @@ public final class PixscapeApiImpl implements PixscapeAPI {
         public TiledSpatialFacade setEnabled(boolean enabled) {
             TiledLayerComponent c = comp();
             if (c != null) c.spatialEnabled = enabled;
-            TiledMapLayerData d = c != null ? c.data : null;
+            TiledLayerData d = c != null ? c.data : null;
             if (d != null) d.spatialEnabled = enabled;
             return this;
         }
@@ -3849,14 +3851,14 @@ public final class PixscapeApiImpl implements PixscapeAPI {
         @Override
         public float defaultAltitude() {
             TiledLayerComponent c = comp();
-            TiledMapLayerData d = c != null ? c.data : null;
+            TiledLayerData d = c != null ? c.data : null;
             return d != null ? d.defaultTileAltitude : (c != null ? c.defaultTileAltitude : 0f);
         }
 
         @Override
         public float defaultHeight() {
             TiledLayerComponent c = comp();
-            TiledMapLayerData d = c != null ? c.data : null;
+            TiledLayerData d = c != null ? c.data : null;
             return d != null ? d.defaultTileHeight : (c != null ? c.defaultTileHeight : 0f);
         }
 
@@ -3883,8 +3885,8 @@ public final class PixscapeApiImpl implements PixscapeAPI {
                 }
                 PhysicsCompiledFixturesComponent compiled = null;
                 PreparedPhysicsBodyCandidate physics = null;
-                TiledMapLayerData source = c.data;
-                TiledMapLayerData candidate = new TiledMapLayerData(source.mapWidth, source.mapHeight,
+                TiledLayerData source = c.data;
+                TiledLayerData candidate = new TiledLayerData(source.mapWidth, source.mapHeight,
                         source.tileWidth, source.tileHeight, source.chunkSize, source.projection);
                 candidate.originX = source.originX;
                 candidate.originY = source.originY;
@@ -3930,25 +3932,25 @@ public final class PixscapeApiImpl implements PixscapeAPI {
 
         @Override
         public boolean hasTileOverride(int x, int y) {
-            TiledMapLayerData d = data();
+            TiledLayerData d = data();
             return d != null && d.hasTileSpatialOverride(x, y);
         }
 
         @Override
         public float tileAltitude(int x, int y) {
-            TiledMapLayerData d = data();
+            TiledLayerData d = data();
             return d != null ? d.getTileAltitude(x, y) : 0f;
         }
 
         @Override
         public float tileHeight(int x, int y) {
-            TiledMapLayerData d = data();
+            TiledLayerData d = data();
             return d != null ? d.getTileHeight(x, y) : 0f;
         }
 
         @Override
         public TiledSpatialFacade setTileVolume(int x, int y, float altitude, float height) {
-            TiledMapLayerData d = data();
+            TiledLayerData d = data();
             if (d != null && d.isInside(x, y)) {
                 requireFinite("Tiled cell Spatial volume", altitude, height);
                 d.setTileSpatialOverride(x, y, altitude, Math.max(0f, height), 0);
@@ -3958,7 +3960,7 @@ public final class PixscapeApiImpl implements PixscapeAPI {
 
         @Override
         public TiledSpatialFacade clearTileOverride(int x, int y) {
-            TiledMapLayerData d = data();
+            TiledLayerData d = data();
             if (d != null) d.clearTileSpatialOverride(x, y);
             return this;
         }
@@ -3969,7 +3971,7 @@ public final class PixscapeApiImpl implements PixscapeAPI {
             return world.getMapper(TiledLayerComponent.class).getSafe(handle.entityId, null);
         }
 
-        private TiledMapLayerData data() {
+        private TiledLayerData data() {
             TiledLayerComponent c = comp();
             return c != null ? c.data : null;
         }
@@ -3986,7 +3988,7 @@ public final class PixscapeApiImpl implements PixscapeAPI {
 
         @Override
         public int get(int x, int y) {
-            TiledMapLayerData d = data();
+            TiledLayerData d = data();
             return d != null ? d.getTile(x, y) : 0;
         }
 
@@ -4000,7 +4002,7 @@ public final class PixscapeApiImpl implements PixscapeAPI {
 
         @Override
         public byte getFlags(int x, int y) {
-            TiledMapLayerData d = data();
+            TiledLayerData d = data();
             return d != null ? d.getTileTransformFlags(x, y) : TileTransformFlags.NONE;
         }
 
@@ -4077,19 +4079,19 @@ public final class PixscapeApiImpl implements PixscapeAPI {
 
         @Override
         public TileEditFacade markAllDirty() {
-            TiledMapLayerData d = data();
+            TiledLayerData d = data();
             if (d != null) d.markAllChunksContentDirty();
             return this;
         }
 
         private void mutateCell(int gx, int gy, int assetId, byte flags) {
-            TiledMapLayerData d = data();
+            TiledLayerData d = data();
             if (d == null || !d.isInside(gx, gy)) return;
             d.setTile(gx, gy, assetId, flags);
             syncCell(engine, d, gx, gy);
         }
 
-        static void syncAllChunkAnimations(PixscapeEngine engine, TiledMapLayerData d) {
+        static void syncAllChunkAnimations(PixscapeEngine engine, TiledLayerData d) {
             if (d == null) return;
             for (IntMap.Values<TileChunk> it = d.getChunks(); it.hasNext(); ) {
                 TileChunk chunk = it.next();
@@ -4098,7 +4100,7 @@ public final class PixscapeApiImpl implements PixscapeAPI {
             d.markAllChunksContentDirty();
         }
 
-        static void syncCell(PixscapeEngine engine, TiledMapLayerData d, int gx, int gy) {
+        static void syncCell(PixscapeEngine engine, TiledLayerData d, int gx, int gy) {
             int cx = gx / d.chunkSize;
             int cy = gy / d.chunkSize;
             TileChunk chunk = d.getChunk(cx, cy);
@@ -4108,7 +4110,7 @@ public final class PixscapeApiImpl implements PixscapeAPI {
             TileAnimationStateSupport.syncWorldCell(chunk, lx, ly, engine.getAnimatedTileRegistry());
         }
 
-        private TiledMapLayerData data() {
+        private TiledLayerData data() {
             World w = handle.world();
             if (w == null) return null;
             ComponentMapper<TiledLayerComponent> mapper = w.getMapper(TiledLayerComponent.class);
@@ -4361,7 +4363,7 @@ public final class PixscapeApiImpl implements PixscapeAPI {
         }
 
         private boolean resolveCell(int x, int y) {
-            TiledMapLayerData d = data();
+            TiledLayerData d = data();
             if (d == null || !d.isInside(x, y)) return false;
             int cx = x / d.chunkSize;
             int cy = y / d.chunkSize;
@@ -4375,7 +4377,7 @@ public final class PixscapeApiImpl implements PixscapeAPI {
             return true;
         }
 
-        private TiledMapLayerData data() {
+        private TiledLayerData data() {
             World w = handle.world();
             if (w == null) return null;
             TiledLayerComponent c = w.getMapper(TiledLayerComponent.class)

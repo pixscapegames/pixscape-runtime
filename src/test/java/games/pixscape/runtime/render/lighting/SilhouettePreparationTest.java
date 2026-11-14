@@ -3,7 +3,7 @@ package games.pixscape.runtime.render.lighting;
 import games.pixscape.runtime.component.spatial.SpatialBlocksComponent;
 import games.pixscape.runtime.spatial.SpatialBlockData;
 import games.pixscape.runtime.tiled.TileChunk;
-import games.pixscape.runtime.tiled.TiledMapLayerData;
+import games.pixscape.runtime.tiled.TiledLayerData;
 import games.pixscape.runtime.tiled.TiledProjection;
 import org.junit.Test;
 
@@ -13,9 +13,9 @@ import static org.junit.Assert.*;
  * No GL: exercise the same detached native-image boundary as RenderTiledSyncSystem.
  */
 public class SilhouettePreparationTest {
-    private final TiledMapLayerData map = new TiledMapLayerData(8, 8, 64, 32, 4, TiledProjection.ISO);
+    private final TiledLayerData map = new TiledLayerData(8, 8, 64, 32, 4, TiledProjection.ISO);
     private final SpatialBlocksComponent blocks = new SpatialBlocksComponent();
-    private final MapLightingGeometry geometry = new MapLightingGeometry();
+    private final TiledLayerLightingGeometry geometry = new TiledLayerLightingGeometry();
     private final float[] quad = new float[8];
     private final SpatialBlockData block = new SpatialBlockData();
     private final Quads quads = new Quads();
@@ -35,11 +35,11 @@ public class SilhouettePreparationTest {
         blocks.blocks.add(block);
     }
 
-    private final class Quads implements MapLightingGeometry.NativeQuads {
+    private final class Quads implements TiledLayerLightingGeometry.NativeQuads {
         boolean available = true, required;
         int calls;
 
-        public boolean resolve(TiledMapLayerData m, TileChunk chunk, int cell, float[] out, boolean mustExist) {
+        public boolean resolve(TiledLayerData m, TileChunk chunk, int cell, float[] out, boolean mustExist) {
             calls++;
             required |= mustExist;
             System.arraycopy(quad, 0, out, 0, 8);
@@ -195,17 +195,17 @@ public class SilhouettePreparationTest {
         final float[] taller = quad.clone();
         taller[3] += 10;
         taller[5] += 10;
-        MapLightingGeometry.NativeQuads animation = new MapLightingGeometry.NativeQuads() {
+        TiledLayerLightingGeometry.NativeQuads animation = new TiledLayerLightingGeometry.NativeQuads() {
             public int frameCount(int asset) {
                 return 2;
             }
 
-            public boolean resolveFrame(TiledMapLayerData m, TileChunk c, int cell, int frame, float[] out) {
+            public boolean resolveFrame(TiledLayerData m, TileChunk c, int cell, int frame, float[] out) {
                 System.arraycopy(frame == 0 ? quad : taller, 0, out, 0, 8);
                 return true;
             }
 
-            public boolean resolve(TiledMapLayerData m, TileChunk c, int cell, float[] out, boolean required) {
+            public boolean resolve(TiledLayerData m, TileChunk c, int cell, float[] out, boolean required) {
                 System.arraycopy(quad, 0, out, 0, 8);
                 return true;
             }

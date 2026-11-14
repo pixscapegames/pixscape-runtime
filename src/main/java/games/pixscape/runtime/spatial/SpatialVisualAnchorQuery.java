@@ -1,8 +1,8 @@
 package games.pixscape.runtime.spatial;
 
 import games.pixscape.runtime.render.DynamicEntityRenderState;
-import games.pixscape.runtime.render.TiledMapRenderState;
-import games.pixscape.runtime.tiled.TiledMapLayerData;
+import games.pixscape.runtime.render.TiledRenderState;
+import games.pixscape.runtime.tiled.TiledLayerData;
 
 /** Shared window conversion and exact quad admission for both anchor search paths. */
 final class SpatialVisualAnchorQuery {
@@ -13,7 +13,7 @@ final class SpatialVisualAnchorQuery {
     }
 
     static boolean window(int actor, SpatialActorCollector actors, DynamicEntityRenderState ecs,
-                          TiledMapLayerData map, float mapOffsetX, float mapOffsetY, Workspace w) {
+                          TiledLayerData map, float mapOffsetX, float mapOffsetY, Workspace w) {
         int slot = actors.actorSlot[actor];
         float offsetX = ecs.offsetX[slot];
         float offsetY = ecs.offsetY[slot];
@@ -58,7 +58,7 @@ final class SpatialVisualAnchorQuery {
         return true;
     }
 
-    static boolean accept(int anchor, SpatialProjectedFaceCache faces, TiledMapRenderState tiled,
+    static boolean accept(int anchor, SpatialProjectedFaceCache faces, TiledRenderState tiled,
                           float mapOffsetX, float mapOffsetY, Workspace w) {
         if (!faces.anchorResolved[anchor]) {
             return false;

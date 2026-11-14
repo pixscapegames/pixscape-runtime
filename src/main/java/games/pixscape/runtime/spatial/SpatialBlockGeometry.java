@@ -1,6 +1,6 @@
 package games.pixscape.runtime.spatial;
 
-import games.pixscape.runtime.tiled.TiledMapLayerData;
+import games.pixscape.runtime.tiled.TiledLayerData;
 import games.pixscape.runtime.tiled.TiledProjection;
 
 public final class SpatialBlockGeometry {
@@ -24,7 +24,7 @@ public final class SpatialBlockGeometry {
     }
 
     public static boolean writeTileCellFootprint(SpatialBlockData block,
-                                                 TiledMapLayerData map,
+                                                 TiledLayerData map,
                                                  float[] out8) {
         if (block == null || map == null || out8 == null || out8.length < 8) return false;
 
@@ -46,12 +46,12 @@ public final class SpatialBlockGeometry {
         return true;
     }
 
-    private static float cellOriginOffsetX(TiledMapLayerData map) {
+    private static float cellOriginOffsetX(TiledLayerData map) {
         if (map == null || map.projection != TiledProjection.ISO) return 0f;
         return map.tileWidth * 0.5f;
     }
 
-    private static float cellOriginOffsetY(TiledMapLayerData map) {
+    private static float cellOriginOffsetY(TiledLayerData map) {
         return 0f;
     }
 

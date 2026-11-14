@@ -1,7 +1,7 @@
 package games.pixscape.runtime.render;
 
 import games.pixscape.runtime.tiled.TileChunk;
-import games.pixscape.runtime.tiled.TiledMapLayerData;
+import games.pixscape.runtime.tiled.TiledLayerData;
 import org.junit.Assert;
 import org.junit.Test;
 
@@ -11,9 +11,9 @@ import java.util.Random;
 public class TiledRenderOrderTest {
     @Test
     public void filteringMatchesStableUnsignedSortIncludingEqualKeysAcrossChunks() {
-        TiledMapRenderState state = new TiledMapRenderState(128);
-        TiledMapLayerData map = map(state);
-        TiledRenderOrder order = state.prepareOrderForMap(7, map);
+        TiledRenderState state = new TiledRenderState(128);
+        TiledLayerData map = map(state);
+        TiledRenderOrder order = state.prepareOrderForLayer(7, map);
         Random random = new Random(371193);
         for (int ref = 0; ref < state.getRefCount(); ref++) {
             state.sortKey[ref] = random.nextInt(5) | (random.nextBoolean() ? Long.MIN_VALUE : 0);
@@ -44,9 +44,9 @@ public class TiledRenderOrderTest {
 
     @Test
     public void mapsHaveIndependentRanksAndReplacementReleasesTheOldOwner() {
-        TiledMapRenderState state = new TiledMapRenderState(8);
-        TiledMapLayerData first = map(state), second = map(state);
-        TiledRenderOrder a = state.prepareOrderForMap(1, first), b = state.prepareOrderForMap(2, second);
+        TiledRenderState state = new TiledRenderState(8);
+        TiledLayerData first = map(state), second = map(state);
+        TiledRenderOrder a = state.prepareOrderForLayer(1, first), b = state.prepareOrderForLayer(2, second);
         a.prepare(state);
         b.prepare(state);
         int[] refs = {second.getChunk(0, 0).renderRefStartIndex + 3, second.getChunk(0, 0).renderRefStartIndex};
@@ -58,11 +58,11 @@ public class TiledRenderOrderTest {
         Assert.assertEquals(second.getChunk(0, 0).renderRefStartIndex + 3, refs[0]);
         Assert.assertEquals(1, a.preparationCount());
         Assert.assertEquals(2, b.preparationCount());
-        Assert.assertNotSame(a, state.prepareOrderForMap(1, second));
-        state.removeOrderForMap(2);
-        Assert.assertNull(state.orderForMap(2));
+        Assert.assertNotSame(a, state.prepareOrderForLayer(1, second));
+        state.removeOrderForLayer(2);
+        Assert.assertNull(state.orderForLayer(2));
         state.setCapacity(8);
-        Assert.assertNull(state.orderForMap(1));
+        Assert.assertNull(state.orderForLayer(1));
     }
 
     @Test
@@ -71,8 +71,8 @@ public class TiledRenderOrderTest {
         org.junit.Assume.assumeTrue(base instanceof com.sun.management.ThreadMXBean);
         com.sun.management.ThreadMXBean bean = (com.sun.management.ThreadMXBean) base;
         bean.setThreadAllocatedMemoryEnabled(true);
-        TiledMapRenderState state = new TiledMapRenderState(128);
-        TiledRenderOrder order = state.prepareOrderForMap(7, map(state));
+        TiledRenderState state = new TiledRenderState(128);
+        TiledRenderOrder order = state.prepareOrderForLayer(7, map(state));
         order.prepare(state);
         int[] refs = new int[64];
         for (int warm = 0; warm < 10000; warm++) filterAll(order, state, refs);
@@ -83,8 +83,8 @@ public class TiledRenderOrderTest {
 
     @Test
     public void externalPublicationInvalidatesPreparedKeysAndRawGroupsKeepTheirOwnTieOrder() {
-        TiledMapRenderState state = new TiledMapRenderState(128);
-        TiledRenderOrder order = state.prepareOrderForMap(7, map(state));
+        TiledRenderState state = new TiledRenderState(128);
+        TiledRenderOrder order = state.prepareOrderForLayer(7, map(state));
         order.prepare(state);
         Assert.assertTrue(order.isPrepared());
         state.setRenderDataForRef(0, 1, 0, 1, 0, 0, 0, Long.MAX_VALUE,
@@ -94,15 +94,15 @@ public class TiledRenderOrderTest {
         Assert.assertTrue(order.isPrepared());
         state.addVisibleRef(3);
         state.addVisibleRef(0);
-        state.addVisibleMap(7, 0, 0, 0, 0, 2);
+        state.addVisibleTileLayer(7, 0, 0, 0, 0, 2);
         Assert.assertFalse(order.isPrepared());
-        Assert.assertNull(state.visibleMapPreparedOrder(0));
-        state.removeOrderForMap(7);
+        Assert.assertNull(state.visibleTileLayerPreparedOrder(0));
+        state.removeOrderForLayer(7);
         Assert.assertNull(state.preparedOrderOwner[0]);
         Assert.assertNull(state.preparedOrderOwner[3]);
     }
 
-    private static void filterAll(TiledRenderOrder order, TiledMapRenderState state, int[] refs) {
+    private static void filterAll(TiledRenderOrder order, TiledRenderState state, int[] refs) {
         for (int i = 0; i < refs.length; i++) refs[i] = i;
         order.prepare(state);
         order.filterVisible(state, refs, 0, refs.length);
@@ -110,18 +110,18 @@ public class TiledRenderOrderTest {
 
     @Test
     public void standalonePublisherCanAddPreviouslyUnpreparedRefs() {
-        TiledMapRenderState state = new TiledMapRenderState(128);
-        TiledMapLayerData map = map(state);
+        TiledRenderState state = new TiledRenderState(128);
+        TiledLayerData map = map(state);
         TileChunk chunk = map.getChunk(0, 0);
         chunk.setRenderableLocalIndex(0, false);
-        TiledRenderOrder order = state.prepareOrderForMap(7, map);
+        TiledRenderOrder order = state.prepareOrderForLayer(7, map);
         order.prepare(state);
         Assert.assertNull(state.preparedOrderOwner[0]);
         state.setRenderDataForRef(0, 1, 0, 1, 0, 0, 0, 99,
                 0, 0, 1, 0, 1, 1, 0, 1, 0, 0, 1, 1, 1, 1, (byte) 0);
         chunk.setRenderableLocalIndex(0, true);
         state.addVisibleRef(0);
-        state.addVisibleMap(7, 0, 0, 0, 0, 1);
+        state.addVisibleTileLayer(7, 0, 0, 0, 0, 1);
         Assert.assertFalse(order.isPrepared());
         order.prepare(state);
         int[] refs = {0, 3};
@@ -130,8 +130,8 @@ public class TiledRenderOrderTest {
         Assert.assertEquals(64, order.refCount());
     }
 
-    private static TiledMapLayerData map(TiledMapRenderState state) {
-        TiledMapLayerData map = new TiledMapLayerData(8, 8, 16, 16, 2);
+    private static TiledLayerData map(TiledRenderState state) {
+        TiledLayerData map = new TiledLayerData(8, 8, 16, 16, 2);
         for (int cy = 0; cy < map.getChunksY(); cy++)
             for (int cx = 0; cx < map.getChunksX(); cx++) {
                 TileChunk chunk = map.getChunk(cx, cy);

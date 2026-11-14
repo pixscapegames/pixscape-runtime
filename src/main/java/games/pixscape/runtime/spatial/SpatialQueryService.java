@@ -5,7 +5,7 @@ import com.badlogic.gdx.utils.Array;
 import com.badlogic.gdx.utils.IntArray;
 import games.pixscape.runtime.component.TransformComponent;
 import games.pixscape.runtime.component.spatial.SpatialShapesComponent;
-import games.pixscape.runtime.tiled.TiledMapLayerData;
+import games.pixscape.runtime.tiled.TiledLayerData;
 
 /**
  * {@code SUPPORTED_EXPERT} geometry and relation queries over caller-supplied Spatial data.
@@ -72,11 +72,11 @@ public final class SpatialQueryService {
         return out.set(transform.x, transform.y, altitude, (rectangle == null ? 0f : rectangle.height), minX, minY, maxX, maxY);
     }
 
-    public SpatialVolume buildTiledCellVolume(TiledMapLayerData map, int gx, int gy) {
+    public SpatialVolume buildTiledCellVolume(TiledLayerData map, int gx, int gy) {
         return buildTiledCellVolume(map, gx, gy, new SpatialVolume());
     }
 
-    public SpatialVolume buildTiledCellVolume(TiledMapLayerData map, int gx, int gy, SpatialVolume out) {
+    public SpatialVolume buildTiledCellVolume(TiledLayerData map, int gx, int gy, SpatialVolume out) {
         if (out == null) out = new SpatialVolume();
         if (map == null || !map.isInside(gx, gy)) {
             return out.set(0f, 0f, 0f, 0f, 0f, 0f, 0f, 0f);
@@ -110,7 +110,7 @@ public final class SpatialQueryService {
         );
     }
 
-    public int getTileSpatialFlags(TiledMapLayerData map, int gx, int gy) {
+    public int getTileSpatialFlags(TiledLayerData map, int gx, int gy) {
         return map != null ? map.getTileSpatialFlags(gx, gy) : 0;
     }
 

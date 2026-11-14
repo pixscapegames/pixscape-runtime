@@ -73,10 +73,10 @@ public final class TileChunk {
      * Avoids duplicates in animatedLocalIndices.
      */
     private transient boolean[] animatedMembership;
-    private transient TiledMapLayerData animationOwner;
+    private transient TiledLayerData animationOwner;
     transient int animatedChunkIndex = -1;
 
-    void bindAnimationOwner(TiledMapLayerData owner) {
+    void bindAnimationOwner(TiledLayerData owner) {
         animationOwner = owner;
         animatedChunkIndex = -1;
         animationMembershipChanged();

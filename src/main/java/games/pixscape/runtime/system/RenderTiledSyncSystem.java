@@ -23,7 +23,7 @@ import games.pixscape.runtime.profiling.SystemProfiler;
 import games.pixscape.runtime.profiling.SystemProfilers;
 import games.pixscape.runtime.render.*;
 import games.pixscape.runtime.render.lighting.LightingAdmissionException;
-import games.pixscape.runtime.render.lighting.MapLightingGeometry;
+import games.pixscape.runtime.render.lighting.TiledLayerLightingGeometry;
 import games.pixscape.runtime.render.lighting.TileSurfaceDescription;
 import games.pixscape.runtime.service.AtlasAssetBinding;
 import games.pixscape.runtime.service.AtlasRegionMetadata;
@@ -34,7 +34,7 @@ import games.pixscape.runtime.spatial.SpatialTileOrderCache;
 import games.pixscape.runtime.spatial.SpatialTileSyncInvariantException;
 import games.pixscape.runtime.tiled.TileChunk;
 import games.pixscape.runtime.tiled.TileQuadTransforms;
-import games.pixscape.runtime.tiled.TiledMapLayerData;
+import games.pixscape.runtime.tiled.TiledLayerData;
 import games.pixscape.runtime.tiled.TiledProjection;
 import games.pixscape.runtime.tiled.animation.TileAnimationLookup;
 import games.pixscape.runtime.tiled.animation.TileAnimationResolver;
@@ -55,7 +55,7 @@ public final class RenderTiledSyncSystem extends IteratingSystem implements Prof
             currentTileOrder = null;
             currentMapEntity = -1;
         }
-        tiledState.removeOrderForMap(entityId);
+        tiledState.removeOrderForLayer(entityId);
         tiledState.lightingMaps.remove(entityId);
         tiledState.lightingRevision++;
     }
@@ -85,7 +85,7 @@ public final class RenderTiledSyncSystem extends IteratingSystem implements Prof
     }
 
     private final OrthographicCamera camera;
-    private final TiledMapRenderState tiledState;
+    private final TiledRenderState tiledState;
     private final AtlasRuntimeService atlasRuntimeService;
     private final int defaultShaderIdx;
     private final RuntimeTilesetProfiles tilesetProfiles;
@@ -96,8 +96,8 @@ public final class RenderTiledSyncSystem extends IteratingSystem implements Prof
     private int currentMapEntity = -1;
     private TileAnimationLookup tileAnimationLookup;
     private String lightingAtlasTag;
-    private final MapLightingGeometry.NativeQuads lightingQuads = new MapLightingGeometry.NativeQuads() {
-        public boolean resolve(TiledMapLayerData map, TileChunk chunk, int cell, float[] quad, boolean required) {
+    private final TiledLayerLightingGeometry.NativeQuads lightingQuads = new TiledLayerLightingGeometry.NativeQuads() {
+        public boolean resolve(TiledLayerData map, TileChunk chunk, int cell, float[] quad, boolean required) {
             return resolveLightingQuad(map, chunk, cell, chunk.getAnimFrameIndex(cell), quad, required);
         }
 
@@ -105,12 +105,12 @@ public final class RenderTiledSyncSystem extends IteratingSystem implements Prof
             return TileAnimationResolver.frameCount(assetId, tileAnimationLookup);
         }
 
-        public boolean resolveFrame(TiledMapLayerData map, TileChunk chunk, int cell, int frame, float[] quad) {
+        public boolean resolveFrame(TiledLayerData map, TileChunk chunk, int cell, int frame, float[] quad) {
             return resolveLightingQuad(map, chunk, cell, frame, quad, true);
         }
     };
 
-    private boolean resolveLightingQuad(TiledMapLayerData map, TileChunk chunk, int cell, int frame, float[] quad, boolean required) {
+    private boolean resolveLightingQuad(TiledLayerData map, TileChunk chunk, int cell, int frame, float[] quad, boolean required) {
         int asset = TileAnimationResolver.resolveVisualAssetId(chunk.assetIds[cell], frame, tileAnimationLookup);
         AtlasAssetBinding binding = atlasRuntimeService.resolveBinding(asset, lightingAtlasTag);
         RuntimeTilesetProfile profile = tilesetProfiles.profileForTileAsset(asset);
@@ -135,12 +135,12 @@ public final class RenderTiledSyncSystem extends IteratingSystem implements Prof
 
     public void validateLighting(TiledLayerComponent tiled, SpatialBlocksComponent blocks,
                                  com.badlogic.gdx.utils.Array<TileSurfaceDescription> descriptions) {
-        MapLightingGeometry candidate = new MapLightingGeometry();
+        TiledLayerLightingGeometry candidate = new TiledLayerLightingGeometry();
         candidate.descriptions(descriptions);
         ensureLighting(candidate, tiled, blocks);
     }
 
-    private boolean ensureLighting(MapLightingGeometry lighting, TiledLayerComponent tiled, SpatialBlocksComponent blocks) {
+    private boolean ensureLighting(TiledLayerLightingGeometry lighting, TiledLayerComponent tiled, SpatialBlocksComponent blocks) {
         lightingAtlasTag = tiled.atlasTag;
         return lighting.ensure(tiled.data, blocks, lightingQuads, tiled.atlasTag,
                 atlasRuntimeService.publicationRevision(tiled.atlasTag));
@@ -166,7 +166,7 @@ public final class RenderTiledSyncSystem extends IteratingSystem implements Prof
     private long profileStartNs;
 
     public RenderTiledSyncSystem(OrthographicCamera camera,
-                                 TiledMapRenderState tiledState,
+                                 TiledRenderState tiledState,
                                  AtlasRuntimeService atlasRuntimeService,
                                  int defaultShaderIdx) {
         this(
@@ -182,7 +182,7 @@ public final class RenderTiledSyncSystem extends IteratingSystem implements Prof
     }
 
     public RenderTiledSyncSystem(OrthographicCamera camera,
-                                 TiledMapRenderState tiledState,
+                                 TiledRenderState tiledState,
                                  AtlasRuntimeService atlasRuntimeService,
                                  int defaultShaderIdx,
                                  TileAnimationLookup tileAnimationLookup) {
@@ -199,7 +199,7 @@ public final class RenderTiledSyncSystem extends IteratingSystem implements Prof
     }
 
     public RenderTiledSyncSystem(OrthographicCamera camera,
-                                 TiledMapRenderState tiledState,
+                                 TiledRenderState tiledState,
                                  AtlasRuntimeService atlasRuntimeService,
                                  int defaultShaderIdx,
                                  TileAnimationLookup tileAnimationLookup,
@@ -209,7 +209,7 @@ public final class RenderTiledSyncSystem extends IteratingSystem implements Prof
     }
 
     public RenderTiledSyncSystem(OrthographicCamera camera,
-                                 TiledMapRenderState tiledState,
+                                 TiledRenderState tiledState,
                                  AtlasRuntimeService atlasRuntimeService,
                                  int defaultShaderIdx,
                                  TileAnimationLookup tileAnimationLookup,
@@ -220,7 +220,7 @@ public final class RenderTiledSyncSystem extends IteratingSystem implements Prof
     }
 
     public RenderTiledSyncSystem(OrthographicCamera camera,
-                                 TiledMapRenderState tiledState,
+                                 TiledRenderState tiledState,
                                  AtlasRuntimeService atlasRuntimeService,
                                  int defaultShaderIdx,
                                  TileAnimationLookup tileAnimationLookup,
@@ -260,7 +260,7 @@ public final class RenderTiledSyncSystem extends IteratingSystem implements Prof
         TiledLayerComponent tiled = mTiled.get(e);
         if (tiled == null || tiled.data == null) {
             spatialRuntimeRegistry.remove(e);
-            tiledState.removeOrderForMap(e);
+            tiledState.removeOrderForLayer(e);
             currentRenderOrder = null;
             currentFaces = null;
             currentTileOrder = null;
@@ -269,14 +269,14 @@ public final class RenderTiledSyncSystem extends IteratingSystem implements Prof
         }
         EntityIndexComponent index = mEntityIndex.get(e);
 
-        TiledMapLayerData map = tiled.data;
+        TiledLayerData map = tiled.data;
         spatialRuntimeRegistry.discardReplacedMap(e, map);
-        currentRenderOrder = tiledState.prepareOrderForMap(e, map);
-        games.pixscape.runtime.render.lighting.MapLightingGeometry lighting = tiledState.lightingMaps.get(e);
+        currentRenderOrder = tiledState.prepareOrderForLayer(e, map);
+        games.pixscape.runtime.render.lighting.TiledLayerLightingGeometry lighting = tiledState.lightingMaps.get(e);
         boolean lightingChanged = false;
         if (tiledState.lightingEnabled) {
             if (lighting == null) {
-                lighting = new games.pixscape.runtime.render.lighting.MapLightingGeometry();
+                lighting = new games.pixscape.runtime.render.lighting.TiledLayerLightingGeometry();
                 tiledState.lightingMaps.put(e, lighting);
             }
             lighting.descriptions(tiled.lightingDescriptions);
@@ -391,7 +391,7 @@ public final class RenderTiledSyncSystem extends IteratingSystem implements Prof
                     index.zIndex,
                     e
             );
-            tiledState.addPreparedVisibleMap(
+            tiledState.addPreparedVisibleTileLayer(
                     e,
                     index.layerIndex,
                     index.zIndex,
@@ -440,7 +440,7 @@ public final class RenderTiledSyncSystem extends IteratingSystem implements Prof
      * evaluating camera visibility or publishing a frame-local visible list.
      */
     public void invalidateLighting() {
-        for (MapLightingGeometry geometry : tiledState.lightingMaps.values()) geometry.invalidate();
+        for (TiledLayerLightingGeometry geometry : tiledState.lightingMaps.values()) geometry.invalidate();
     }
 
     public void prepareRuntimeAvailability() {
@@ -455,13 +455,13 @@ public final class RenderTiledSyncSystem extends IteratingSystem implements Prof
             TiledLayerComponent tiled = mTiled.get(entityId);
             if (index == null || tiled == null || tiled.data == null) continue;
 
-            TiledMapLayerData map = tiled.data;
-            currentRenderOrder = tiledState.prepareOrderForMap(entityId, map);
+            TiledLayerData map = tiled.data;
+            currentRenderOrder = tiledState.prepareOrderForLayer(entityId, map);
             currentMapEntity = entityId;
             if (tiledState.lightingEnabled) {
-                games.pixscape.runtime.render.lighting.MapLightingGeometry lighting = tiledState.lightingMaps.get(entityId);
+                games.pixscape.runtime.render.lighting.TiledLayerLightingGeometry lighting = tiledState.lightingMaps.get(entityId);
                 if (lighting == null) {
-                    lighting = new games.pixscape.runtime.render.lighting.MapLightingGeometry();
+                    lighting = new games.pixscape.runtime.render.lighting.TiledLayerLightingGeometry();
                     tiledState.lightingMaps.put(entityId, lighting);
                 }
                 lighting.descriptions(tiled.lightingDescriptions);
@@ -512,7 +512,7 @@ public final class RenderTiledSyncSystem extends IteratingSystem implements Prof
     }
 
     private void updatePartialChunk(TileChunk chunk,
-                                    TiledMapLayerData map,
+                                    TiledLayerData map,
                                     int entityId,
                                     String atlasTag) {
 
@@ -591,7 +591,7 @@ public final class RenderTiledSyncSystem extends IteratingSystem implements Prof
         );
     }
 
-    private void hideChunksOutsideCurrentWindow(TiledMapLayerData map,
+    private void hideChunksOutsideCurrentWindow(TiledLayerData map,
                                                 int currentMinCx,
                                                 int currentMaxCx,
                                                 int currentMinCy,
@@ -620,7 +620,7 @@ public final class RenderTiledSyncSystem extends IteratingSystem implements Prof
         }
     }
 
-    private void computeChunkWindow(TiledMapLayerData map, int[] outWindow) {
+    private void computeChunkWindow(TiledLayerData map, int[] outWindow) {
         int minTx = Integer.MAX_VALUE;
         int maxTx = Integer.MIN_VALUE;
         int minTy = Integer.MAX_VALUE;
@@ -693,7 +693,7 @@ public final class RenderTiledSyncSystem extends IteratingSystem implements Prof
         return value;
     }
 
-    private void refreshVisualPaddingIfDirty(TiledMapLayerData map, String atlasTag) {
+    private void refreshVisualPaddingIfDirty(TiledLayerData map, String atlasTag) {
         if (!map.visualBoundsDirty) return;
 
         map.updateAllChunkBounds();
@@ -764,7 +764,7 @@ public final class RenderTiledSyncSystem extends IteratingSystem implements Prof
     }
 
     private void hideChunkSlots(TileChunk chunk) {
-        // Visibility is frame-local through TiledMapRenderState.visibleRefs.
+        // Visibility is frame-local through TiledRenderState.visibleRefs.
         // Keep persistent ref render data intact so clean chunks can reappear
         // without a rebuild.
     }
@@ -894,7 +894,7 @@ public final class RenderTiledSyncSystem extends IteratingSystem implements Prof
     }
 
     private void rebuildChunk(TileChunk chunk,
-                              TiledMapLayerData map,
+                              TiledLayerData map,
                               int entityId,
                               String atlasTag) {
 
@@ -948,7 +948,7 @@ public final class RenderTiledSyncSystem extends IteratingSystem implements Prof
                                int gy,
                                int assetId,
                                byte transformFlags,
-                               TiledMapLayerData map,
+                               TiledLayerData map,
                                String atlasTag,
                                int layerIndex) {
 
@@ -1021,7 +1021,7 @@ public final class RenderTiledSyncSystem extends IteratingSystem implements Prof
         }
 
         // Admission must complete before publishing any quad, binding or renderable flag.
-        MapLightingGeometry lighting = tiledState.lightingEnabled ? tiledState.lightingMaps.get(currentMapEntity) : null;
+        TiledLayerLightingGeometry lighting = tiledState.lightingEnabled ? tiledState.lightingMaps.get(currentMapEntity) : null;
         games.pixscape.runtime.render.lighting.LightingSurface surface = lighting == null ? null
                 : lighting.receiver(map, gx, gy, assetId, transformFlags, tmpQuad);
         games.pixscape.runtime.service.NormalMapBinding normal = lighting == null ? null
@@ -1099,7 +1099,7 @@ public final class RenderTiledSyncSystem extends IteratingSystem implements Prof
         return Math.min(value, SortKey64.MAX_TIE);
     }
 
-    private void refreshTileKeys(TiledMapLayerData map, int layerIndex, SpatialTileOrderCache order) {
+    private void refreshTileKeys(TiledLayerData map, int layerIndex, SpatialTileOrderCache order) {
         for (com.badlogic.gdx.utils.IntMap.Values<TileChunk> values = map.getChunks(); values.hasNext(); ) {
             TileChunk chunk = values.next();
             if (chunk.renderRefStartIndex < 0) continue;
@@ -1124,7 +1124,7 @@ public final class RenderTiledSyncSystem extends IteratingSystem implements Prof
         order.markKeysApplied();
     }
 
-    private SpatialTileSyncInvariantException missingRequiredRank(TiledMapLayerData map,
+    private SpatialTileSyncInvariantException missingRequiredRank(TiledLayerData map,
                                                                   int gx,
                                                                   int gy,
                                                                   int assetId,
@@ -1149,7 +1149,7 @@ public final class RenderTiledSyncSystem extends IteratingSystem implements Prof
                 + ", canonicalRankState=" + lookupState + ".");
     }
 
-    private void ensureAllChunkRenderRefs(TiledMapLayerData map) {
+    private void ensureAllChunkRenderRefs(TiledLayerData map) {
         for (com.badlogic.gdx.utils.IntMap.Values<TileChunk> values = map.getChunks(); values.hasNext(); ) {
             ensureChunkRenderRefs(values.next());
         }
@@ -1157,7 +1157,7 @@ public final class RenderTiledSyncSystem extends IteratingSystem implements Prof
 
     public void setAnimatedTileLookup(TileAnimationLookup tileAnimationLookup) {
         this.tileAnimationLookup = tileAnimationLookup != null ? tileAnimationLookup : assetId -> null;
-        for (MapLightingGeometry lighting : tiledState.lightingMaps.values()) lighting.invalidate();
+        for (TiledLayerLightingGeometry lighting : tiledState.lightingMaps.values()) lighting.invalidate();
     }
 
     @Override

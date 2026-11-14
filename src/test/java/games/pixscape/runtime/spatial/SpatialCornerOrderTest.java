@@ -36,7 +36,7 @@ public class SpatialCornerOrderTest {
     @Test
     public void onlyChangedCornerCellIsDirtiedAcrossSpatialPublications() {
         try (SpatialCornerFixture f = new SpatialCornerFixture(2)) {
-            games.pixscape.runtime.render.TiledRenderOrder order = f.tiled.prepareOrderForMap(8, f.map);
+            games.pixscape.runtime.render.TiledRenderOrder order = f.tiled.prepareOrderForLayer(8, f.map);
             games.pixscape.runtime.tiled.TileChunk chunk = f.map.getChunk(1, 1);
             order.updateCornerGeometry(f.faces);
             chunk.dirtyState = games.pixscape.runtime.tiled.TileChunk.DirtyState.CLEAN;

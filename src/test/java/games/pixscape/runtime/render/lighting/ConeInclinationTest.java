@@ -38,7 +38,7 @@ public class ConeInclinationTest {
         queue = new FrameRenderQueue(4);
         LayerStateSOA layers = new LayerStateSOA(1);
         layers.enabled[0] = true;
-        world = new World(new WorldConfigurationBuilder().with(new LightingGeometrySystem(dynamic, new TiledMapRenderState(4), queue, layers)).build());
+        world = new World(new WorldConfigurationBuilder().with(new LightingGeometrySystem(dynamic, new TiledRenderState(4), queue, layers)).build());
         int entity = world.create();
         cone = world.getMapper(ConeLightComponent.class).create(entity);
         cone.height = 128;

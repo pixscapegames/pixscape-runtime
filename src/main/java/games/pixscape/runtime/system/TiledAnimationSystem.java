@@ -12,7 +12,7 @@ import games.pixscape.runtime.profiling.SystemProfilePhases;
 import games.pixscape.runtime.profiling.SystemProfiler;
 import games.pixscape.runtime.profiling.SystemProfilers;
 import games.pixscape.runtime.tiled.TileChunk;
-import games.pixscape.runtime.tiled.TiledMapLayerData;
+import games.pixscape.runtime.tiled.TiledLayerData;
 import games.pixscape.runtime.tiled.animation.*;
 
 @All({EntityIndexComponent.class, TiledLayerComponent.class})
@@ -85,7 +85,7 @@ public final class TiledAnimationSystem extends IteratingSystem implements Profi
         TiledLayerComponent tiled = mTiled.get(e);
         if (tiled == null || tiled.data == null) return;
 
-        TiledMapLayerData map = tiled.data;
+        TiledLayerData map = tiled.data;
         if (!map.visible) return;
         if (frameDeltaMs <= 0) return;
 

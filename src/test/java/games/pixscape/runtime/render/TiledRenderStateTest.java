@@ -1,15 +1,15 @@
 package games.pixscape.runtime.render;
 
 import games.pixscape.runtime.tiled.TileChunk;
-import games.pixscape.runtime.tiled.TiledMapLayerData;
+import games.pixscape.runtime.tiled.TiledLayerData;
 import org.junit.Assert;
 import org.junit.Test;
 
-public class TiledMapRenderStateTest {
+public class TiledRenderStateTest {
 
     @Test
     public void initialCapacityAllocatesVisibleRefsAndColumns() {
-        TiledMapRenderState state = new TiledMapRenderState(4);
+        TiledRenderState state = new TiledRenderState(4);
 
         Assert.assertEquals(4, state.getCapacity());
         Assert.assertEquals(0, state.getVisibleRefCount());
@@ -26,7 +26,7 @@ public class TiledMapRenderStateTest {
 
     @Test
     public void clearVisibleRefsKeepsExistingArrays() {
-        TiledMapRenderState state = new TiledMapRenderState(4);
+        TiledRenderState state = new TiledRenderState(4);
         int refA = state.registerRef();
         int refB = state.registerRef();
         state.addVisibleRef(refA);
@@ -44,7 +44,7 @@ public class TiledMapRenderStateTest {
 
     @Test
     public void addVisibleRefPreservesInsertionOrder() {
-        TiledMapRenderState state = new TiledMapRenderState(4);
+        TiledRenderState state = new TiledRenderState(4);
 
         state.addVisibleRef(3);
         state.addVisibleRef(1);
@@ -58,34 +58,34 @@ public class TiledMapRenderStateTest {
 
     @Test
     public void visibleMapGroupKeepsDerivedIdentityOrderAndContiguousRefRange() {
-        TiledMapRenderState state = new TiledMapRenderState(4);
+        TiledRenderState state = new TiledRenderState(4);
         int refStart = state.registerRefs(2);
         state.addVisibleRef(refStart);
         state.addVisibleRef(refStart + 1);
 
-        state.addVisibleMap(42, 3, 17, 99L, 0, 2);
+        state.addVisibleTileLayer(42, 3, 17, 99L, 0, 2);
 
-        Assert.assertEquals(1, state.getVisibleMapCount());
-        Assert.assertEquals(42, state.visibleMapEntityId(0));
-        Assert.assertEquals(3, state.visibleMapLayerIndex(0));
-        Assert.assertEquals(17, state.visibleMapZIndex(0));
-        Assert.assertEquals(99L, state.visibleMapCompositionKey(0));
-        Assert.assertEquals(0, state.visibleMapRefStart(0));
-        Assert.assertEquals(2, state.visibleMapRefCount(0));
+        Assert.assertEquals(1, state.getVisibleTileLayerCount());
+        Assert.assertEquals(42, state.visibleTileLayerEntityId(0));
+        Assert.assertEquals(3, state.visibleTileLayerLayerIndex(0));
+        Assert.assertEquals(17, state.visibleTileLayerZIndex(0));
+        Assert.assertEquals(99L, state.visibleTileLayerCompositionKey(0));
+        Assert.assertEquals(0, state.visibleTileLayerRefStart(0));
+        Assert.assertEquals(2, state.visibleTileLayerRefCount(0));
 
         state.clearVisibleRefs();
-        Assert.assertEquals(0, state.getVisibleMapCount());
+        Assert.assertEquals(0, state.getVisibleTileLayerCount());
     }
 
     @Test(expected = IllegalArgumentException.class)
     public void visibleMapGroupRejectsRangeOutsidePublishedRefs() {
-        TiledMapRenderState state = new TiledMapRenderState(4);
-        state.addVisibleMap(42, 0, 0, 0L, 0, 1);
+        TiledRenderState state = new TiledRenderState(4);
+        state.addVisibleTileLayer(42, 0, 0, 0L, 0, 1);
     }
 
     @Test
     public void ensureCapacityPreservesVisibleRefsAndRenderData() {
-        TiledMapRenderState state = new TiledMapRenderState(2);
+        TiledRenderState state = new TiledRenderState(2);
         int refA = state.registerRef();
         int refB = state.registerRef();
         state.addVisibleRef(refA);
@@ -106,7 +106,7 @@ public class TiledMapRenderStateTest {
 
     @Test
     public void setRenderDataForRefWritesAllDrawReadyFields() {
-        TiledMapRenderState state = new TiledMapRenderState(2);
+        TiledRenderState state = new TiledRenderState(2);
         int ref = state.registerRef();
 
         writeRenderData(state, ref, 40);
@@ -117,7 +117,7 @@ public class TiledMapRenderStateTest {
 
     @Test
     public void clearVisibleRefsDoesNotWipeRenderData() {
-        TiledMapRenderState state = new TiledMapRenderState(2);
+        TiledRenderState state = new TiledRenderState(2);
         int ref = state.registerRef();
         state.addVisibleRef(ref);
         writeRenderData(state, ref, 50);
@@ -131,7 +131,7 @@ public class TiledMapRenderStateTest {
 
     @Test
     public void registerRefsCreatesDenseStableRefs() {
-        TiledMapRenderState state = new TiledMapRenderState(2);
+        TiledRenderState state = new TiledRenderState(2);
 
         int refStart = state.registerRefs(3);
 
@@ -142,8 +142,8 @@ public class TiledMapRenderStateTest {
 
     @Test
     public void tiledMapResolvesTileToRenderRef() {
-        TiledMapRenderState state = new TiledMapRenderState(2);
-        TiledMapLayerData map = new TiledMapLayerData(2, 2, 16, 16, 2);
+        TiledRenderState state = new TiledRenderState(2);
+        TiledLayerData map = new TiledLayerData(2, 2, 16, 16, 2);
         TileChunk chunk = map.getChunk(0, 0);
         int refStart = state.registerRefs(chunk.cellCount());
         chunk.renderRefStartIndex = refStart;
@@ -156,10 +156,10 @@ public class TiledMapRenderStateTest {
 
     @Test(expected = IllegalArgumentException.class)
     public void rejectsInvalidCapacity() {
-        new TiledMapRenderState(0);
+        new TiledRenderState(0);
     }
 
-    private static void writeRenderData(TiledMapRenderState state, int ref, int base) {
+    private static void writeRenderData(TiledRenderState state, int ref, int base) {
         state.setRenderDataForRef(
                 ref,
                 base + 1,
@@ -187,7 +187,7 @@ public class TiledMapRenderStateTest {
         );
     }
 
-    private static void assertRenderData(TiledMapRenderState state, int ref, int base) {
+    private static void assertRenderData(TiledRenderState state, int ref, int base) {
         Assert.assertEquals(base + 1, state.textureHandle[ref]);
         Assert.assertEquals(base + 2, state.shader[ref]);
         Assert.assertEquals(base + 3, state.blend[ref]);

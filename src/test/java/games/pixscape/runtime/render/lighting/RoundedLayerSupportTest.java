@@ -3,13 +3,13 @@ package games.pixscape.runtime.render.lighting;
 import com.badlogic.gdx.utils.Array;
 import games.pixscape.runtime.component.spatial.SpatialBlocksComponent;
 import games.pixscape.runtime.spatial.SpatialBlockData;
-import games.pixscape.runtime.tiled.TiledMapLayerData;
+import games.pixscape.runtime.tiled.TiledLayerData;
 import games.pixscape.runtime.tiled.TiledProjection;
 import org.junit.Test;
 
 import static org.junit.Assert.*;
 
-public class RoundedMapSupportTest {
+public class RoundedLayerSupportTest {
     @Test
     public void roundedOccurrenceDoesNotBridgePerpendicularFacadeExclusions() {
         for (SpatialBlockData block : blocks.blocks) block.structureId = 1;
@@ -57,12 +57,12 @@ public class RoundedMapSupportTest {
     }
 
     private final float[] quad = {384, 3264, 384, 3776, 640, 3776, 640, 3264};
-    private final TiledMapLayerData map = new TiledMapLayerData(80, 80, 256, 128, 16, TiledProjection.ISO);
+    private final TiledLayerData map = new TiledLayerData(80, 80, 256, 128, 16, TiledProjection.ISO);
     private final SpatialBlocksComponent blocks = new SpatialBlocksComponent();
     private final Array<TileSurfaceDescription> descriptions = new Array<TileSurfaceDescription>();
-    private final MapLightingGeometry geometry = new MapLightingGeometry();
+    private final TiledLayerLightingGeometry geometry = new TiledLayerLightingGeometry();
 
-    public RoundedMapSupportTest() {
+    public RoundedLayerSupportTest() {
         pair(27, 24);
         TileSurfaceDescription d = new TileSurfaceDescription();
         d.assetId = 7;
@@ -271,7 +271,7 @@ public class RoundedMapSupportTest {
     @Test
     public void structuralAdmissionSubtractsInLocalCoordinatesBeforeTranslation() {
         for (int position : new int[]{1, 2, 27, 63}) {
-            TiledMapLayerData m = new TiledMapLayerData(80, 80, 256, 128, 16, TiledProjection.ISO);
+            TiledLayerData m = new TiledLayerData(80, 80, 256, 128, 16, TiledProjection.ISO);
             m.setTile(position, position, 7);
             SpatialBlocksComponent bs = new SpatialBlocksComponent();
             for (SpatialBlockData b : blocks.blocks) {
@@ -282,7 +282,7 @@ public class RoundedMapSupportTest {
             }
             TileSurfaceDescription d = descriptions.first().copy();
             d.rounded.radiusCells = d.rounded.centerGX = d.rounded.centerGY = 1.4f;
-            MapLightingGeometry g = new MapLightingGeometry();
+            TiledLayerLightingGeometry g = new TiledLayerLightingGeometry();
             Array<TileSurfaceDescription> ds = new Array<>();
             ds.add(d);
             g.descriptions(ds);

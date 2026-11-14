@@ -5,13 +5,13 @@ import com.badlogic.gdx.utils.IntMap;
 import com.badlogic.gdx.utils.LongMap;
 import games.pixscape.runtime.component.spatial.SpatialBlocksComponent;
 import games.pixscape.runtime.spatial.SpatialBlockData;
-import games.pixscape.runtime.tiled.TiledMapLayerData;
+import games.pixscape.runtime.tiled.TiledLayerData;
 import games.pixscape.runtime.tiled.TiledProjection;
 
 /**
  * Cold map preparation. All linked memberships are indexed; no owner chosen per tile.
  */
-public final class MapLightingGeometry {
+public final class TiledLayerLightingGeometry {
     public final Array<LightingSurface> casters = new Array<LightingSurface>();
     private LongMap<Array<SpatialBlockData>> memberships = new LongMap<Array<SpatialBlockData>>();
 
@@ -25,14 +25,14 @@ public final class MapLightingGeometry {
     private LongMap<Receiver> receivers = new LongMap<Receiver>();
     private LongMap<Array<Receiver>> receiverVariants = new LongMap<Array<Receiver>>();
     private int revision = Integer.MIN_VALUE;
-    private TiledMapLayerData previous;
+    private TiledLayerData previous;
     private SpatialBlocksComponent previousBlocks;
     private TiledProjection projection;
     private float ox, oy, altitude;
     private int tw, th;
     private IntMap<LocalSurfaceDescription> descriptions = new IntMap<LocalSurfaceDescription>();
     private Array<TileSurfaceDescription> authoredDescriptions;
-    private RoundedMapSupport rounded = new RoundedMapSupport();
+    private RoundedLayerSupport rounded = new RoundedLayerSupport();
     private int resourceRevision;
     private String resourceTag;
     private boolean hasRounded;
@@ -124,14 +124,14 @@ public final class MapLightingGeometry {
      * Resolves the actual native image at the resource publication boundary, never a guessed quad.
      */
     public interface NativeQuads {
-        boolean resolve(TiledMapLayerData map, games.pixscape.runtime.tiled.TileChunk chunk,
+        boolean resolve(TiledLayerData map, games.pixscape.runtime.tiled.TileChunk chunk,
                         int cell, float[] quad, boolean required);
 
         default int frameCount(int assetId) {
             return 0;
         }
 
-        default boolean resolveFrame(TiledMapLayerData map, games.pixscape.runtime.tiled.TileChunk chunk,
+        default boolean resolveFrame(TiledLayerData map, games.pixscape.runtime.tiled.TileChunk chunk,
                                      int cell, int frame, float[] quad) {
             return resolve(map, chunk, cell, quad, true);
         }
@@ -140,14 +140,14 @@ public final class MapLightingGeometry {
     /**
      * Complete detached preparation. No live caster or receiver changes on admission failure.
      */
-    public boolean ensure(TiledMapLayerData map, SpatialBlocksComponent blocks, NativeQuads quads,
+    public boolean ensure(TiledLayerData map, SpatialBlocksComponent blocks, NativeQuads quads,
                           String tag, int resources) {
         if (!needsUpdate(map, blocks) && resourceRevision == resources
                 && (resourceTag == null ? tag == null : resourceTag.equals(tag))) return false;
         if (activePreview != null) activePreview.restore();
-        MapLightingGeometry next = new MapLightingGeometry();
+        TiledLayerLightingGeometry next = new TiledLayerLightingGeometry();
         next.authoredDescriptions = authoredDescriptions;
-        next.rounded = new RoundedMapSupport(rounded);
+        next.rounded = new RoundedLayerSupport(rounded);
         try {
             next.ensure(map, blocks);
             // A missing linked cell is not visited by the chunk loop below. Reject it
@@ -218,7 +218,7 @@ public final class MapLightingGeometry {
         return true;
     }
 
-    private boolean needsUpdate(TiledMapLayerData map, SpatialBlocksComponent blocks) {
+    private boolean needsUpdate(TiledLayerData map, SpatialBlocksComponent blocks) {
         return previous != map || previousBlocks != blocks || projection != map.projection
                 || revision != (blocks == null ? 0 : blocks.geometryRevision()) || ox != map.originX || oy != map.originY
                 || altitude != map.defaultTileAltitude || tw != map.tileWidth || th != map.tileHeight
@@ -229,7 +229,7 @@ public final class MapLightingGeometry {
     /**
      * Structural preparation only. Production publication uses the native-quad overload above.
      */
-    public boolean ensure(TiledMapLayerData map, SpatialBlocksComponent blocks) {
+    public boolean ensure(TiledLayerData map, SpatialBlocksComponent blocks) {
         int r = blocks == null ? 0 : blocks.geometryRevision();
         if (!needsUpdate(map, blocks)) return false;
         LongMap<Array<SpatialBlockData>> nextMemberships = new LongMap<Array<SpatialBlockData>>();
@@ -351,7 +351,7 @@ public final class MapLightingGeometry {
     /**
      * Builds a disjoint UV partition: alpha is applied exactly once at each image pixel.
      */
-    public LightingSurface receiver(TiledMapLayerData map, int gx, int gy,
+    public LightingSurface receiver(TiledLayerData map, int gx, int gy,
                                     int assetId, byte flags, float[] quad) {
         long cell = key(gx, gy);
         Receiver cached = receivers.get(cell);
@@ -542,7 +542,7 @@ public final class MapLightingGeometry {
      * uses its reference screen projection; clipped UVs remove the volume outside that image.
      * Alpha is then sampled once by the existing shadow shader, which retains physical XYZ.
      */
-    private LightingSurface silhouetteCaster(TiledMapLayerData map, SpatialBlockData block, float[] quad) {
+    private LightingSurface silhouetteCaster(TiledLayerData map, SpatialBlockData block, float[] quad) {
         Array<float[]> projected = new Array<float[]>();
         int length = 0;
         SilhouetteFaceCompiler compiler = new SilhouetteFaceCompiler();
@@ -824,7 +824,7 @@ public final class MapLightingGeometry {
         return Math.abs(area) * .5f;
     }
 
-    private static Array<float[]> faces(TiledMapLayerData m, SpatialBlockData b, boolean visible) {
+    private static Array<float[]> faces(TiledLayerData m, SpatialBlockData b, boolean visible) {
         float x = b.x, y = b.y, a = x + b.width, c = y + b.depth, z = b.altitude, t = z + b.height;
         float[][] cells = {{x, y, z, a, y, z, a, y, t, x, y, t}, {x, c, z, x, y, z, x, y, t, x, c, t},
                 {x, y, t, a, y, t, a, c, t, x, c, t}, {a, c, z, x, c, z, x, c, t, a, c, t}, {a, y, z, a, c, z, a, c, t, a, y, t},

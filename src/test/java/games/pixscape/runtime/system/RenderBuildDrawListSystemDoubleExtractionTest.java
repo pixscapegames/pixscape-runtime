@@ -156,7 +156,7 @@ public class RenderBuildDrawListSystemDoubleExtractionTest {
     private static final class Fixture {
         final RenderDataScratch state;
         final DynamicEntityRenderState ecsState;
-        final TiledMapRenderState tiledState;
+        final TiledRenderState tiledState;
         final VfxRenderState vfxState;
         final LayerStateSOA layerState;
         final DrawList drawList;
@@ -170,7 +170,7 @@ public class RenderBuildDrawListSystemDoubleExtractionTest {
         Fixture(int capacity, int ecsEndExclusive, int reservedStartInclusive, int reservedEndExclusive) {
             this.state = new RenderDataScratch(capacity);
             this.ecsState = new DynamicEntityRenderState(16);
-            this.tiledState = new TiledMapRenderState(16);
+            this.tiledState = new TiledRenderState(16);
             this.vfxState = new VfxRenderState(16);
             this.layerState = new LayerStateSOA(4);
             this.layerState.enabled[0] = true;
@@ -206,7 +206,7 @@ public class RenderBuildDrawListSystemDoubleExtractionTest {
             int ref = tiledState.registerRef();
             writeTiledRenderData(ref, sourceSlot);
             tiledState.addVisibleRef(ref);
-            tiledState.addVisibleMap(ref, state.layerIndex[sourceSlot], 0,
+            tiledState.addVisibleTileLayer(ref, state.layerIndex[sourceSlot], 0,
                     state.sortKey[sourceSlot], tiledState.getVisibleRefCount() - 1, 1);
             return ref;
         }
@@ -216,7 +216,7 @@ public class RenderBuildDrawListSystemDoubleExtractionTest {
             for (int i = 0; i < count; i++) {
                 writeTiledRenderData(refStart + i, startInclusive + i);
                 tiledState.addVisibleRef(refStart + i);
-                tiledState.addVisibleMap(refStart + i, state.layerIndex[startInclusive + i], 0,
+                tiledState.addVisibleTileLayer(refStart + i, state.layerIndex[startInclusive + i], 0,
                         state.sortKey[startInclusive + i], tiledState.getVisibleRefCount() - 1, 1);
             }
             return refStart;

@@ -7,7 +7,7 @@ import games.pixscape.runtime.component.LayerComponent;
 import games.pixscape.runtime.component.TiledLayerComponent;
 import games.pixscape.runtime.service.TileAnimationRegistry;
 import games.pixscape.runtime.tiled.TileChunk;
-import games.pixscape.runtime.tiled.TiledMapLayerData;
+import games.pixscape.runtime.tiled.TiledLayerData;
 import games.pixscape.runtime.tiled.animation.TileAnimationDefData;
 import games.pixscape.runtime.tiled.animation.TileAnimationPlayback;
 import games.pixscape.runtime.tiled.animation.TileAnimationStateSupport;
@@ -26,7 +26,7 @@ public class TiledAnimationSystemTest {
         try {
             int entity = world.create();
             world.getMapper(EntityIndexComponent.class).create(entity);
-            TiledMapLayerData map = new TiledMapLayerData(3, 1, 16, 16, 1);
+            TiledLayerData map = new TiledLayerData(3, 1, 16, 16, 1);
             world.getMapper(TiledLayerComponent.class).create(entity).data = map;
             for (int x = 0; x < 3; x++) {
                 map.setTile(x, 0, 10);
@@ -77,7 +77,7 @@ public class TiledAnimationSystemTest {
         try {
             int entity = world.create();
             world.getMapper(EntityIndexComponent.class).create(entity);
-            TiledMapLayerData map = new TiledMapLayerData(1000, 1, 16, 16, 1);
+            TiledLayerData map = new TiledLayerData(1000, 1, 16, 16, 1);
             world.getMapper(TiledLayerComponent.class).create(entity).data = map;
             world.setDelta(0.016f);
             for (int i = 0; i < 10; i++) world.process();
@@ -150,7 +150,7 @@ public class TiledAnimationSystemTest {
     public void singleFrameAndUnknownDefinitionsDoNotRetainAnimationState() {
         TileAnimationRegistry registry = new TileAnimationRegistry();
         registry.put(definition(10, new int[]{101}, new int[]{40}));
-        TiledMapLayerData map = new TiledMapLayerData(2, 1, 16, 16, 2);
+        TiledLayerData map = new TiledLayerData(2, 1, 16, 16, 2);
         TileChunk chunk = map.getChunk(0, 0);
 
         map.setTile(0, 0, 10);
@@ -173,7 +173,7 @@ public class TiledAnimationSystemTest {
         int mapEntity = world.create();
         world.getMapper(EntityIndexComponent.class).create(mapEntity).layerIndex = 0;
         TiledLayerComponent tiled = world.getMapper(TiledLayerComponent.class).create(mapEntity);
-        tiled.data = new TiledMapLayerData(1, 1, 16, 16, 1);
+        tiled.data = new TiledLayerData(1, 1, 16, 16, 1);
         tiled.data.setTile(0, 0, 10);
         TileChunk chunk = tiled.data.getChunk(0, 0);
         TileAnimationStateSupport.syncWorldCell(chunk, 0, 0, registry);

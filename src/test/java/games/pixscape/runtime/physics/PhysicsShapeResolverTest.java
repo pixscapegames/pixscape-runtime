@@ -2,7 +2,7 @@ package games.pixscape.runtime.physics;
 
 import com.badlogic.gdx.math.MathUtils;
 import games.pixscape.runtime.spatial.SpatialBlockData;
-import games.pixscape.runtime.tiled.TiledMapLayerData;
+import games.pixscape.runtime.tiled.TiledLayerData;
 import games.pixscape.runtime.tiled.TiledProjection;
 import org.junit.Assert;
 import org.junit.Test;
@@ -22,7 +22,7 @@ public class PhysicsShapeResolverTest {
     public void resolvesOrthoFootprintThroughMapProjectionInAuthoredCornerOrder() {
         PhysicsShapeData source = linkedShape();
         SpatialBlockData block = block(1f, 2f, 2f, 3f);
-        TiledMapLayerData map = map(TiledProjection.ORTHO);
+        TiledLayerData map = map(TiledProjection.ORTHO);
 
         ResolvedPhysicsShape resolved = resolver.resolveLinked(
                 source, block, map, 0f, 0f, 0f, 16f, 4);
@@ -39,7 +39,7 @@ public class PhysicsShapeResolverTest {
     public void resolvesIsoFootprintThroughExistingMapProjection() {
         PhysicsShapeData source = linkedShape();
         SpatialBlockData block = block(1.5f, 2.25f, 2f, 3f);
-        TiledMapLayerData map = map(TiledProjection.ISO);
+        TiledLayerData map = map(TiledProjection.ISO);
 
         ResolvedPhysicsShape resolved = resolver.resolveLinked(
                 source, block, map, 0f, 0f, 0f, 32f, 9);
@@ -51,7 +51,7 @@ public class PhysicsShapeResolverTest {
     public void convertsTranslatedRotatedBodyFootprintToLocalMeters() {
         PhysicsShapeData source = linkedShape();
         SpatialBlockData block = block(2f, 1f, 2f, 3f);
-        TiledMapLayerData map = map(TiledProjection.ORTHO);
+        TiledLayerData map = map(TiledProjection.ORTHO);
         float rotation = 0.63f;
 
         ResolvedPhysicsShape resolved = resolver.resolveLinked(
@@ -64,7 +64,7 @@ public class PhysicsShapeResolverTest {
     public void localCoordinatesScaleInverselyWithPixelsPerMeter() {
         PhysicsShapeData source = linkedShape();
         SpatialBlockData block = block(1f, 2f, 2f, 3f);
-        TiledMapLayerData map = map(TiledProjection.ORTHO);
+        TiledLayerData map = map(TiledProjection.ORTHO);
 
         ResolvedPhysicsShape first = resolver.resolveLinked(
                 source, block, map, 0f, 0f, 0f, 32f, 1);
@@ -111,7 +111,7 @@ public class PhysicsShapeResolverTest {
     public void rejectsInvalidLinkedContractsWithContext() {
         PhysicsShapeData source = linkedShape();
         SpatialBlockData valid = block(0f, 0f, 1f, 1f);
-        TiledMapLayerData map = map(TiledProjection.ORTHO);
+        TiledLayerData map = map(TiledProjection.ORTHO);
 
         assertLinkedRejected(source, null, map, 32f,
                 "referenced SpatialBlockData is absent");
@@ -141,7 +141,7 @@ public class PhysicsShapeResolverTest {
     private void assertLinkedRejected(
             PhysicsShapeData source,
             SpatialBlockData block,
-            TiledMapLayerData map,
+            TiledLayerData map,
             float pixelsPerMeter,
             String expectedDetail) {
         try {
@@ -162,7 +162,7 @@ public class PhysicsShapeResolverTest {
 
     private static void assertProjectedVertices(
             ResolvedPhysicsShape resolved,
-            TiledMapLayerData map,
+            TiledLayerData map,
             SpatialBlockData block,
             float bodyX,
             float bodyY,
@@ -208,10 +208,10 @@ public class PhysicsShapeResolverTest {
         return block;
     }
 
-    private static TiledMapLayerData map(
+    private static TiledLayerData map(
             TiledProjection projection) {
-        TiledMapLayerData map =
-                new TiledMapLayerData(20, 20, 64, 32, 8, projection);
+        TiledLayerData map =
+                new TiledLayerData(20, 20, 64, 32, 8, projection);
         map.originX = 10f;
         map.originY = -6f;
         return map;

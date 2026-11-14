@@ -6,13 +6,13 @@ import com.badlogic.gdx.utils.IntMap;
 import com.badlogic.gdx.utils.LongMap;
 import games.pixscape.runtime.spatial.SpatialBlockData;
 import games.pixscape.runtime.tiled.TileChunk;
-import games.pixscape.runtime.tiled.TiledMapLayerData;
+import games.pixscape.runtime.tiled.TiledLayerData;
 import games.pixscape.runtime.tiled.TiledProjection;
 
 /**
  * Map-owned cold adaptation of explicit asset profiles. Never resolves by image content or asset name.
  */
-final class RoundedMapSupport {
+final class RoundedLayerSupport {
     private static final class Profile {
         final RoundedWallDescription description;
         final RoundedWallSupport.Profile tangents;
@@ -41,13 +41,13 @@ final class RoundedMapSupport {
     private IntMap<Placement> cuts = new IntMap<Placement>();
     int profileCompilations, geometryCompilations;
 
-    RoundedMapSupport() {
+    RoundedLayerSupport() {
     }
 
     /**
      * The preparation below replaces indexes and placements; shared compiled supports are immutable.
      */
-    RoundedMapSupport(RoundedMapSupport source) {
+    RoundedLayerSupport(RoundedLayerSupport source) {
         profiles = source.profiles;
         placements = source.placements;
         profileCompilations = source.profileCompilations;
@@ -58,7 +58,7 @@ final class RoundedMapSupport {
      * Cold O(descriptions + authored cells + linked memberships), with O(1) lookups afterwards.
      * Candidate indexes publish together. Unchanged occurrences retain their world-space support.
      */
-    void prepare(TiledMapLayerData map, LongMap<Array<SpatialBlockData>> memberships, Array<TileSurfaceDescription> descriptions) {
+    void prepare(TiledLayerData map, LongMap<Array<SpatialBlockData>> memberships, Array<TileSurfaceDescription> descriptions) {
         IntMap<Profile> nextProfiles = new IntMap<Profile>();
         int builtProfiles = 0;
         if (descriptions != null) for (int i = 0; i < descriptions.size; i++) {
@@ -103,7 +103,7 @@ final class RoundedMapSupport {
         profileCompilations += builtProfiles;
     }
 
-    private static Placement resolve(TiledMapLayerData map, int gx, int gy, Profile profile, Array<SpatialBlockData> owners) {
+    private static Placement resolve(TiledLayerData map, int gx, int gy, Profile profile, Array<SpatialBlockData> owners) {
         RoundedWallPlacement resolved = new RoundedWallPlacement(map, gx, gy, profile.description, owners);
         Placement p = new Placement();
         p.profile = profile;

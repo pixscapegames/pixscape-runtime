@@ -4,7 +4,12 @@ import com.badlogic.gdx.math.Rectangle;
 import com.badlogic.gdx.utils.IntIntMap;
 import com.badlogic.gdx.utils.IntMap;
 
-public final class TiledMapLayerData {
+/**
+ * The chunk-backed cells and derived render state of one tile layer.
+ * Cell coordinates and render references are local to this layer; another layer
+ * may contain an independent cell at the same coordinates.
+ */
+public final class TiledLayerData {
 
     private static final float EPSILON = 0.0001f;
 
@@ -139,7 +144,7 @@ public final class TiledMapLayerData {
     public float visualPaddingTop = 0f;
     public float visualPaddingBottom = 0f;
 
-    public TiledMapLayerData(int mapWidth,
+    public TiledLayerData(int mapWidth,
                              int mapHeight,
                              int tileWidth,
                              int tileHeight,
@@ -148,7 +153,7 @@ public final class TiledMapLayerData {
                 TiledProjection.ORTHO);
     }
 
-    public TiledMapLayerData(int mapWidth,
+    public TiledLayerData(int mapWidth,
                              int mapHeight,
                              int tileWidth,
                              int tileHeight,
@@ -168,7 +173,7 @@ public final class TiledMapLayerData {
         initializeChunks();
     }
 
-    public TiledMapLayerData() {
+    public TiledLayerData() {
     }
 
     public void initializeChunks() {

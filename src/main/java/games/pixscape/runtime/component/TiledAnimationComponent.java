@@ -20,7 +20,7 @@ import com.artemis.PooledComponent;
  *
  * <p>This component represents an animated tile object imported as an ordinary
  * entity. It is distinct from Tiled Map cell animation controlled through
- * {@link games.pixscape.runtime.api.TiledMapRef#tileAnimations()} and from a
+ * {@link games.pixscape.runtime.api.TiledLayerRef#tileAnimations()} and from a
  * normal sprite {@link AnimationComponent} controlled through
  * {@link games.pixscape.runtime.api.EntityRef#animation()}.</p>
  */

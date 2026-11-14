@@ -3,7 +3,7 @@ package games.pixscape.runtime.spatial;
 import games.pixscape.runtime.component.spatial.SpatialBlocksComponent;
 import games.pixscape.runtime.render.BlendMode;
 import games.pixscape.runtime.render.SortKey64;
-import games.pixscape.runtime.tiled.TiledMapLayerData;
+import games.pixscape.runtime.tiled.TiledLayerData;
 import games.pixscape.runtime.tiled.TiledProjection;
 import org.junit.Assert;
 import org.junit.Test;
@@ -11,7 +11,7 @@ import org.junit.Test;
 public class SpatialTileOrderCompilerTest {
     @Test
     public void isoFallbackUsesDescendingProjectedDiagonalAndTiledHorizontalTie() {
-        TiledMapLayerData map = map(20, 20);
+        TiledLayerData map = map(20, 20);
         map.setTile(10, 12, 1);
         map.setTile(7, 16, 1);
         map.setTile(10, 9, 1);
@@ -30,7 +30,7 @@ public class SpatialTileOrderCompilerTest {
 
     @Test
     public void orthoFallbackRetainsDescendingHorizontalOrder() {
-        TiledMapLayerData map = new TiledMapLayerData(20, 20, 32, 16, 4, TiledProjection.ORTHO);
+        TiledLayerData map = new TiledLayerData(20, 20, 32, 16, 4, TiledProjection.ORTHO);
         map.setTile(10, 12, 1);
         map.setTile(7, 16, 1);
         map.setTile(10, 9, 1);
@@ -44,13 +44,13 @@ public class SpatialTileOrderCompilerTest {
 
     @Test
     public void tileInsertionAndTransactionOrderDoNotChangeRanks() {
-        TiledMapLayerData first = map(12, 12);
+        TiledLayerData first = map(12, 12);
         first.beginContentMutation();
         first.setTile(2, 8, 1);
         first.setTile(9, 1, 1);
         first.setTile(4, 4, 1);
         first.endContentMutation();
-        TiledMapLayerData second = map(12, 12);
+        TiledLayerData second = map(12, 12);
         second.beginContentMutation();
         second.setTile(4, 4, 1);
         second.setTile(2, 8, 1);
@@ -114,7 +114,7 @@ public class SpatialTileOrderCompilerTest {
 
     @Test
     public void mergedFacesAreClippedIntoExactOneCellAnchorSegments() {
-        TiledMapLayerData map = map(8, 8);
+        TiledLayerData map = map(8, 8);
         map.setTile(2, 2, 1);
         map.setTile(3, 2, 1);
         SpatialBlockData wall = wall(1, 1, 2, 2, 2, 1, 0, new int[][]{{2, 2}, {3, 2}});
@@ -133,7 +133,7 @@ public class SpatialTileOrderCompilerTest {
 
     @Test
     public void auditedPairReceivesGeometricEdgeAndMonotonicPackedOrder() {
-        TiledMapLayerData map = map(24, 24);
+        TiledLayerData map = map(24, 24);
         map.setTile(10, 12, 1);
         map.setTile(7, 16, 1);
         SpatialBlockData a = wall(1, 1, 10, 12, 1, 1, 100, new int[][]{{10, 12}});
@@ -151,7 +151,7 @@ public class SpatialTileOrderCompilerTest {
 
     @Test
     public void onlyStaticSourceChangesRecompileAndAdvanceOrderRevision() {
-        TiledMapLayerData map = map(8, 8);
+        TiledLayerData map = map(8, 8);
         map.setTile(1, 1, 1);
         SpatialBlocksComponent blocks = new SpatialBlocksComponent();
         SpatialCompiledLayerCache compiled = new SpatialCompiledLayerCache();
@@ -178,7 +178,7 @@ public class SpatialTileOrderCompilerTest {
 
     @Test
     public void openBrushMutationInvalidatesPreviewOrderBeforeCommit() {
-        TiledMapLayerData map = map(8, 8);
+        TiledLayerData map = map(8, 8);
         map.setTile(2, 3, 1);
         SpatialBlocksComponent blocks = new SpatialBlocksComponent();
         SpatialCompiledLayerCache compiled = new SpatialCompiledLayerCache();
@@ -204,7 +204,7 @@ public class SpatialTileOrderCompilerTest {
 
     @Test
     public void linkedOwnerAndExplicitMetadataRequireCanonicalRanks() {
-        TiledMapLayerData map = map(8, 8);
+        TiledLayerData map = map(8, 8);
         map.setTile(2, 2, 1);
         map.setTile(5, 5, 1);
         map.setTileSpatialOverride(5, 5, 3f, 16f, 1);
@@ -270,7 +270,7 @@ public class SpatialTileOrderCompilerTest {
         Assert.assertEquals(0, planner.unresolvedConstraintCount());
     }
 
-    private static SpatialTileOrderCache compile(TiledMapLayerData map, SpatialBlocksComponent blocks) {
+    private static SpatialTileOrderCache compile(TiledLayerData map, SpatialBlocksComponent blocks) {
         SpatialCompiledLayerCache compiled = new SpatialCompiledLayerCache();
         compiled.ensure(blocks);
         SpatialTileOrderCache order = new SpatialTileOrderCache();
@@ -278,8 +278,8 @@ public class SpatialTileOrderCompilerTest {
         return order;
     }
 
-    private static TiledMapLayerData map(int width, int height) {
-        return new TiledMapLayerData(width, height, 32, 16, 4, TiledProjection.ISO);
+    private static TiledLayerData map(int width, int height) {
+        return new TiledLayerData(width, height, 32, 16, 4, TiledProjection.ISO);
     }
 
     private static SpatialBlocksComponent component(SpatialBlockData... walls) {

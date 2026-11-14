@@ -1,6 +1,6 @@
 package games.pixscape.runtime.spatial;
 
-import games.pixscape.runtime.tiled.TiledMapLayerData;
+import games.pixscape.runtime.tiled.TiledLayerData;
 import games.pixscape.runtime.tiled.TiledProjection;
 
 import java.util.Arrays;
@@ -36,7 +36,7 @@ public final class SpatialTileOrderCompiler {
     private final float[] projected = new float[4];
 
     public void compile(int layerEntity,
-                        TiledMapLayerData map,
+                        TiledLayerData map,
                         SpatialCompiledLayerCache compiled,
                         SpatialTileOrderCache target) {
         if (map.mapWidth < 0 || map.mapHeight < 0
@@ -76,7 +76,7 @@ public final class SpatialTileOrderCompiler {
         return topologicalRanks(layerEntity);
     }
 
-    private void buildNodes(TiledMapLayerData map) {
+    private void buildNodes(TiledLayerData map) {
         int cells = map.mapWidth * map.mapHeight;
         ensureNodeCapacity(cells);
         if (nodeByCell.length < cells) nodeByCell = new int[cells];
@@ -92,7 +92,7 @@ public final class SpatialTileOrderCompiler {
         }
     }
 
-    private void buildSegments(int layerEntity, TiledMapLayerData map, SpatialCompiledLayerCache compiled) {
+    private void buildSegments(int layerEntity, TiledLayerData map, SpatialCompiledLayerCache compiled) {
         segmentCount = 0;
         for (int structureIndex = 0; structureIndex < compiled.structureCount(); structureIndex++) {
             CompiledSpatialStructure structure = compiled.structure(structureIndex);
@@ -389,7 +389,7 @@ public final class SpatialTileOrderCompiler {
         return Math.abs(first - second) <= EPSILON;
     }
 
-    private int nodeAt(TiledMapLayerData map, int gx, int gy) {
+    private int nodeAt(TiledLayerData map, int gx, int gy) {
         return gx < 0 || gy < 0 || gx >= map.mapWidth || gy >= map.mapHeight
                 ? -1 : nodeByCell[gy * map.mapWidth + gx];
     }

@@ -91,7 +91,7 @@
 ### Breaking changes
 * Removed the legacy Layer type system. `LayerComponent` now represents a universal Layer with only its composition index and optional Spatial Actor capability.
 * Removed dedicated Light, Physics and Tiled Layer semantics. Lights, physical entities and Tiled Maps now belong to ordinary Layers.
-* Replaced Tiled layer identity with Tiled Map identity. `TiledLayerRef` is now `TiledMapRef`, and layer-index based Tiled API lookup has been removed in favor of explicit Map entity IDs and stable IDs.
+* Replaced Tiled layer identity with Tiled Map identity. `TiledLayerRef` is now `TiledLayerRef`, and layer-index based Tiled API lookup has been removed in favor of explicit Map entity IDs and stable IDs.
 * Tiled Map configuration is no longer stored as scene-global metadata. Projection, tile size, map dimensions, chunk size and origin are now owned by each Tiled Map.
 * Schema 3 scenes using the obsolete `LayerComponent.type` representation are rejected and must be re-exported with a compatible Studio version.
 

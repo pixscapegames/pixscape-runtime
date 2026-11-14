@@ -130,7 +130,7 @@ public class NormalMapGlSmokeTest {
                     Gdx.gl.glClear(GL20.GL_COLOR_BUFFER_BIT);
                     world.process();
                     assertPixel(new float[]{1, 0, 0});
-                    games.pixscape.runtime.tiled.TiledMapLayerData map = new games.pixscape.runtime.tiled.TiledMapLayerData(1, 1, 64, 32, 1, games.pixscape.runtime.tiled.TiledProjection.ISO);
+                    games.pixscape.runtime.tiled.TiledLayerData map = new games.pixscape.runtime.tiled.TiledLayerData(1, 1, 64, 32, 1, games.pixscape.runtime.tiled.TiledProjection.ISO);
                     float[] quad = new float[8];
                     float[][] transformedX = {{.7071f, -.7071f, 0}, {-.7071f, .7071f, 0}, {.7071f, -.7071f, 0}, {-.7071f, .7071f, 0},
                             {-.40825f, -.40825f, -.8165f}, {-.40825f, -.40825f, -.8165f}, {.40825f, .40825f, .8165f}, {.40825f, .40825f, .8165f}};
@@ -172,8 +172,8 @@ public class NormalMapGlSmokeTest {
                     q.y1[0] = q.y4[0] = 0;
                     q.y2[0] = q.y3[0] = 32;
                     q.lighting.diagnostic = 0;
-                    var receiverMap = new games.pixscape.runtime.tiled.TiledMapLayerData(4, 4, 8, 4, 4, games.pixscape.runtime.tiled.TiledProjection.ISO);
-                    MapLightingGeometry geometry = new MapLightingGeometry();
+                    var receiverMap = new games.pixscape.runtime.tiled.TiledLayerData(4, 4, 8, 4, 4, games.pixscape.runtime.tiled.TiledProjection.ISO);
+                    TiledLayerLightingGeometry geometry = new TiledLayerLightingGeometry();
                     geometry.ensure(receiverMap, null);
                     float[] receiverQuad = {0, 0, 0, 32, 64, 32, 64, 0};
                     LightingSurface complete = geometry.receiver(receiverMap, 0, 0, 1, (byte) 0, receiverQuad);

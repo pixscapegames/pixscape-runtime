@@ -1,7 +1,7 @@
 package games.pixscape.runtime.spatial;
 
 import games.pixscape.runtime.tiled.TileChunk;
-import games.pixscape.runtime.tiled.TiledMapLayerData;
+import games.pixscape.runtime.tiled.TiledLayerData;
 import games.pixscape.runtime.tiled.TiledProjection;
 import org.junit.Assert;
 import org.junit.Test;
@@ -11,7 +11,7 @@ public class SpatialBlockLinkedTilesTest {
 
     @Test
     public void singleTileIntersectingFootprintIsLinked() {
-        TiledMapLayerData map = orthoMap(3, 3);
+        TiledLayerData map = orthoMap(3, 3);
         map.setTile(0, 0, 101);
 
         SpatialBlockLinkedTiles.compute(block(0f, 0f, 1f, 1f), map, refs);
@@ -22,7 +22,7 @@ public class SpatialBlockLinkedTilesTest {
 
     @Test
     public void footprintLinksMultipleIntersectingTiles() {
-        TiledMapLayerData map = orthoMap(4, 4);
+        TiledLayerData map = orthoMap(4, 4);
         map.setTile(0, 0, 101);
         map.setTile(1, 0, 102);
         map.setTile(0, 1, 103);
@@ -35,7 +35,7 @@ public class SpatialBlockLinkedTilesTest {
 
     @Test
     public void emptyOriginCellCanLinkNeighborTileByIntersection() {
-        TiledMapLayerData map = orthoMap(4, 4);
+        TiledLayerData map = orthoMap(4, 4);
         map.setTile(1, 0, 101);
 
         SpatialBlockLinkedTiles.compute(block(0.75f, 0f, 0.75f, 1f), map, refs);
@@ -45,7 +45,7 @@ public class SpatialBlockLinkedTilesTest {
 
     @Test
     public void isoProjectionLinksByTileCellFootprintIntersection() {
-        TiledMapLayerData map = isoMap(4, 4);
+        TiledLayerData map = isoMap(4, 4);
         map.setTile(0, 0, 101);
         map.setTile(1, 0, 102);
         map.setTile(0, 1, 103);
@@ -57,7 +57,7 @@ public class SpatialBlockLinkedTilesTest {
 
     @Test
     public void isoCellFootprintUsesGridXAndGridY() {
-        TiledMapLayerData map = isoMap(16, 16);
+        TiledLayerData map = isoMap(16, 16);
         float[] left = new float[8];
         float[] right = new float[8];
 
@@ -76,7 +76,7 @@ public class SpatialBlockLinkedTilesTest {
 
     @Test
     public void isoBlockLinksTileOnSameCell() {
-        TiledMapLayerData map = isoMap(16, 16);
+        TiledLayerData map = isoMap(16, 16);
         map.setTile(8, 9, 101);
 
         SpatialBlockLinkedTiles.compute(block(8f, 9f, 1f, 1f), map, refs);
@@ -86,7 +86,7 @@ public class SpatialBlockLinkedTilesTest {
 
     @Test
     public void thinBlockLinksTileWhenCellFootprintIntersects() {
-        TiledMapLayerData map = isoMap(16, 16);
+        TiledLayerData map = isoMap(16, 16);
         map.setTile(9, 10, 101);
 
         SpatialBlockLinkedTiles.compute(block(9.003479f, 10.03523f, 3.035983f, 0.21065998f), map, refs);
@@ -96,7 +96,7 @@ public class SpatialBlockLinkedTilesTest {
 
     @Test
     public void tileBaseCanMissBlockWhileCellFootprintLinksTile() {
-        TiledMapLayerData map = orthoMap(2, 2);
+        TiledLayerData map = orthoMap(2, 2);
         map.setTile(0, 0, 101);
 
         SpatialBlockLinkedTiles.compute(block(0.1f, 0.1f, 0.8f, 0.2f), map, refs);
@@ -112,7 +112,7 @@ public class SpatialBlockLinkedTilesTest {
 
     @Test
     public void emptyCellProducesNoRefs() {
-        TiledMapLayerData map = orthoMap(2, 2);
+        TiledLayerData map = orthoMap(2, 2);
 
         SpatialBlockLinkedTiles.compute(block(0f, 0f, 1f, 1f), map, refs);
 
@@ -121,7 +121,7 @@ public class SpatialBlockLinkedTilesTest {
 
     @Test
     public void tileWithoutRenderSlotProducesNoRefs() {
-        TiledMapLayerData map = orthoMap(1, 1);
+        TiledLayerData map = orthoMap(1, 1);
         map.setTile(0, 0, 101);
         map.getChunk(0, 0).renderRefStartIndex = -1;
 
@@ -132,7 +132,7 @@ public class SpatialBlockLinkedTilesTest {
 
     @Test
     public void tileOutsideBlockFootprintProducesNoRefs() {
-        TiledMapLayerData map = orthoMap(3, 3);
+        TiledLayerData map = orthoMap(3, 3);
         map.setTile(2, 2, 101);
 
         SpatialBlockLinkedTiles.compute(block(0f, 0f, 1f, 1f), map, refs);
@@ -142,7 +142,7 @@ public class SpatialBlockLinkedTilesTest {
 
     @Test
     public void noIntersectingTilesProducesNoRefs() {
-        TiledMapLayerData map = orthoMap(3, 3);
+        TiledLayerData map = orthoMap(3, 3);
         map.setTile(2, 2, 101);
 
         SpatialBlockLinkedTiles.compute(block(0f, 0f, 1f, 1f), map, refs);
@@ -152,7 +152,7 @@ public class SpatialBlockLinkedTilesTest {
 
     @Test
     public void refsAreEmittedInStableGridOrder() {
-        TiledMapLayerData map = orthoMap(4, 4);
+        TiledLayerData map = orthoMap(4, 4);
         map.setTile(1, 1, 101);
         map.setTile(0, 0, 102);
         map.setTile(1, 0, 103);
@@ -165,7 +165,7 @@ public class SpatialBlockLinkedTilesTest {
 
     @Test
     public void sameTileAssetIdCanAppearInMultipleCells() {
-        TiledMapLayerData map = orthoMap(3, 3);
+        TiledLayerData map = orthoMap(3, 3);
         map.setTile(0, 0, 101);
         map.setTile(1, 0, 101);
         SpatialBlockData block = block(0f, 0f, 2f, 1f);
@@ -180,7 +180,7 @@ public class SpatialBlockLinkedTilesTest {
 
     @Test
     public void authoredRefsUseExplicitCellsWithoutIntersectionFallback() {
-        TiledMapLayerData map = orthoMap(4, 4);
+        TiledLayerData map = orthoMap(4, 4);
         map.setTile(0, 0, 101);
         map.setTile(2, 2, 202);
         SpatialBlockData block = block(0f, 0f, 1f, 1f);
@@ -195,7 +195,7 @@ public class SpatialBlockLinkedTilesTest {
 
     @Test
     public void authoredRefUsesOwningCellWhenAuthoredTileAssetIdDiffersFromCurrentTile() {
-        TiledMapLayerData map = orthoMap(3, 3);
+        TiledLayerData map = orthoMap(3, 3);
         map.setTile(1, 1, 303);
         SpatialBlockData block = block(0f, 0f, 1f, 1f);
         block.beginAuthoredLinkedTileRefs();
@@ -210,7 +210,7 @@ public class SpatialBlockLinkedTilesTest {
 
     @Test
     public void authoredEmptyRefIsIgnoredWithoutAutoFallback() {
-        TiledMapLayerData map = orthoMap(3, 3);
+        TiledLayerData map = orthoMap(3, 3);
         map.setTile(0, 0, 101);
         SpatialBlockData block = block(0f, 0f, 1f, 1f);
         block.beginAuthoredLinkedTileRefs();
@@ -223,7 +223,7 @@ public class SpatialBlockLinkedTilesTest {
 
     @Test
     public void authoredRefsKeepAuthorOrder() {
-        TiledMapLayerData map = orthoMap(3, 3);
+        TiledLayerData map = orthoMap(3, 3);
         map.setTile(0, 0, 101);
         map.setTile(1, 1, 202);
         SpatialBlockData block = block(0f, 0f, 2f, 2f);
@@ -238,7 +238,7 @@ public class SpatialBlockLinkedTilesTest {
 
     @Test
     public void movingBlockChangesLinkedRefs() {
-        TiledMapLayerData map = orthoMap(3, 3);
+        TiledLayerData map = orthoMap(3, 3);
         map.setTile(0, 0, 101);
         map.setTile(1, 0, 102);
         SpatialBlockData block = block(0f, 0f, 1f, 1f);
@@ -253,7 +253,7 @@ public class SpatialBlockLinkedTilesTest {
 
     @Test
     public void resizingBlockChangesLinkedRefs() {
-        TiledMapLayerData map = orthoMap(3, 3);
+        TiledLayerData map = orthoMap(3, 3);
         map.setTile(0, 0, 101);
         map.setTile(1, 0, 102);
         SpatialBlockData block = block(0f, 0f, 1f, 1f);
@@ -266,25 +266,25 @@ public class SpatialBlockLinkedTilesTest {
         assertRefs(refs, 0, 0, 1, 0);
     }
 
-    private static TiledMapLayerData orthoMap(int width, int height) {
+    private static TiledLayerData orthoMap(int width, int height) {
         return map(width, height, 16, 16, TiledProjection.ORTHO);
     }
 
-    private static TiledMapLayerData isoMap(int width, int height) {
+    private static TiledLayerData isoMap(int width, int height) {
         return map(width, height, 90, 30, TiledProjection.ISO);
     }
 
-    private static TiledMapLayerData map(int width,
+    private static TiledLayerData map(int width,
                                          int height,
                                          int tileWidth,
                                          int tileHeight,
                                          TiledProjection projection) {
-        TiledMapLayerData map = new TiledMapLayerData(width, height, tileWidth, tileHeight, Math.max(width, height), projection);
+        TiledLayerData map = new TiledLayerData(width, height, tileWidth, tileHeight, Math.max(width, height), projection);
         assignRenderRefs(map, 300);
         return map;
     }
 
-    private static void assignRenderRefs(TiledMapLayerData map, int startRef) {
+    private static void assignRenderRefs(TiledLayerData map, int startRef) {
         int nextRef = startRef;
         for (int cy = 0; cy < map.getChunksY(); cy++) {
             for (int cx = 0; cx < map.getChunksX(); cx++) {

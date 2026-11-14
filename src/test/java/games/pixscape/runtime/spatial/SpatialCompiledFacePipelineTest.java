@@ -3,7 +3,7 @@ package games.pixscape.runtime.spatial;
 import com.badlogic.gdx.utils.Array;
 import games.pixscape.runtime.component.spatial.SpatialBlocksComponent;
 import games.pixscape.runtime.tiled.TileChunk;
-import games.pixscape.runtime.tiled.TiledMapLayerData;
+import games.pixscape.runtime.tiled.TiledLayerData;
 import games.pixscape.runtime.tiled.TiledProjection;
 import org.junit.Assert;
 import org.junit.Test;
@@ -60,7 +60,7 @@ public class SpatialCompiledFacePipelineTest {
         SpatialBlockData[] inner = ring(10, 100, 2, 2, 4, 4);
         SpatialBlockData[] outer = ring(20, 200, 0, 0, 8, 8);
         SpatialBlocksComponent baseline = component(join(inner, outer));
-        TiledMapLayerData map = map();
+        TiledLayerData map = map();
         int[] expected = innerRelationSignature(baseline, map);
 
         SpatialBlockData distant = wall(300, 30, 6f, 6f, 1f, 1f, cells(6, 6, 1, 1));
@@ -84,7 +84,7 @@ public class SpatialCompiledFacePipelineTest {
     public void nestedClosedStructuresProduceNoResidualExactAnchorContradiction() {
         SpatialBlocksComponent component = component(join(ring(10, 100, 2, 2, 4, 4),
                 ring(20, 200, 0, 0, 8, 8)));
-        TiledMapLayerData map = map();
+        TiledLayerData map = map();
         SpatialCompiledLayerCache compiled = new SpatialCompiledLayerCache();
         compiled.ensure(component);
         SpatialProjectedFaceCache projected = new SpatialProjectedFaceCache();
@@ -127,7 +127,7 @@ public class SpatialCompiledFacePipelineTest {
     @Test
     public void projectionIsRevisionDrivenAndStoresLeftToRightLine() {
         SpatialBlocksComponent component = component(wall(1, 1, .25f, .5f, 1.5f, 1f, cells(0, 0, 2, 2)));
-        TiledMapLayerData map = map();
+        TiledLayerData map = map();
         SpatialCompiledLayerCache compiled = new SpatialCompiledLayerCache();
         SpatialProjectedFaceCache projected = new SpatialProjectedFaceCache();
         Assert.assertTrue(compiled.ensure(component));
@@ -150,7 +150,7 @@ public class SpatialCompiledFacePipelineTest {
     @Test
     public void projectedLayerUsesOneSortedCanonicalAnchorPerCellAndSharedFacesReuseIt() {
         SpatialBlocksComponent component = component(wall(1, 1, 0f, 0f, 2f, 2f, cells(0, 0, 2, 2)));
-        TiledMapLayerData map = map();
+        TiledLayerData map = map();
         SpatialCompiledLayerCache compiled = new SpatialCompiledLayerCache();
         compiled.ensure(component);
         SpatialProjectedFaceCache projected = new SpatialProjectedFaceCache();
@@ -183,7 +183,7 @@ public class SpatialCompiledFacePipelineTest {
     @Test
     public void faceAnchorsUseResolvedSubsetAndSolverEvaluatesEveryFace() {
         SpatialBlocksComponent component = component(wall(1, 1, 0f, 0f, 2f, 2f, cells(0, 0, 2, 2)));
-        TiledMapLayerData map = map();
+        TiledLayerData map = map();
         SpatialCompiledLayerCache compiled = new SpatialCompiledLayerCache();
         compiled.ensure(component);
         SpatialProjectedFaceCache projected = new SpatialProjectedFaceCache();
@@ -211,8 +211,8 @@ public class SpatialCompiledFacePipelineTest {
         }
     }
 
-    private static TiledMapLayerData map() {
-        TiledMapLayerData map = new TiledMapLayerData(8, 8, 64, 32, 4, TiledProjection.ISO);
+    private static TiledLayerData map() {
+        TiledLayerData map = new TiledLayerData(8, 8, 64, 32, 4, TiledProjection.ISO);
         for (int y = 0; y < 8; y++) for (int x = 0; x < 8; x++) map.setTile(x, y, 1);
         int nextRef = 0;
         for (int cy = 0; cy < 2; cy++)
@@ -246,7 +246,7 @@ public class SpatialCompiledFacePipelineTest {
             Assert.assertTrue("face " + face + " is missing its local anchor", one.anchorCellCount(face) > 0);
         }
         SpatialBlocksComponent component = component(host, branch);
-        TiledMapLayerData map = map();
+        TiledLayerData map = map();
         SpatialCompiledLayerCache compiled = new SpatialCompiledLayerCache();
         compiled.ensure(component);
         SpatialTileOrderCache order = new SpatialTileOrderCache();
@@ -254,7 +254,7 @@ public class SpatialCompiledFacePipelineTest {
         Assert.assertEquals(0, order.tileOrderCycleCount);
     }
 
-    private static int[] innerRelationSignature(SpatialBlocksComponent component, TiledMapLayerData map) {
+    private static int[] innerRelationSignature(SpatialBlocksComponent component, TiledLayerData map) {
         SpatialCompiledLayerCache compiled = new SpatialCompiledLayerCache();
         compiled.ensure(component);
         SpatialProjectedFaceCache projected = new SpatialProjectedFaceCache();
@@ -282,7 +282,7 @@ public class SpatialCompiledFacePipelineTest {
         return signature;
     }
 
-    private static int[] exactPlanningSignature(SpatialBlocksComponent component, TiledMapLayerData map) {
+    private static int[] exactPlanningSignature(SpatialBlocksComponent component, TiledLayerData map) {
         SpatialCompiledLayerCache compiled = new SpatialCompiledLayerCache();
         compiled.ensure(component);
         SpatialProjectedFaceCache projected = new SpatialProjectedFaceCache();
@@ -319,7 +319,7 @@ public class SpatialCompiledFacePipelineTest {
                 planner.actorUpperBound[0], planner.actorBucket[0]};
     }
 
-    private static int[] tileOrderSignature(SpatialBlocksComponent component, TiledMapLayerData map) {
+    private static int[] tileOrderSignature(SpatialBlocksComponent component, TiledLayerData map) {
         SpatialCompiledLayerCache compiled = new SpatialCompiledLayerCache();
         compiled.ensure(component);
         SpatialTileOrderCache order = new SpatialTileOrderCache();
@@ -332,7 +332,7 @@ public class SpatialCompiledFacePipelineTest {
         return ranks;
     }
 
-    private static SpatialActorCollector projectedActors(TiledMapLayerData map, float[] grid) {
+    private static SpatialActorCollector projectedActors(TiledLayerData map, float[] grid) {
         int actorCount = grid.length / 2;
         SpatialActorCollector actors = new SpatialActorCollector();
         actors.actorCount = actorCount;

@@ -27,7 +27,7 @@ import org.junit.Test;
 
 import java.lang.reflect.Field;
 
-public class TiledMapCollisionFacadeTest {
+public class TiledLayerCollisionFacadeTest {
     @Test
     public void runtimeTogglePreservesAuthoredPhysicsAcrossRepeatedCycles() throws Exception {
         Harness harness = new Harness(true);
@@ -50,7 +50,7 @@ public class TiledMapCollisionFacadeTest {
             harness.process();
 
             Assert.assertEquals(1, harness.nativeBody(map).getFixtureList().size);
-            TiledMapFacade collisions = harness.mapFacade(map);
+            TiledLayerFacade collisions = harness.mapFacade(map);
             for (int cycle = 0; cycle < 2; cycle++) {
                 collisions.setCollisionEnabled(false);
                 harness.process();
@@ -119,7 +119,7 @@ public class TiledMapCollisionFacadeTest {
 
             int authoredMap = harness.createMapWithManualPhysics(31);
             harness.process();
-            TiledMapFacade collisions = harness.mapFacade(authoredMap);
+            TiledLayerFacade collisions = harness.mapFacade(authoredMap);
             collisions.setCollisionEnabled(false);
             harness.process();
             harness.scene.physicsEnabled = false;
@@ -363,7 +363,7 @@ public class TiledMapCollisionFacadeTest {
             tiled.mapWidthCells = 8;
             tiled.mapHeightCells = 8;
             tiled.chunkSize = 4;
-            tiled.data = tiled.createMapData();
+            tiled.data = tiled.createLayerData();
             if (withPhysics) {
                 PhysicsBodyComponent body = world.getMapper(
                         PhysicsBodyComponent.class).create(map);
@@ -420,8 +420,8 @@ public class TiledMapCollisionFacadeTest {
             world.process();
         }
 
-        TiledMapFacade mapFacade(int map) {
-            return engine.api().tiled().requireEntityId(map).map();
+        TiledLayerFacade mapFacade(int map) {
+            return engine.api().tiled().requireEntityId(map).layer();
         }
 
         TiledLayerComponent tiled(int map) {

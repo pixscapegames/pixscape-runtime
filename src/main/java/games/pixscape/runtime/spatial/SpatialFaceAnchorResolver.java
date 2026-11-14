@@ -16,7 +16,7 @@ public final class SpatialFaceAnchorResolver {
                         int[] tiledRefToDrawIndex,
                         int[] drawIndexToBucketBefore,
                         int[] drawIndexToBucketAfter,
-                        int drawListSize, games.pixscape.runtime.render.TiledMapRenderState tiled) {
+                        int drawListSize, games.pixscape.runtime.render.TiledRenderState tiled) {
         if (faces == null || tiledRefToDrawIndex == null) return;
         for (int anchor = 0; anchor < faces.anchorCount; anchor++) {
             int tiledRef = faces.anchorTiledRef[anchor];

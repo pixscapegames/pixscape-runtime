@@ -274,7 +274,7 @@ public class GameObjectRenderCompositionTest {
 
     private static final class Fixture {
         final DynamicEntityRenderState ecsState;
-        final TiledMapRenderState tiledState;
+        final TiledRenderState tiledState;
         final VfxRenderState vfxState;
         final LayerStateSOA layerState;
         final DrawList drawList;
@@ -287,7 +287,7 @@ public class GameObjectRenderCompositionTest {
 
         Fixture(int capacity) {
             ecsState = new DynamicEntityRenderState(capacity);
-            tiledState = new TiledMapRenderState(capacity);
+            tiledState = new TiledRenderState(capacity);
             vfxState = new VfxRenderState(capacity);
             layerState = new LayerStateSOA(4);
             drawList = new DrawList(capacity);
@@ -379,7 +379,7 @@ public class GameObjectRenderCompositionTest {
             }
             long key = SortKey64.packOrdered(BlendMode.PASS_ORDERED, 0, 0, 0,
                     layer, z, entityId);
-            tiledState.addVisibleMap(entityId, layer, z, key, start, refs.length);
+            tiledState.addVisibleTileLayer(entityId, layer, z, key, start, refs.length);
             return refs;
         }
 

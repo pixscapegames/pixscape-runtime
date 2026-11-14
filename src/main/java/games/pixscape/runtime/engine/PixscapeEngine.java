@@ -110,7 +110,7 @@ public final class PixscapeEngine {
     private DrawList drawList;
     private FrameRenderQueue frameQueue;
     private VfxRenderState vfxState;
-    private TiledMapRenderState tiledState;
+    private TiledRenderState tiledState;
     private MetricsBatch metricsBatch;
     private float ambientMulR = 1f;
     private boolean useNormalMaps = true;
@@ -738,7 +738,7 @@ public final class PixscapeEngine {
         drawList = new DrawList();
         frameQueue = new FrameRenderQueue(false);
         vfxState = new VfxRenderState();
-        tiledState = new TiledMapRenderState();
+        tiledState = new TiledRenderState();
 
         GLCaps caps = GLCaps.detect();
         new RenderContext(dynamicEntityState, layerState, drawList, frameQueue, vfxState, tiledState, metricsBatch, caps);
@@ -1374,7 +1374,7 @@ public final class PixscapeEngine {
         drawList = new DrawList();
         frameQueue = new FrameRenderQueue(false);
         vfxState = new VfxRenderState();
-        tiledState = new TiledMapRenderState();
+        tiledState = new TiledRenderState();
 
         applyAmbientFromMeta(null);
     }
@@ -1401,7 +1401,7 @@ public final class PixscapeEngine {
         drawList = new DrawList();
         frameQueue = new FrameRenderQueue(false);
         vfxState = new VfxRenderState();
-        tiledState = new TiledMapRenderState();
+        tiledState = new TiledRenderState();
 
         GLCaps caps = GLCaps.detect();
         atlasRuntimeService = new AtlasRuntimeService();
@@ -1485,7 +1485,7 @@ public final class PixscapeEngine {
         drawList = new DrawList();
         frameQueue = new FrameRenderQueue(false);
         vfxState = new VfxRenderState();
-        tiledState = new TiledMapRenderState();
+        tiledState = new TiledRenderState();
 
         GLCaps caps = GLCaps.detect();
         atlasRuntimeService = new AtlasRuntimeService();
@@ -1853,7 +1853,7 @@ public final class PixscapeEngine {
 
             tiled.ensureSparseTileStorageConsistency();
 
-            tiled.data = tiled.createMapData();
+            tiled.data = tiled.createLayerData();
 
             tiled.data.beginContentMutation();
             try {

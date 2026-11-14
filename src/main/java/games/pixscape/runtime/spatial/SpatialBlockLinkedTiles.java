@@ -1,6 +1,6 @@
 package games.pixscape.runtime.spatial;
 
-import games.pixscape.runtime.tiled.TiledMapLayerData;
+import games.pixscape.runtime.tiled.TiledLayerData;
 import games.pixscape.runtime.tiled.TiledProjection;
 
 public final class SpatialBlockLinkedTiles {
@@ -9,7 +9,7 @@ public final class SpatialBlockLinkedTiles {
     private SpatialBlockLinkedTiles() {
     }
 
-    public static Refs compute(SpatialBlockData block, TiledMapLayerData map, Refs out) {
+    public static Refs compute(SpatialBlockData block, TiledLayerData map, Refs out) {
         if (out == null) out = new Refs();
         out.clear();
         out.sourceAuthored = block != null && block.hasAuthoredLinkedTileRefs();
@@ -64,7 +64,7 @@ public final class SpatialBlockLinkedTiles {
         return out;
     }
 
-    private static Refs resolveAuthored(SpatialBlockData block, TiledMapLayerData map, Refs out) {
+    private static Refs resolveAuthored(SpatialBlockData block, TiledLayerData map, Refs out) {
         if (block.linkedTileRefs == null) {
             return out;
         }
@@ -98,7 +98,7 @@ public final class SpatialBlockLinkedTiles {
         return out;
     }
 
-    private static void writeTileCellFootprint(TiledMapLayerData map, int gx, int gy, float[] out8) {
+    private static void writeTileCellFootprint(TiledLayerData map, int gx, int gy, float[] out8) {
         if (map == null || out8 == null || out8.length < 8) return;
         map.tileToCellVertices(gx, gy, out8);
     }
@@ -110,7 +110,7 @@ public final class SpatialBlockLinkedTiles {
         }
     }
 
-    public static void writeTileBaseSegment(TiledMapLayerData map, int gx, int gy, float[] out4) {
+    public static void writeTileBaseSegment(TiledLayerData map, int gx, int gy, float[] out4) {
         if (map == null || out4 == null || out4.length < 4) return;
         if (map.projection == TiledProjection.ISO) {
             out4[0] = map.tileToWorldX(gx + 1f, gy);

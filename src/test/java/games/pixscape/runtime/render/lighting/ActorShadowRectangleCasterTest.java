@@ -11,7 +11,7 @@ import games.pixscape.runtime.component.spatial.SpatialPhysicsFootprintComponent
 import games.pixscape.runtime.render.DynamicEntityRenderState;
 import games.pixscape.runtime.render.FrameRenderQueue;
 import games.pixscape.runtime.render.LayerStateSOA;
-import games.pixscape.runtime.render.TiledMapRenderState;
+import games.pixscape.runtime.render.TiledRenderState;
 import games.pixscape.runtime.spatial.ActorSpatialRectangleData;
 import games.pixscape.runtime.spatial.ActorSpatialRectangles;
 import games.pixscape.runtime.system.LightingGeometrySystem;
@@ -108,7 +108,7 @@ public class ActorShadowRectangleCasterTest {
     public void onlyAnAuthoringWorldMaySuspendAnIncompleteActorShadow() {
         DynamicEntityRenderState dynamic = new DynamicEntityRenderState(4);
         FrameRenderQueue queue = new FrameRenderQueue(4);
-        LightingGeometrySystem geometry = new LightingGeometrySystem(dynamic, new TiledMapRenderState(4),
+        LightingGeometrySystem geometry = new LightingGeometrySystem(dynamic, new TiledRenderState(4),
                 queue, new LayerStateSOA(1));
         World world = new World(new WorldConfigurationBuilder().with(geometry).build());
         try {
@@ -159,7 +159,7 @@ public class ActorShadowRectangleCasterTest {
     public void ecsPublicationTracksClipsFramesAndAltitudeWithoutChangingTheSprite() {
         DynamicEntityRenderState d = new DynamicEntityRenderState(4);
         FrameRenderQueue q = new FrameRenderQueue(4);
-        TiledMapRenderState tiled = new TiledMapRenderState(4);
+        TiledRenderState tiled = new TiledRenderState(4);
         LightingGeometrySystem geometry = new LightingGeometrySystem(d, tiled, q, new LayerStateSOA(1));
         World world = new World(new WorldConfigurationBuilder().with(geometry).build());
         try {

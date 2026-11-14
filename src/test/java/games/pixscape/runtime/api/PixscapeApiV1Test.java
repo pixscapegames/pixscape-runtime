@@ -33,7 +33,7 @@ import games.pixscape.runtime.service.AtlasRuntimeService;
 import games.pixscape.runtime.service.ShaderRegistry;
 import games.pixscape.runtime.system.*;
 import games.pixscape.runtime.tiled.TileChunk;
-import games.pixscape.runtime.tiled.TiledMapLayerData;
+import games.pixscape.runtime.tiled.TiledLayerData;
 import games.pixscape.runtime.tiled.animation.TileAnimationDefData;
 import games.pixscape.runtime.tiled.animation.TileAnimationPlayback;
 import org.junit.*;
@@ -240,13 +240,13 @@ public class PixscapeApiV1Test {
 
     @Test
     public void tiledApiSurfaceUsesMapEntityAndStableIdentityOnly() throws Exception {
-        Assert.assertEquals(TiledMapRef.class,
+        Assert.assertEquals(TiledLayerRef.class,
                 TiledAPI.class.getMethod("ofEntityId", int.class).getReturnType());
-        Assert.assertEquals(TiledMapRef.class,
+        Assert.assertEquals(TiledLayerRef.class,
                 TiledAPI.class.getMethod("ofStableId", int.class).getReturnType());
-        Assert.assertEquals(TiledMapRef.class,
+        Assert.assertEquals(TiledLayerRef.class,
                 TiledAPI.class.getMethod("requireEntityId", int.class).getReturnType());
-        Assert.assertEquals(TiledMapRef.class,
+        Assert.assertEquals(TiledLayerRef.class,
                 TiledAPI.class.getMethod("requireStableId", int.class).getReturnType());
         Assert.assertEquals(TiledAnimationsAPI.class,
                 TiledAPI.class.getMethod("animations").getReturnType());
@@ -338,7 +338,7 @@ public class PixscapeApiV1Test {
         resolver.bind(world);
         LayerComponent layer = world.getMapper(LayerComponent.class)
                 .get(resolver.findLayerEntityId(index.layerIndex));
-        TiledMapRef ref = engine.api().tiled().requireEntityId(e);
+        TiledLayerRef ref = engine.api().tiled().requireEntityId(e);
 
         Assert.assertFalse(ref.spatial().enabled());
         ref.spatial().setEnabled(true).setDefaultVolume(2f, 5f);
@@ -864,25 +864,25 @@ public class PixscapeApiV1Test {
         World world = engine.getWorld();
         int e = world.create();
         TiledLayerComponent layer = world.edit(e).create(TiledLayerComponent.class);
-        layer.data = new TiledMapLayerData(4, 4, 16, 16, 2);
+        layer.data = new TiledLayerData(4, 4, 16, 16, 2);
         world.process();
 
         engine.api().tiled().animations().put(100, new int[]{101, 102}, new int[]{100, 100});
 
-        TiledMapRef ref = engine.api().tiled().ofEntityId(e);
+        TiledLayerRef ref = engine.api().tiled().ofEntityId(e);
         ref.tiles().set(1, 1, 100);
         Assert.assertEquals(100, ref.tiles().get(1, 1));
         Assert.assertTrue(ref.tileAnimations().isAnimated(1, 1));
 
         layer.data.markAllChunksContentDirty();
-        ref.map().setAtlasTag("alt");
+        ref.layer().setAtlasTag("alt");
         Assert.assertEquals(TileChunk.DirtyState.FULL, layer.data.getChunk(0, 0).dirtyState);
 
         layer.data.getChunk(0, 0).dirtyState = TileChunk.DirtyState.CLEAN;
         layer.data.getChunk(0, 0).dirtyLocalIndices.clear();
         layer.data.getChunk(0, 0).contentDirty = false;
 
-        ref.map().setOrigin(3f, 4f);
+        ref.layer().setOrigin(3f, 4f);
         Assert.assertEquals(TileChunk.DirtyState.FULL, layer.data.getChunk(0, 0).dirtyState);
 
         ref.tileAnimations().pause(1, 1);
@@ -925,8 +925,8 @@ public class PixscapeApiV1Test {
 
         ref.tiles().fillRect(0, 0, 2, 2, 100).clearRect(0, 0, 1, 1);
         ref.tiles().hLine(0, 2, 3, 100).vLine(2, 0, 3, 100).markAllDirty();
-        ref.map().setOrigin(3f, 4f).setVisible(false).setCollisionEnabled(false).resize(3, 3);
-        Assert.assertEquals(3, ref.map().width());
+        ref.layer().setOrigin(3f, 4f).setVisible(false).setCollisionEnabled(false).resize(3, 3);
+        Assert.assertEquals(3, ref.layer().width());
     }
 
     @Test
@@ -936,13 +936,13 @@ public class PixscapeApiV1Test {
         int entity = world.create();
         world.process();
 
-        TiledMapRef ref = engine.api().tiled().ofEntityId(entity);
+        TiledLayerRef ref = engine.api().tiled().ofEntityId(entity);
         Assert.assertFalse(ref.exists());
-        ref.map().setAtlasTag("partial");
-        ref.map().setAtlasTag("partial-again");
+        ref.layer().setAtlasTag("partial");
+        ref.layer().setAtlasTag("partial-again");
 
         Assert.assertFalse(world.getMapper(TiledLayerComponent.class).has(entity));
-        Assert.assertEquals("", ref.map().atlasTag());
+        Assert.assertEquals("", ref.layer().atlasTag());
         try {
             engine.api().tiled().requireEntityId(entity);
             Assert.fail("Expected a deterministic invalid-ref failure");
@@ -969,21 +969,21 @@ public class PixscapeApiV1Test {
     public void tiledMapIsInsideDistinguishesEmptyCellsFromInvalidCoordinates() throws Exception {
         PixscapeEngine engine = setupEngineWithWorld();
         int entity = createTiledMapWithLayer(engine, 3);
-        TiledMapRef ref = engine.api().tiled().ofEntityId(entity);
+        TiledLayerRef ref = engine.api().tiled().ofEntityId(entity);
 
         Assert.assertEquals(0, ref.tiles().get(0, 0));
-        Assert.assertTrue(ref.map().isInside(0, 0));
-        Assert.assertTrue(ref.map().isInside(3, 3));
-        Assert.assertFalse(ref.map().isInside(-1, 0));
-        Assert.assertFalse(ref.map().isInside(0, -1));
-        Assert.assertFalse(ref.map().isInside(4, 0));
-        Assert.assertFalse(ref.map().isInside(0, 4));
-        Assert.assertFalse(engine.api().tiled().ofEntityId(999).map().isInside(0, 0));
+        Assert.assertTrue(ref.layer().isInside(0, 0));
+        Assert.assertTrue(ref.layer().isInside(3, 3));
+        Assert.assertFalse(ref.layer().isInside(-1, 0));
+        Assert.assertFalse(ref.layer().isInside(0, -1));
+        Assert.assertFalse(ref.layer().isInside(4, 0));
+        Assert.assertFalse(ref.layer().isInside(0, 4));
+        Assert.assertFalse(engine.api().tiled().ofEntityId(999).layer().isInside(0, 0));
 
         assertIllegalArgument(new Runnable() {
             @Override
             public void run() {
-                ref.map().setOrigin(Float.NaN, 2f);
+                ref.layer().setOrigin(Float.NaN, 2f);
             }
         });
         assertIllegalArgument(new Runnable() {
@@ -992,7 +992,7 @@ public class PixscapeApiV1Test {
                 ref.spatial().setDefaultVolume(1f, Float.POSITIVE_INFINITY);
             }
         });
-        TiledMapLayerData data = engine.getWorld().getMapper(TiledLayerComponent.class)
+        TiledLayerData data = engine.getWorld().getMapper(TiledLayerComponent.class)
                 .get(entity).data;
         Assert.assertEquals(0f, data.originX, 0f);
         Assert.assertEquals(0f, data.originY, 0f);
@@ -1001,21 +1001,21 @@ public class PixscapeApiV1Test {
         assertIllegalArgument(new Runnable() {
             @Override
             public void run() {
-                ref.map().resize(0, 4);
+                ref.layer().resize(0, 4);
             }
         });
         assertIllegalArgument(new Runnable() {
             @Override
             public void run() {
-                ref.map().resize(4, -1);
+                ref.layer().resize(4, -1);
             }
         });
-        Assert.assertEquals(4, ref.map().width());
-        Assert.assertEquals(4, ref.map().height());
+        Assert.assertEquals(4, ref.layer().width());
+        Assert.assertEquals(4, ref.layer().height());
 
         engine.getWorld().delete(entity);
         engine.getWorld().process();
-        Assert.assertFalse(ref.map().isInside(0, 0));
+        Assert.assertFalse(ref.layer().isInside(0, 0));
     }
 
     @Test
@@ -1036,7 +1036,7 @@ public class PixscapeApiV1Test {
 
         engine.api().tiled().requireEntityId(entity).tiles().set(1, 0, "test");
 
-        TiledMapRef ref = engine.api().tiled().requireEntityId(entity);
+        TiledLayerRef ref = engine.api().tiled().requireEntityId(entity);
         Assert.assertEquals(100, ref.tiles().get(1, 0));
         Assert.assertTrue(ref.tileAnimations().isAnimated(1, 0));
         Assert.assertEquals(100, engine.api().tiled().animations().animationId("test"));
@@ -1063,7 +1063,7 @@ public class PixscapeApiV1Test {
                 100, "door_open_anim", new int[]{101, 102, 103}, new int[]{100, 100, 100}
         ));
 
-        TiledMapRef layer = engine.api().tiled().requireEntityId(entity);
+        TiledLayerRef layer = engine.api().tiled().requireEntityId(entity);
         layer.tiles().set(1, 0, "door_open_anim");
 
         layer.tileAnimations().playOnce(1, 0);
@@ -1109,7 +1109,7 @@ public class PixscapeApiV1Test {
                 100, "door_open_anim", new int[]{101, 102}, new int[]{100, 100}
         ));
 
-        TiledMapRef layer = engine.api().tiled().requireEntityId(entity);
+        TiledLayerRef layer = engine.api().tiled().requireEntityId(entity);
         layer.tiles().set(1, 0, "door_open_anim");
         layer.tileAnimations().playOnce(1, 0, false);
 
@@ -1131,7 +1131,7 @@ public class PixscapeApiV1Test {
                 100, "water_loop", new int[]{101, 102}, new int[]{100, 100}
         ));
 
-        TiledMapRef layer = engine.api().tiled().requireEntityId(entity);
+        TiledLayerRef layer = engine.api().tiled().requireEntityId(entity);
         layer.tiles().set(1, 0, "water_loop");
 
         engine.getWorld().setDelta(0.25f);
@@ -1151,7 +1151,7 @@ public class PixscapeApiV1Test {
                 100, "door_open_anim", new int[]{101, 102, 103}, new int[]{100, 100, 100}
         ));
 
-        TiledMapRef layer = engine.api().tiled().requireEntityId(entity);
+        TiledLayerRef layer = engine.api().tiled().requireEntityId(entity);
         layer.tiles().set(1, 0, "door_open_anim");
         layer.tileAnimations().playOnce(1, 0).setFrame(1, 0, 1).setElapsedMs(1, 0, 25).pause(1, 0);
 
@@ -1176,7 +1176,7 @@ public class PixscapeApiV1Test {
                 100, "door_open_anim", new int[]{101, 102, 103}, new int[]{100, 100, 100}
         ));
 
-        TiledMapRef layer = engine.api().tiled().requireEntityId(entity);
+        TiledLayerRef layer = engine.api().tiled().requireEntityId(entity);
         layer.tiles().set(1, 0, "door_open_anim");
         layer.tiles().set(2, 0, "door_open_anim");
 
@@ -2368,7 +2368,7 @@ public class PixscapeApiV1Test {
         index.layerIndex = layerIndex;
         index.zIndex = 0;
         TiledLayerComponent tiled = world.edit(map).create(TiledLayerComponent.class);
-        tiled.data = new TiledMapLayerData(4, 4, 16, 16, 2);
+        tiled.data = new TiledLayerData(4, 4, 16, 16, 2);
 
         world.process();
         return map;
@@ -2379,7 +2379,7 @@ public class PixscapeApiV1Test {
         EntityIndexComponent index = world.edit(map).create(EntityIndexComponent.class);
         index.layerIndex = layerIndex;
         TiledLayerComponent tiled = world.edit(map).create(TiledLayerComponent.class);
-        tiled.data = new TiledMapLayerData(4, 4, 16, 16, 2);
+        tiled.data = new TiledLayerData(4, 4, 16, 16, 2);
         return map;
     }
 

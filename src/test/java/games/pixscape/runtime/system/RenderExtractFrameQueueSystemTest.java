@@ -39,7 +39,7 @@ public class RenderExtractFrameQueueSystemTest {
     @Test
     public void canKeepTiledAndParticleQuadsInAuthoredCoordinatesForAnAuthoringWorld() {
         DynamicEntityRenderState ecsState = new DynamicEntityRenderState(1);
-        TiledMapRenderState tiledState = new TiledMapRenderState(1);
+        TiledRenderState tiledState = new TiledRenderState(1);
         VfxRenderState vfxState = new VfxRenderState(1);
         DrawList drawList = new DrawList(2);
         FrameRenderQueue queue = new FrameRenderQueue(2);
@@ -72,7 +72,7 @@ public class RenderExtractFrameQueueSystemTest {
     @Test
     public void appliesOwningLayerParallaxToTiledAndParticleQuadsOnlyAtDisplayExtraction() {
         DynamicEntityRenderState ecsState = new DynamicEntityRenderState(2);
-        TiledMapRenderState tiledState = new TiledMapRenderState(4);
+        TiledRenderState tiledState = new TiledRenderState(4);
         VfxRenderState vfxState = new VfxRenderState(4);
         DrawList drawList = new DrawList(8);
         FrameRenderQueue queue = new FrameRenderQueue(8);
@@ -136,7 +136,7 @@ public class RenderExtractFrameQueueSystemTest {
     @Test
     public void extractsDrawListOrderAndCopiesDrawReadyFields() {
         DynamicEntityRenderState ecsState = new DynamicEntityRenderState(4);
-        TiledMapRenderState tiledState = new TiledMapRenderState(16);
+        TiledRenderState tiledState = new TiledRenderState(16);
         VfxRenderState vfxState = new VfxRenderState(16);
         DrawList drawList = new DrawList(16);
         FrameRenderQueue queue = new FrameRenderQueue(1);
@@ -251,7 +251,7 @@ public class RenderExtractFrameQueueSystemTest {
         );
     }
 
-    private static void writeTiled(TiledMapRenderState state, int ref, int base) {
+    private static void writeTiled(TiledRenderState state, int ref, int base) {
         state.setRenderDataForRef(
                 ref,
                 base + 1,

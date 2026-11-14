@@ -12,7 +12,7 @@ public class WorldConfigFactoryFrameQueueCapacityTest {
         DrawList drawList = new DrawList();
         FrameRenderQueue frameQueue = new FrameRenderQueue();
         VfxRenderState vfxState = new VfxRenderState();
-        TiledMapRenderState tiledState = new TiledMapRenderState();
+        TiledRenderState tiledState = new TiledRenderState();
         int ecsCapacity = WorldConfigFactory.DEFAULT_DYNAMIC_ECS_RENDER_CAPACITY;
         int domainCapacityTotal = ecsCapacity + WorldConfigFactory.DEFAULT_VFX_BUDGET
                 + WorldConfigFactory.DEFAULT_TILED_VISIBLE_SLOTS_CAPACITY;

@@ -2,7 +2,7 @@ package games.pixscape.runtime.render.lighting;
 
 import games.pixscape.runtime.component.spatial.SpatialBlocksComponent;
 import games.pixscape.runtime.spatial.SpatialBlockData;
-import games.pixscape.runtime.tiled.TiledMapLayerData;
+import games.pixscape.runtime.tiled.TiledLayerData;
 import games.pixscape.runtime.tiled.TiledProjection;
 import org.junit.Assert;
 import org.junit.Test;
@@ -11,7 +11,7 @@ public class LightingGeometryTest {
     @Test
     public void onlyOrdinaryImagesPublishSimpleQuadTopologyAndRefreshEveryCorner() {
         games.pixscape.runtime.render.DynamicEntityRenderState dynamic = new games.pixscape.runtime.render.DynamicEntityRenderState(4);
-        games.pixscape.runtime.render.TiledMapRenderState tiled = new games.pixscape.runtime.render.TiledMapRenderState(4);
+        games.pixscape.runtime.render.TiledRenderState tiled = new games.pixscape.runtime.render.TiledRenderState(4);
         games.pixscape.runtime.render.FrameRenderQueue queue = new games.pixscape.runtime.render.FrameRenderQueue(4);
         games.pixscape.runtime.render.LayerStateSOA layers = new games.pixscape.runtime.render.LayerStateSOA(1);
         layers.enabled[0] = true;
@@ -63,8 +63,8 @@ public class LightingGeometryTest {
             local.normals = new float[]{0, 0, 1, 0, 0, 1, 0, 0, 1};
             local.triangles = new int[]{0, 1, 2};
             Assert.assertFalse(LocalSurfaceCompiler.compile(local, 0, 0, 0).imageQuad);
-            TiledMapLayerData map = new TiledMapLayerData(4, 4, 32, 16, 4, TiledProjection.ISO);
-            MapLightingGeometry geometry = new MapLightingGeometry();
+            TiledLayerData map = new TiledLayerData(4, 4, 32, 16, 4, TiledProjection.ISO);
+            TiledLayerLightingGeometry geometry = new TiledLayerLightingGeometry();
             geometry.ensure(map, null);
             Assert.assertFalse(geometry.receiver(map, 0, 0, 7, (byte) 0, q).imageQuad);
             Assert.assertFalse("Tiled receivers belong to decor", geometry.receiver(map, 0, 0, 7, (byte) 0, q).actor);
@@ -85,7 +85,7 @@ public class LightingGeometryTest {
 
     @Test
     public void absoluteAltitudeAndImageProjectionRemainConsistent() {
-        TiledMapLayerData map = new TiledMapLayerData(40, 40, 256, 128, 16, TiledProjection.ISO);
+        TiledLayerData map = new TiledLayerData(40, 40, 256, 128, 16, TiledProjection.ISO);
         map.originX = 17;
         map.originY = -36;
         map.defaultTileAltitude = 128;
@@ -103,8 +103,8 @@ public class LightingGeometryTest {
 
     @Test
     public void staticReceiversAreReusedAndRelevantChangesInvalidate() {
-        TiledMapLayerData map = new TiledMapLayerData(40, 40, 256, 128, 16, TiledProjection.ISO);
-        MapLightingGeometry geometry = new MapLightingGeometry();
+        TiledLayerData map = new TiledLayerData(40, 40, 256, 128, 16, TiledProjection.ISO);
+        TiledLayerLightingGeometry geometry = new TiledLayerLightingGeometry();
         Assert.assertTrue(geometry.ensure(map, null));
         float[] quad = {0, 0, 0, 128, 256, 128, 256, 0};
         LightingSurface first = geometry.receiver(map, 0, 0, 7, (byte) 0, quad);
@@ -119,8 +119,8 @@ public class LightingGeometryTest {
 
     @Test
     public void tiledReceiversPrepareExactImmutableForwardAttributesAndRebuildWithGeometry() {
-        TiledMapLayerData map = new TiledMapLayerData(40, 40, 256, 128, 16, TiledProjection.ISO);
-        MapLightingGeometry geometry = new MapLightingGeometry();
+        TiledLayerData map = new TiledLayerData(40, 40, 256, 128, 16, TiledProjection.ISO);
+        TiledLayerLightingGeometry geometry = new TiledLayerLightingGeometry();
         Assert.assertTrue(geometry.ensure(map, null));
         float[] quad = {0, 0, 0, 128, 256, 128, 256, 0};
         LightingSurface first = geometry.receiver(map, 0, 0, 7, (byte) 0, quad);
@@ -137,8 +137,8 @@ public class LightingGeometryTest {
 
     @Test
     public void tiledImmutableAttributesLeaveTextureFramesAndShadowPolicyDynamic() {
-        TiledMapLayerData map = new TiledMapLayerData(8, 8, 64, 32, 4, TiledProjection.ISO);
-        MapLightingGeometry geometry = new MapLightingGeometry();
+        TiledLayerData map = new TiledLayerData(8, 8, 64, 32, 4, TiledProjection.ISO);
+        TiledLayerLightingGeometry geometry = new TiledLayerLightingGeometry();
         Assert.assertTrue(geometry.ensure(map, null));
         float[] quad = {0, 0, 0, 32, 64, 32, 64, 0};
         LightingSurface receiver = geometry.receiver(map, 0, 0, 7, (byte) 0, quad);
@@ -167,7 +167,7 @@ public class LightingGeometryTest {
     public void changingVolumeAltitudeNeverMovesItsCommonXYAndCustomMeshUsesDrawnPlane() {
         for (TiledProjection projection : TiledProjection.values())
             for (int width : new int[]{32, 128, 256}) {
-                TiledMapLayerData map = new TiledMapLayerData(8, 8, width, width / 2, 4, projection);
+                TiledLayerData map = new TiledLayerData(8, 8, width, width / 2, 4, projection);
                 map.defaultTileAltitude = 80;
                 map.originX = 17;
                 map.originY = 122;
@@ -186,14 +186,14 @@ public class LightingGeometryTest {
                 LightingSurface surface = LocalSurfaceCompiler.compile(mesh, low[0], low[1], low[2]);
                 Assert.assertEquals(87, surface.vertices[2], 0);
             }
-        TiledMapLayerData map = new TiledMapLayerData(8, 8, 32, 16, 4, TiledProjection.ISO);
+        TiledLayerData map = new TiledLayerData(8, 8, 32, 16, 4, TiledProjection.ISO);
         map.defaultTileAltitude = 80;
         SpatialBlocksComponent blocks = new SpatialBlocksComponent();
         SpatialBlockData wall = block(1, 1, 1, 2, .2f, 70);
         wall.altitude = 120;
         wall.shadowCaster = true;
         blocks.blocks.add(wall);
-        MapLightingGeometry geometry = new MapLightingGeometry();
+        TiledLayerLightingGeometry geometry = new TiledLayerLightingGeometry();
         geometry.ensure(map, blocks);
         float min = Float.POSITIVE_INFINITY, max = Float.NEGATIVE_INFINITY;
         for (LightingSurface caster : geometry.casters)
@@ -207,7 +207,7 @@ public class LightingGeometryTest {
 
     @Test
     public void coplanarBandCoordinatesAreBitExactAcrossEndpointsAndAltitudes() {
-        TiledMapLayerData map = new TiledMapLayerData(64, 64, 256, 128, 16, TiledProjection.ISO);
+        TiledLayerData map = new TiledLayerData(64, 64, 256, 128, 16, TiledProjection.ISO);
         map.defaultTileAltitude = 158.07935f;
         float[] start = new float[3], end = new float[3];
         LightingCoordinates.mapPoint(map, 30.765005f, 16, 0, start, 0);
@@ -220,14 +220,14 @@ public class LightingGeometryTest {
 
     @Test
     public void casterFlagsAreAuthoredAndAllMembershipsSurvive() {
-        TiledMapLayerData map = new TiledMapLayerData(40, 40, 256, 128, 16, TiledProjection.ISO);
+        TiledLayerData map = new TiledLayerData(40, 40, 256, 128, 16, TiledProjection.ISO);
         SpatialBlocksComponent blocks = new SpatialBlocksComponent();
         SpatialBlockData a = block(1, 0, 0, 1, 1, 128), b = block(2, 1, 0, 1, 1, 160);
         a.addLinkedTileRef(0, 0, 7);
         b.addLinkedTileRef(0, 0, 7);
         blocks.blocks.add(a);
         blocks.blocks.add(b);
-        MapLightingGeometry geometry = new MapLightingGeometry();
+        TiledLayerLightingGeometry geometry = new TiledLayerLightingGeometry();
         geometry.ensure(map, blocks);
         Assert.assertEquals(0, geometry.casters.size);
         float[] quad = {-256, -128, -256, 512, 512, 512, 512, -128};
@@ -254,14 +254,14 @@ public class LightingGeometryTest {
 
     @Test
     public void linkedSilhouetteCasterContributesWithoutDiagnosticOverrides() {
-        TiledMapLayerData map = new TiledMapLayerData(8, 8, 64, 32, 4, TiledProjection.ISO);
+        TiledLayerData map = new TiledLayerData(8, 8, 64, 32, 4, TiledProjection.ISO);
         SpatialBlocksComponent blocks = new SpatialBlocksComponent();
         SpatialBlockData barrel = block(1, 2.1f, 3.2f, .75f, .63f, 54.244385f);
         barrel.shadowCaster = true;
         barrel.silhouetteShadowCaster = true;
         barrel.addLinkedTileRef(2, 3, 1885);
         blocks.blocks.add(barrel);
-        MapLightingGeometry geometry = new MapLightingGeometry();
+        TiledLayerLightingGeometry geometry = new TiledLayerLightingGeometry();
         geometry.ensure(map, blocks);
         Assert.assertEquals("The white static volume must be removed in B", 0, geometry.casters.size);
         float[] quad = new float[8];
@@ -283,7 +283,7 @@ public class LightingGeometryTest {
 
     @Test
     public void authoredNonCasterIsExcludedWhileAnotherLinkedCasterStillContributes() {
-        TiledMapLayerData map = new TiledMapLayerData(8, 8, 64, 32, 4, TiledProjection.ISO);
+        TiledLayerData map = new TiledLayerData(8, 8, 64, 32, 4, TiledProjection.ISO);
         SpatialBlocksComponent blocks = new SpatialBlocksComponent();
         SpatialBlockData excluded = block(44, 2.1f, 3.2f, .75f, .63f, 54.244385f);
         excluded.silhouetteShadowCaster = true;
@@ -294,7 +294,7 @@ public class LightingGeometryTest {
         included.silhouetteShadowCaster = true;
         included.addLinkedTileRef(3, 3, 1885);
         blocks.blocks.add(included);
-        MapLightingGeometry geometry = new MapLightingGeometry();
+        TiledLayerLightingGeometry geometry = new TiledLayerLightingGeometry();
         geometry.ensure(map, blocks);
         float[] excludedQuad = new float[8];
         map.tileToRenderQuad(2, 3, excludedQuad);
@@ -313,14 +313,14 @@ public class LightingGeometryTest {
     @Test
     public void barrelSupportCoversTheRecordedOpaqueImageExtent() {
         // Real copied-scene support: tile (26,29), 256x512 bottom-centred image, block 44.
-        TiledMapLayerData map = new TiledMapLayerData(50, 50, 256, 128, 16, TiledProjection.ISO);
+        TiledLayerData map = new TiledLayerData(50, 50, 256, 128, 16, TiledProjection.ISO);
         SpatialBlocksComponent blocks = new SpatialBlocksComponent();
         SpatialBlockData barrel = block(44, 26.153797f, 29.179745f, .7476578f, .62960434f, 54.244385f);
         barrel.shadowCaster = true;
         barrel.silhouetteShadowCaster = true;
         barrel.addLinkedTileRef(26, 29, 1885);
         blocks.blocks.add(barrel);
-        MapLightingGeometry geometry = new MapLightingGeometry();
+        TiledLayerLightingGeometry geometry = new TiledLayerLightingGeometry();
         geometry.ensure(map, blocks);
         // Native tileset profile: image is 256x512 and anchored at the cell's bottom centre.
         float cellX = (26 - 29) * 128f, cellY = (26 + 29) * 64f;
@@ -342,7 +342,7 @@ public class LightingGeometryTest {
 
     @Test
     public void silhouetteCasterAdmitsSeveralAuthoredCellContributions() {
-        TiledMapLayerData map = new TiledMapLayerData(8, 8, 64, 32, 4, TiledProjection.ISO);
+        TiledLayerData map = new TiledLayerData(8, 8, 64, 32, 4, TiledProjection.ISO);
         SpatialBlocksComponent blocks = new SpatialBlocksComponent();
         SpatialBlockData block = block(1, 1, 1, 1, 1, 32);
         block.shadowCaster = true;
@@ -350,7 +350,7 @@ public class LightingGeometryTest {
         block.addLinkedTileRef(1, 1, 7);
         block.addLinkedTileRef(2, 1, 7);
         blocks.blocks.add(block);
-        MapLightingGeometry geometry = new MapLightingGeometry();
+        TiledLayerLightingGeometry geometry = new TiledLayerLightingGeometry();
         geometry.ensure(map, blocks);
         Assert.assertEquals(0, geometry.casters.size);
     }
@@ -424,13 +424,13 @@ public class LightingGeometryTest {
 
     @Test
     public void coverageCompletionPreservesEveryValidReceiverAndTheCasterGeometry() {
-        TiledMapLayerData map = new TiledMapLayerData(4, 4, 32, 16, 4, TiledProjection.ISO);
+        TiledLayerData map = new TiledLayerData(4, 4, 32, 16, 4, TiledProjection.ISO);
         SpatialBlocksComponent blocks = new SpatialBlocksComponent();
         SpatialBlockData wall = block(1, 0, 0, 2, .25f, 16);
         wall.shadowCaster = true;
         wall.addLinkedTileRef(0, 0, 7);
         blocks.blocks.add(wall);
-        MapLightingGeometry geometry = new MapLightingGeometry();
+        TiledLayerLightingGeometry geometry = new TiledLayerLightingGeometry();
         geometry.ensure(map, blocks);
         float[] quad = {-64, -32, -64, 64, 96, 64, 96, -32};
         LightingSurface surface = geometry.receiver(map, 0, 0, 7, (byte) 0, quad);
@@ -465,9 +465,9 @@ public class LightingGeometryTest {
 
     @Test
     public void fullyDescribedGroundNeedsNoCompletionAndPartialLocalSurfacesKeepTheirValidVertices() {
-        TiledMapLayerData map = new TiledMapLayerData(4, 4, 32, 16, 4, TiledProjection.ISO);
+        TiledLayerData map = new TiledLayerData(4, 4, 32, 16, 4, TiledProjection.ISO);
         map.defaultTileAltitude = 42;
-        MapLightingGeometry geometry = new MapLightingGeometry();
+        TiledLayerLightingGeometry geometry = new TiledLayerLightingGeometry();
         geometry.ensure(map, null);
         float[] quad = {0, 0, 0, 32, 64, 32, 64, 0};
         LightingSurface ground = geometry.receiver(map, 0, 0, 7, (byte) 0, quad);

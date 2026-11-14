@@ -1,6 +1,6 @@
 package games.pixscape.runtime.spatial;
 
-import games.pixscape.runtime.tiled.TiledMapLayerData;
+import games.pixscape.runtime.tiled.TiledLayerData;
 
 /**
  * Shared allocation-free projection of one face clipped to one supporting tile cell.
@@ -14,7 +14,7 @@ final class SpatialAnchoredSegmentProjection {
                            int gx,
                            int gy,
                            float altitude,
-                           TiledMapLayerData map,
+                           TiledLayerData map,
                            float[] out) {
         boolean vertical = isVertical(faces.orientation(face));
         float localStart = vertical ? gy : gx;

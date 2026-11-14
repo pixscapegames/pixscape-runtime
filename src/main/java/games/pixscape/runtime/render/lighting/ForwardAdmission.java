@@ -72,7 +72,7 @@ public final class ForwardAdmission {
     /**
      * Cold full-domain admission includes off-camera images, not just the visible queue.
      */
-    public static void validateDomains(DynamicEntityRenderState dynamic, TiledMapRenderState tiled, AtlasRuntimeService.TextureArrayBundle bundle) {
+    public static void validateDomains(DynamicEntityRenderState dynamic, TiledRenderState tiled, AtlasRuntimeService.TextureArrayBundle bundle) {
         validateBundle(bundle);
         for (int slot = 0; slot < dynamic.activeCount; slot++) {
             int e = dynamic.renderSlotToEntityId[slot];

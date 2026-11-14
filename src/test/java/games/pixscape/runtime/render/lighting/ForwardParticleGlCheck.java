@@ -68,7 +68,7 @@ final class ForwardParticleGlCheck {
         camera.position.set(32, 16, 0);
         camera.update();
         DynamicEntityRenderState dynamic = new DynamicEntityRenderState(4);
-        TiledMapRenderState tiled = new TiledMapRenderState();
+        TiledRenderState tiled = new TiledRenderState();
         VfxRenderState vfx = new VfxRenderState(4);
         LayerStateSOA layers = new LayerStateSOA(1);
         layers.enabled[0] = true;

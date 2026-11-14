@@ -5,7 +5,7 @@ import games.pixscape.runtime.component.spatial.SpatialBlocksComponent;
 import games.pixscape.runtime.spatial.SpatialBlockData;
 import games.pixscape.runtime.spatial.SpatialBlockLinks;
 import games.pixscape.runtime.spatial.SpatialWallGeometry;
-import games.pixscape.runtime.tiled.TiledMapLayerData;
+import games.pixscape.runtime.tiled.TiledLayerData;
 import games.pixscape.runtime.tiled.TiledProjection;
 
 import java.util.HashMap;
@@ -19,17 +19,17 @@ public final class WallShadowGroups {
     private static final class Wall {
         int owner, id;
         SpatialBlockData block;
-        TiledMapLayerData map;
+        TiledLayerData map;
         float x0, x1, y0, y1;
     }
 
     private final Array<Wall> walls = new Array<>();
 
-    public void add(int owner, TiledMapLayerData map, SpatialBlocksComponent blocks, ShadowExclusionIdentities ids) {
+    public void add(int owner, TiledLayerData map, SpatialBlocksComponent blocks, ShadowExclusionIdentities ids) {
         if (blocks == null || (map.projection == TiledProjection.ISO && map.tileWidth != 2 * map.tileHeight)) return;
         for (SpatialBlockData b : blocks.blocks) {
             if (b.structureId <= 0 || b.id <= 0 || !b.hasLinkedTileRefs()) continue;
-            if (map.projection == TiledProjection.ORTHO ? !MapLightingGeometry.usesSilhouette(b) : !b.actorOccluder)
+            if (map.projection == TiledProjection.ORTHO ? !TiledLayerLightingGeometry.usesSilhouette(b) : !b.actorOccluder)
                 continue;
             Wall w = new Wall();
             w.owner = owner;

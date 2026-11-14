@@ -22,7 +22,7 @@ import java.util.Arrays;
 
 public final class RenderBuildDrawListSystem extends BaseSystem implements ProfiledSystem {
     private final DynamicEntityRenderState ecsState;
-    private final TiledMapRenderState tiledState;
+    private final TiledRenderState tiledState;
     private final VfxRenderState vfxState;
     private final LayerStateSOA layerState;
     private final DrawList drawList;
@@ -53,7 +53,7 @@ public final class RenderBuildDrawListSystem extends BaseSystem implements Profi
     private SystemProfiler profiler = SystemProfilers.DISABLED;
 
     public RenderBuildDrawListSystem(DynamicEntityRenderState ecsState,
-                                     TiledMapRenderState tiledState,
+                                     TiledRenderState tiledState,
                                      LayerStateSOA layerState,
                                      DrawList drawList,
                                      RenderStats stats,
@@ -64,7 +64,7 @@ public final class RenderBuildDrawListSystem extends BaseSystem implements Profi
     }
 
     public RenderBuildDrawListSystem(DynamicEntityRenderState ecsState,
-                                     TiledMapRenderState tiledState,
+                                     TiledRenderState tiledState,
                                      VfxRenderState vfxState,
                                      LayerStateSOA layerState,
                                      DrawList drawList,
@@ -146,15 +146,15 @@ public final class RenderBuildDrawListSystem extends BaseSystem implements Profi
         }
 
         int tiledVisibleRefCount = tiledState.getVisibleRefCount();
-        int visibleMapCount = tiledState.getVisibleMapCount();
-        for (int group = 0; group < visibleMapCount; group++) {
+        int visibleTileLayerCount = tiledState.getVisibleTileLayerCount();
+        for (int group = 0; group < visibleTileLayerCount; group++) {
             if (!isRenderableTiledGroup(group)) continue;
             composition.add(
                     RenderSourceDomain.SOURCE_TILED,
                     group,
-                    tiledState.visibleMapCompositionKey(group)
+                    tiledState.visibleTileLayerCompositionKey(group)
             );
-            extractedQuads += tiledState.visibleMapRefCount(group);
+            extractedQuads += tiledState.visibleTileLayerRefCount(group);
         }
 
         if (vfxState != null && vfxStartInclusive >= 0 && vfxEndExclusive > vfxStartInclusive) {
@@ -250,11 +250,11 @@ public final class RenderBuildDrawListSystem extends BaseSystem implements Profi
     }
 
     private boolean isRenderableTiledGroup(int groupIndex) {
-        int refCount = tiledState.visibleMapRefCount(groupIndex);
+        int refCount = tiledState.visibleTileLayerRefCount(groupIndex);
         if (refCount <= 0) return false;
 
         if (layerState != null) {
-            int layerIdx = tiledState.visibleMapLayerIndex(groupIndex);
+            int layerIdx = tiledState.visibleTileLayerLayerIndex(groupIndex);
             if (layerIdx < 0 || layerIdx >= layerState.enabled.length || !layerState.enabled[layerIdx]) {
                 return false;
             }

@@ -4,7 +4,7 @@ import games.pixscape.runtime.component.TiledLayerComponent;
 import org.junit.Assert;
 import org.junit.Test;
 
-public class TiledMapLayerDataTest {
+public class TiledLayerDataTest {
 
     @Test
     public void authoredConfigurationsBuildIndependentMapData() {
@@ -13,8 +13,8 @@ public class TiledMapLayerDataTest {
         TiledLayerComponent ortho = configuredMap(
                 TiledProjection.ORTHO, 32, 32, 7, 9, 8, -3f, 11f);
 
-        TiledMapLayerData isoData = iso.createMapData();
-        TiledMapLayerData orthoData = ortho.createMapData();
+        TiledLayerData isoData = iso.createLayerData();
+        TiledLayerData orthoData = ortho.createLayerData();
 
         Assert.assertEquals(TiledProjection.ISO, isoData.projection);
         Assert.assertEquals(64, isoData.tileWidth);
@@ -37,12 +37,12 @@ public class TiledMapLayerDataTest {
 
     @Test(expected = IllegalArgumentException.class)
     public void missingAuthoredConfigurationDoesNotFallBack() {
-        new TiledLayerComponent().createMapData();
+        new TiledLayerComponent().createLayerData();
     }
 
     @Test
     public void atomicCandidateIsReadableWithoutPublishingRevisionOrDirtyState() {
-        TiledMapLayerData map = cleanMap();
+        TiledLayerData map = cleanMap();
         int revision = map.contentRevision();
         int stateRevision = map.contentStateRevision();
 
@@ -58,7 +58,7 @@ public class TiledMapLayerDataTest {
 
     @Test
     public void atomicRollbackRestoresCellsFlagsAndDirtyMetadataExactly() {
-        TiledMapLayerData map = cleanMap();
+        TiledLayerData map = cleanMap();
         map.setTile(1, 1, 4, TileTransformFlags.FLIP_V);
         int revision = map.contentRevision();
         TileChunk chunk = map.getChunk(0, 0);
@@ -78,7 +78,7 @@ public class TiledMapLayerDataTest {
 
     @Test
     public void atomicCommitPublishesOneRevisionAndOnlyTouchedChunks() {
-        TiledMapLayerData map = cleanMap();
+        TiledLayerData map = cleanMap();
         int revision = map.contentRevision();
 
         map.beginAtomicMutation();
@@ -96,7 +96,7 @@ public class TiledMapLayerDataTest {
 
     @Test(expected = IllegalStateException.class)
     public void nestedAtomicMutationIsRejected() {
-        TiledMapLayerData map = cleanMap();
+        TiledLayerData map = cleanMap();
         map.beginAtomicMutation();
         try {
             map.beginAtomicMutation();
@@ -107,7 +107,7 @@ public class TiledMapLayerDataTest {
 
     @Test
     public void orthoFloatTileToWorldUsesContinuousGridCoordinates() {
-        TiledMapLayerData map = new TiledMapLayerData(8, 8, 40, 20, 4);
+        TiledLayerData map = new TiledLayerData(8, 8, 40, 20, 4);
         map.originX = 3f;
         map.originY = -7f;
 
@@ -117,7 +117,7 @@ public class TiledMapLayerDataTest {
 
     @Test
     public void isoFloatTileToWorldUsesConfiguredTileRatio() {
-        TiledMapLayerData map = new TiledMapLayerData(
+        TiledLayerData map = new TiledLayerData(
                 8,
                 8,
                 90,
@@ -134,7 +134,7 @@ public class TiledMapLayerDataTest {
 
     @Test
     public void floatTileProjectionRoundTripsThroughContinuousWorldProjection() {
-        TiledMapLayerData map = new TiledMapLayerData(
+        TiledLayerData map = new TiledLayerData(
                 8,
                 8,
                 70,
@@ -156,7 +156,7 @@ public class TiledMapLayerDataTest {
 
     @Test
     public void isoWorldToTileHandlesOriginAndNegativeWorldX() {
-        TiledMapLayerData map = new TiledMapLayerData(
+        TiledLayerData map = new TiledLayerData(
                 8,
                 8,
                 64,
@@ -172,7 +172,7 @@ public class TiledMapLayerDataTest {
         assertTileCenterMapsBackToCell(map, 3, 1);
     }
 
-    private static void assertTileCenterMapsBackToCell(TiledMapLayerData map, int gx, int gy) {
+    private static void assertTileCenterMapsBackToCell(TiledLayerData map, int gx, int gy) {
         float worldX = map.tileToWorldX(gx, gy) + map.tileWidth * 0.5f;
         float worldY = map.tileToWorldY(gx, gy) + map.tileHeight * 0.5f;
 
@@ -182,7 +182,7 @@ public class TiledMapLayerDataTest {
 
     @Test
     public void identicalWritePreservesCleanVisualAndContentState() {
-        TiledMapLayerData map = cleanMapWithTile();
+        TiledLayerData map = cleanMapWithTile();
         int revision = map.contentRevision();
         int stateRevision = map.contentStateRevision();
 
@@ -197,7 +197,7 @@ public class TiledMapLayerDataTest {
 
     @Test
     public void identicalWritePreservesIndependentVisualInvalidation() {
-        TiledMapLayerData map = cleanMapWithTile();
+        TiledLayerData map = cleanMapWithTile();
         int revision = map.contentStateRevision();
         // Animation and resource/profile publication use this same invalidation entry point.
         map.markVisualBoundsDirty();
@@ -209,7 +209,7 @@ public class TiledMapLayerDataTest {
 
     @Test
     public void realAssetAndFlagChangesStillInvalidateVisualAndContentState() {
-        TiledMapLayerData map = cleanMapWithTile();
+        TiledLayerData map = cleanMapWithTile();
         int revision = map.contentStateRevision();
         map.setTile(0, 0, 2);
         Assert.assertTrue(map.visualBoundsDirty);
@@ -229,7 +229,7 @@ public class TiledMapLayerDataTest {
 
     @Test
     public void bulkNoOpDoesNotInvalidateButRealChangePublishesAtCommit() {
-        TiledMapLayerData map = cleanMapWithTile();
+        TiledLayerData map = cleanMapWithTile();
         int revision = map.contentRevision();
         int stateRevision = map.contentStateRevision();
         map.beginContentMutation();
@@ -251,7 +251,7 @@ public class TiledMapLayerDataTest {
 
     @Test
     public void atomicNoOpPreservesCleanStateAndIndependentDirty() {
-        TiledMapLayerData map = cleanMapWithTile();
+        TiledLayerData map = cleanMapWithTile();
         int revision = map.contentStateRevision();
         map.beginAtomicMutation();
         map.setTileStaged(0, 0, 1, TileTransformFlags.NONE);
@@ -268,16 +268,16 @@ public class TiledMapLayerDataTest {
         Assert.assertEquals(revision, map.contentStateRevision());
     }
 
-    private static TiledMapLayerData cleanMapWithTile() {
-        TiledMapLayerData map = cleanMap();
+    private static TiledLayerData cleanMapWithTile() {
+        TiledLayerData map = cleanMap();
         map.setTile(0, 0, 1);
         resetChunkDirtyState(map.getChunk(0, 0));
         map.visualBoundsDirty = false;
         return map;
     }
 
-    private static TiledMapLayerData cleanMap() {
-        TiledMapLayerData map = new TiledMapLayerData(8, 8, 32, 16, 4);
+    private static TiledLayerData cleanMap() {
+        TiledLayerData map = new TiledLayerData(8, 8, 32, 16, 4);
         for (int cy = 0; cy < map.getChunksY(); cy++) {
             for (int cx = 0; cx < map.getChunksX(); cx++) {
                 resetChunkDirtyState(map.getChunk(cx, cy));

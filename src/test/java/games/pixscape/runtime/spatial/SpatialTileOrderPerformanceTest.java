@@ -1,7 +1,7 @@
 package games.pixscape.runtime.spatial;
 
 import games.pixscape.runtime.component.spatial.SpatialBlocksComponent;
-import games.pixscape.runtime.tiled.TiledMapLayerData;
+import games.pixscape.runtime.tiled.TiledLayerData;
 import games.pixscape.runtime.tiled.TiledProjection;
 import org.junit.Assert;
 import org.junit.Test;
@@ -11,7 +11,7 @@ public class SpatialTileOrderPerformanceTest {
     public void staticCompileScalesAndWarmReadsDoNotRecompile() {
         SpatialTileOrderCache large = compile(filledMap(256, 256), new SpatialBlocksComponent());
 
-        TiledMapLayerData anchoredMap = filledMap(512, 2);
+        TiledLayerData anchoredMap = filledMap(512, 2);
         SpatialBlockData wall = new SpatialBlockData();
         wall.id = 1;
         wall.structureId = 1;
@@ -37,7 +37,7 @@ public class SpatialTileOrderPerformanceTest {
         Assert.assertEquals(1, anchored.tileOrderCompileCount);
     }
 
-    private static SpatialTileOrderCache compile(TiledMapLayerData map, SpatialBlocksComponent blocks) {
+    private static SpatialTileOrderCache compile(TiledLayerData map, SpatialBlocksComponent blocks) {
         SpatialCompiledLayerCache compiled = new SpatialCompiledLayerCache();
         compiled.ensure(blocks);
         SpatialTileOrderCache order = new SpatialTileOrderCache();
@@ -45,8 +45,8 @@ public class SpatialTileOrderPerformanceTest {
         return order;
     }
 
-    private static TiledMapLayerData filledMap(int width, int height) {
-        TiledMapLayerData map = new TiledMapLayerData(width, height, 32, 16, 32,
+    private static TiledLayerData filledMap(int width, int height) {
+        TiledLayerData map = new TiledLayerData(width, height, 32, 16, 32,
                 TiledProjection.ISO);
         map.beginContentMutation();
         for (int gy = 0; gy < height; gy++) for (int gx = 0; gx < width; gx++) map.setTile(gx, gy, 1);

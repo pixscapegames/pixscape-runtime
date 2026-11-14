@@ -6,7 +6,7 @@ import games.pixscape.runtime.spatial.SpatialLayerFaceRuntime;
 import games.pixscape.runtime.spatial.SpatialSharedAnchorIndex;
 import games.pixscape.runtime.spatial.SpatialBlockData;
 import games.pixscape.runtime.component.TransformComponent;
-import games.pixscape.runtime.tiled.TiledMapLayerData;
+import games.pixscape.runtime.tiled.TiledLayerData;
 import games.pixscape.runtime.tiled.TiledProjection;
 import org.junit.Test;
 
@@ -176,7 +176,7 @@ public class SpatialSharedSearchIntegrationTest {
             same(a, b);
             assertEquals(2, b.search.sharedContextCount());
             for (SpatialSharedSearchFixture f : new SpatialSharedSearchFixture[]{a, b}) {
-                TiledMapLayerData replacement = new TiledMapLayerData(64, 64, 64, 32, 64, TiledProjection.ISO);
+                TiledLayerData replacement = new TiledLayerData(64, 64, 64, 32, 64, TiledProjection.ISO);
                 replacement.defaultTileAltitude = 32;
                 replacement.spatialEnabled = true;
                 for (int x = 0; x < 8; x++) {

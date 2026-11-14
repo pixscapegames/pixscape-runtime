@@ -1321,7 +1321,7 @@ public final class PhysicsService {
      */
     public static PreparedPhysicsBodyCandidate prepareBodyCandidate(
             World world, int ownerEntityId, Array<PhysicsShapeData> sources,
-            float pixelsPerMeter, games.pixscape.runtime.tiled.TiledMapLayerData candidateMap) {
+            float pixelsPerMeter, games.pixscape.runtime.tiled.TiledLayerData candidateMap) {
         return prepareBodyCandidate(world, ownerEntityId, sources, pixelsPerMeter, candidateMap, null);
     }
 
@@ -1330,7 +1330,7 @@ public final class PhysicsService {
      */
     public static PreparedPhysicsBodyCandidate prepareBodyCandidate(
             World world, int ownerEntityId, Array<PhysicsShapeData> sources,
-            float pixelsPerMeter, games.pixscape.runtime.tiled.TiledMapLayerData candidateMap,
+            float pixelsPerMeter, games.pixscape.runtime.tiled.TiledLayerData candidateMap,
             SpatialBlocksComponent candidateBlocks) {
         if (!containsLinkedShape(sources)) {
             return prepareBodyCandidate(sources);

@@ -12,7 +12,7 @@ import games.pixscape.runtime.physics.CompiledFixtureData;
 import games.pixscape.runtime.render.PhysicsDirtyBits;
 import games.pixscape.runtime.service.Box2dWorldService;
 import games.pixscape.runtime.service.PhysicsService;
-import games.pixscape.runtime.tiled.TiledMapLayerData;
+import games.pixscape.runtime.tiled.TiledLayerData;
 import games.pixscape.runtime.tiled.TiledProjection;
 import org.junit.Test;
 
@@ -70,7 +70,7 @@ public class Box2dBodyLifecycleTest {
             int e = h.body();
             h.world.process();
             TiledLayerComponent map = h.world.getMapper(TiledLayerComponent.class).create(e);
-            map.data = new TiledMapLayerData(1, 1, 16, 16, 1, TiledProjection.ORTHO);
+            map.data = new TiledLayerData(1, 1, 16, 16, 1, TiledProjection.ORTHO);
             map.data.collisionEnabled = false;
             h.world.process();
             assertEquals(0, h.box2d.world.getBodyCount());

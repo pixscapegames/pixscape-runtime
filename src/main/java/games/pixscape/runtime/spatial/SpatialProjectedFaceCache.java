@@ -5,7 +5,7 @@ import com.badlogic.gdx.utils.IntArray;
 import com.badlogic.gdx.utils.IntSet;
 import com.badlogic.gdx.utils.LongMap;
 import games.pixscape.runtime.component.spatial.SpatialBlocksComponent;
-import games.pixscape.runtime.tiled.TiledMapLayerData;
+import games.pixscape.runtime.tiled.TiledLayerData;
 import games.pixscape.runtime.tiled.TiledProjection;
 
 import java.util.Arrays;
@@ -89,7 +89,7 @@ public final class SpatialProjectedFaceCache {
     private int projectionCount;
     private final float[] endpoints = new float[4];
 
-    public boolean ensure(SpatialCompiledLayerCache compiled, TiledMapLayerData map) {
+    public boolean ensure(SpatialCompiledLayerCache compiled, TiledLayerData map) {
         if (compiled == null || map == null) return false;
         if (compiledRevision == compiled.revision() && projection == map.projection
                 && tileWidth == map.tileWidth && tileHeight == map.tileHeight
@@ -218,7 +218,7 @@ public final class SpatialProjectedFaceCache {
      * The published witness bounds are projected X intervals, not a visibility test.
      * Indirect structure connectivity is deliberately excluded.
      */
-    private void buildJunctions(SpatialBlocksComponent source, TiledMapLayerData map) {
+    private void buildJunctions(SpatialBlocksComponent source, TiledLayerData map) {
         membershipJunctionStart = new int[faceAnchorIndexTotal];
         membershipJunctionCount = new int[faceAnchorIndexTotal];
         IntArray neighbors = new IntArray();
@@ -309,7 +309,7 @@ public final class SpatialProjectedFaceCache {
                 && Math.min(Math.max(x1, x2), wall.x + wall.width) > Math.max(Math.min(x1, x2), wall.x) + epsilon;
     }
 
-    private void buildCanonicalAnchors(TiledMapLayerData map) {
+    private void buildCanonicalAnchors(TiledLayerData map) {
         for (int i = 0; i < faceAnchorIndexTotal; i++) {
             anchorGx[i] = rawAnchorGx[i];
             anchorGy[i] = rawAnchorGy[i];

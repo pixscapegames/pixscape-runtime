@@ -270,7 +270,7 @@ public class DynamicEntityRenderStateSystemTest {
     @Test
     public void addingAndRemovingPhysicsPreservesSpriteRenderDomainRecord() {
         DynamicEntityRenderState state = new DynamicEntityRenderState(4);
-        TiledMapRenderState tiledState = new TiledMapRenderState(4);
+        TiledRenderState tiledState = new TiledRenderState(4);
         LayerStateSOA layers = new LayerStateSOA(1);
         layers.enabled[0] = true;
         DrawList drawList = new DrawList(4);
@@ -313,7 +313,7 @@ public class DynamicEntityRenderStateSystemTest {
     @Test
     public void classicLayerMixedSpritesAndLightsReachPipelineInAuthoredZOrder() {
         DynamicEntityRenderState state = new DynamicEntityRenderState(8);
-        TiledMapRenderState tiledState = new TiledMapRenderState(1);
+        TiledRenderState tiledState = new TiledRenderState(1);
         LayerStateSOA layers = new LayerStateSOA(1);
         layers.enabled[0] = true;
         DrawList drawList = new DrawList(8);
@@ -349,7 +349,7 @@ public class DynamicEntityRenderStateSystemTest {
     @Test
     public void indexedSpriteOrderChangeReachesDrawListAfterSystemsUpdate() {
         DynamicEntityRenderState state = new DynamicEntityRenderState(4);
-        TiledMapRenderState tiled = new TiledMapRenderState(1);
+        TiledRenderState tiled = new TiledRenderState(1);
         LayerStateSOA layers = new LayerStateSOA(1);
         layers.enabled[0] = true;
         DrawList drawList = new DrawList(4);

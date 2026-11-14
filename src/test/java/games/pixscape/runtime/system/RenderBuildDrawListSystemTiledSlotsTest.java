@@ -13,7 +13,7 @@ public class RenderBuildDrawListSystemTiledSlotsTest {
     public void highReservedSlotIsExtractedWhenTouched() {
         // Arrange
         DynamicEntityRenderState ecsState = new DynamicEntityRenderState(4);
-        TiledMapRenderState tiledState = new TiledMapRenderState(16);
+        TiledRenderState tiledState = new TiledRenderState(16);
         LayerStateSOA layerState = new LayerStateSOA(8);
         DrawList drawList = new DrawList(256);
         RenderStats stats = new RenderStats();
@@ -34,7 +34,7 @@ public class RenderBuildDrawListSystemTiledSlotsTest {
                 0f, 0f, 1f, 0f, 1f, 1f, 0f, 1f,
                 0f, 0f, 1f, 1f, 1f, 1f, (byte) 0);
         tiledState.addVisibleRef(tiledRenderRef);
-        tiledState.addVisibleMap(7, 0, 0, 10L, 0, 1);
+        tiledState.addVisibleTileLayer(7, 0, 0, 10L, 0, 1);
 
         // Act
         world.process();

@@ -1,6 +1,6 @@
 package games.pixscape.runtime.spatial;
 
-import games.pixscape.runtime.tiled.TiledMapLayerData;
+import games.pixscape.runtime.tiled.TiledLayerData;
 import games.pixscape.runtime.tiled.TiledProjection;
 import org.junit.Test;
 
@@ -10,7 +10,7 @@ public class SpatialSharedAnchorIndexTest {
     @Test
     public void privateArrayFactoriesGrowAndReusePooledMemberships() {
         SpatialSharedAnchorIndex index = new SpatialSharedAnchorIndex();
-        TiledMapLayerData map = map();
+        TiledLayerData map = map();
         SpatialProjectedFaceCache faces = new SpatialProjectedFaceCache();
         faces.anchorCount = 24;
         faces.anchorGx = new int[24];
@@ -44,8 +44,8 @@ public class SpatialSharedAnchorIndexTest {
     @Test
     public void collidingSignaturesKeepDistinctCohortsAndAbsentOwnersStayAbsent() {
         SpatialSharedAnchorIndex index = new SpatialSharedAnchorIndex();
-        TiledMapLayerData a = map();
-        TiledMapLayerData b = map();
+        TiledLayerData a = map();
+        TiledLayerData b = map();
         a.originX = a.originY = 1f;
         b.originX = Float.intBitsToFloat(Float.floatToIntBits(1f) + 1);
         b.originY = Float.intBitsToFloat(Float.floatToIntBits(1f) - 31);
@@ -72,7 +72,7 @@ public class SpatialSharedAnchorIndexTest {
     @Test
     public void cacheIdentityAndAllWindowParametersInvalidateButAltitudeDoesNotSplitCohorts() {
         SpatialSharedAnchorIndex index = new SpatialSharedAnchorIndex();
-        TiledMapLayerData a = map(), b = map();
+        TiledLayerData a = map(), b = map();
         SpatialProjectedFaceCache f = new SpatialProjectedFaceCache();
         SpatialSharedAnchorIndex.Context handle = index.publish(1, a, f, 0, 0);
         index.publish(2, b, new SpatialProjectedFaceCache(), 0, 0);
@@ -87,7 +87,7 @@ public class SpatialSharedAnchorIndexTest {
         index.publish(1, a, f, 0, 0);
         assertEquals(2, index.sharedContextCount());
         for (int change = 0; change < 12; change++) {
-            TiledMapLayerData altered = map();
+            TiledLayerData altered = map();
             float dx = 0, dy = 0;
             switch (change) {
                 case 0: altered.projection = TiledProjection.ORTHO; break;
@@ -118,7 +118,7 @@ public class SpatialSharedAnchorIndexTest {
         index.clear();
     }
 
-    private static TiledMapLayerData map() {
-        return new TiledMapLayerData(8, 8, 64, 32, 8, TiledProjection.ISO);
+    private static TiledLayerData map() {
+        return new TiledLayerData(8, 8, 64, 32, 8, TiledProjection.ISO);
     }
 }

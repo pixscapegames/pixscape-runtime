@@ -51,7 +51,7 @@ public class TileQuadTransformsTest {
                                                          String expectedTlDestination,
                                                          String expectedTrDestination,
                                                          String expectedBrDestination) {
-        TiledMapLayerData map = new TiledMapLayerData(1, 1, 16, 16, 1);
+        TiledLayerData map = new TiledLayerData(1, 1, 16, 16, 1);
         float[] quad = new float[8];
 
         TileQuadTransforms.buildSpriteQuad(map, 0, 0, 16, 16, flags, quad);

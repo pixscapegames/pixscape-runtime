@@ -8,7 +8,7 @@ package games.pixscape.runtime.api;
  * <p>Mutations keep per-cell tile animation playback state in sync with the logical tile value.
  * Out-of-bounds or missing-capability getters return {@code 0} or
  * {@link games.pixscape.runtime.tiled.TileTransformFlags#NONE}; setters are inert. Use
- * {@link TiledMapFacade#isInside(int, int)} to distinguish a valid empty cell from an invalid
+ * {@link TiledLayerFacade#isInside(int, int)} to distinguish a valid empty cell from an invalid
  * coordinate.</p>
  */
 public interface TileEditFacade {

@@ -14,7 +14,7 @@ import games.pixscape.runtime.component.light.PointLightComponent;
 import games.pixscape.runtime.render.DynamicEntityRenderState;
 import games.pixscape.runtime.render.FrameRenderQueue;
 import games.pixscape.runtime.render.LayerStateSOA;
-import games.pixscape.runtime.render.TiledMapRenderState;
+import games.pixscape.runtime.render.TiledRenderState;
 import games.pixscape.runtime.render.lighting.*;
 
 /**
@@ -45,7 +45,7 @@ public final class LightingGeometrySystem extends BaseSystem {
     }
 
     private final DynamicEntityRenderState dynamic;
-    private final TiledMapRenderState tiled;
+    private final TiledRenderState tiled;
     private LightingFrame frame;
     private final FrameRenderQueue queue;
     private final LayerStateSOA layers;
@@ -130,7 +130,7 @@ public final class LightingGeometrySystem extends BaseSystem {
     private final float[] corners = new float[8];
     private int staticRevision = Integer.MIN_VALUE;
 
-    public LightingGeometrySystem(DynamicEntityRenderState dynamic, TiledMapRenderState tiled, FrameRenderQueue queue, LayerStateSOA layers) {
+    public LightingGeometrySystem(DynamicEntityRenderState dynamic, TiledRenderState tiled, FrameRenderQueue queue, LayerStateSOA layers) {
         this.dynamic = dynamic;
         this.tiled = tiled;
         this.queue = queue;
@@ -138,7 +138,7 @@ public final class LightingGeometrySystem extends BaseSystem {
         this.layers = layers;
     }
 
-    public LightingGeometrySystem(DynamicEntityRenderState dynamic, TiledMapRenderState tiled, FrameRenderQueue queue,
+    public LightingGeometrySystem(DynamicEntityRenderState dynamic, TiledRenderState tiled, FrameRenderQueue queue,
                                   LayerStateSOA layers, games.pixscape.runtime.service.AtlasRuntimeService atlasService) {
         this(dynamic, tiled, queue, layers);
         this.atlasService = atlasService;
@@ -201,7 +201,7 @@ public final class LightingGeometrySystem extends BaseSystem {
             staticOwners.clear();
             // Registry survives map rebuilds; dynamic identities must never alias new supports.
             int serial = 0;
-            for (IntMap.Entry<MapLightingGeometry> entry : tiled.lightingMaps) {
+            for (IntMap.Entry<TiledLayerLightingGeometry> entry : tiled.lightingMaps) {
                 if (!world.getEntityManager().isActive(entry.key)) continue;
                 staticOwners.add(entry.key);
                 for (int i = 0; i < entry.value.casters.size; i++) {
@@ -271,7 +271,7 @@ public final class LightingGeometrySystem extends BaseSystem {
                 }
             }
             WallShadowGroups shadowGroups = new WallShadowGroups();
-            for (IntMap.Entry<MapLightingGeometry> entry : tiled.lightingMaps)
+            for (IntMap.Entry<TiledLayerLightingGeometry> entry : tiled.lightingMaps)
                 if (world.getEntityManager().isActive(entry.key))
                     entry.value.registerShadowGroups(entry.key, shadowExclusionIdentities, shadowGroups);
             shadowGroups.connectWalls();

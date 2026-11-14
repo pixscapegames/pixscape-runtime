@@ -1,8 +1,8 @@
 package games.pixscape.runtime.spatial;
 
 import games.pixscape.runtime.render.DynamicEntityRenderState;
-import games.pixscape.runtime.render.TiledMapRenderState;
-import games.pixscape.runtime.tiled.TiledMapLayerData;
+import games.pixscape.runtime.render.TiledRenderState;
+import games.pixscape.runtime.tiled.TiledLayerData;
 
 /**
  * Allocation-free, pure actor-versus-projected-face relation solver.
@@ -84,7 +84,7 @@ public final class SpatialFaceRelationSolver {
      */
     public void solveVisual(SpatialActorCollector actors, SpatialProjectedFaceCache faces,
                             SpatialVisualAnchorSelector selector, DynamicEntityRenderState ecs,
-                            TiledMapRenderState tiled, TiledMapLayerData map,
+                            TiledRenderState tiled, TiledLayerData map,
                             float mapOffsetX, float mapOffsetY) {
         visualRelations = true;
         relationCount = 0;

@@ -3,12 +3,12 @@ package games.pixscape.runtime.api;
 import games.pixscape.runtime.tiled.TiledProjection;
 
 /**
- * Runtime tiled map/layer properties and coordinate conversion helpers.
- * Operations affect existing Tiled Map data only and never create a Map.
+ * Runtime tile layer properties and coordinate conversion helpers.
+ * Operations affect existing tile layer data only and never create a layer.
  * Missing or stale capabilities report zero dimensions, an empty atlas tag, a null projection,
  * zero coordinate-conversion results, and {@code false} from {@link #isInside(int, int)}.
  */
-public interface TiledMapFacade {
+public interface TiledLayerFacade {
     int width();
 
     int height();
@@ -24,43 +24,43 @@ public interface TiledMapFacade {
     int chunksY();
 
     /**
-     * Returns whether the cell coordinate is inside the existing logical map.
+     * Returns whether the cell coordinate is inside the existing logical layer.
      * Missing or stale tiled capabilities return {@code false}.
      */
     boolean isInside(int x, int y);
 
     String atlasTag();
 
-    TiledMapFacade setAtlasTag(String atlasTag);
+    TiledLayerFacade setAtlasTag(String atlasTag);
 
     /**
-     * Returns this map's authored projection, or {@code null} when stale or missing.
+     * Returns this layer's authored projection, or {@code null} when stale or missing.
      */
     TiledProjection projection();
 
-    TiledMapFacade setVisible(boolean visible);
+    TiledLayerFacade setVisible(boolean visible);
 
     /**
-     * Controls native collision participation for this loaded map.
+     * Controls native collision participation for this loaded layer.
      *
-     * <p>Disabling collisions removes the map's native Box2D body and fixtures while preserving
+     * <p>Disabling collisions removes the layer's native Box2D body and fixtures while preserving
      * its authored physics body, shapes, settings, links, and persistent shape identities.
      * Enabling collisions allows the normal physics synchronization path to recreate native
      * state from those existing authored components. This runtime-only toggle never creates or
-     * deletes authored physics, changes Spatial data or owning-layer state, affects another map,
+     * deletes authored physics, changes Spatial data or owning-layer state, affects another layer,
      * or enables global scene physics.</p>
      *
      * @throws IllegalStateException when enabling collisions while the active scene explicitly
      *                               has physics disabled
      */
-    TiledMapFacade setCollisionEnabled(boolean enabled);
+    TiledLayerFacade setCollisionEnabled(boolean enabled);
 
     /**
-     * Sets the map origin in world units.
+     * Sets the layer origin in world units.
      *
      * @throws IllegalArgumentException when either coordinate is NaN or infinite
      */
-    TiledMapFacade setOrigin(float x, float y);
+    TiledLayerFacade setOrigin(float x, float y);
 
     int worldToTileX(float worldX);
 
@@ -79,7 +79,7 @@ public interface TiledMapFacade {
     float tileToWorldY(int gx, int gy);
 
     /**
-     * Resizes the logical map in cells.
+     * Resizes the logical layer in cells.
      *
      * <p>This is expensive and rebuilds tiled chunk data. Current runtime behavior preserves
      * only cells that remain in bounds after resize. Tile size, chunk size, and projection are
@@ -87,5 +87,5 @@ public interface TiledMapFacade {
      *
      * @throws IllegalArgumentException when width or height is not positive
      */
-    TiledMapFacade resize(int width, int height);
+    TiledLayerFacade resize(int width, int height);
 }

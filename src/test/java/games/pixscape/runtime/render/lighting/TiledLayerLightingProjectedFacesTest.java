@@ -2,15 +2,15 @@ package games.pixscape.runtime.render.lighting;
 
 import games.pixscape.runtime.component.spatial.SpatialBlocksComponent;
 import games.pixscape.runtime.spatial.SpatialBlockData;
-import games.pixscape.runtime.tiled.TiledMapLayerData;
+import games.pixscape.runtime.tiled.TiledLayerData;
 import games.pixscape.runtime.tiled.TiledProjection;
 import org.junit.Assert;
 import org.junit.Test;
 
-public class MapLightingProjectedFacesTest {
+public class TiledLayerLightingProjectedFacesTest {
     @Test
     public void lightingPolicyFollowsEachPartitionWithoutChangingGeometryOrExclusion() {
-        TiledMapLayerData map = map(32, 16);
+        TiledLayerData map = map(32, 16);
         SpatialBlockData a = block(8, 0, 0, 4, .5f, 0, 200), b = block(1, 2, -2, .5f, 4, 0, 200);
         a.structureId = b.structureId = 7;
         LightingSurface before = receiver(map, QUAD, a, b);
@@ -41,11 +41,11 @@ public class MapLightingProjectedFacesTest {
 
     @Test
     public void policyRebuildFollowsAuthoredRevisionAndThenReusesTheCache() {
-        TiledMapLayerData map = map(32, 16);
+        TiledLayerData map = map(32, 16);
         SpatialBlockData a = block(8, 0, 0, 4, .5f, 0, 200);
         SpatialBlocksComponent blocks = new SpatialBlocksComponent();
         blocks.blocks.add(a);
-        MapLightingGeometry geometry = new MapLightingGeometry();
+        TiledLayerLightingGeometry geometry = new TiledLayerLightingGeometry();
         geometry.ensure(map, blocks);
         LightingSurface before = geometry.receiver(map, 0, 0, 7, (byte) 0, QUAD);
         a.shadeUnlitFaces = false;
@@ -76,7 +76,7 @@ public class MapLightingProjectedFacesTest {
 
     @Test
     public void archivedDarkBandsUseTheFrontBoundaryAndKeepNativeProjection() {
-        TiledMapLayerData map = map(256, 128);
+        TiledLayerData map = map(256, 128);
         SpatialBlockData perpendicular = block(7, 25.765625f, 16, .23064041f, 4.9792404f, 0, 157.34424f);
         SpatialBlockData horizontal = block(2, 18, 20.74928f, 7.9962654f, .22995949f, 0, 157.34424f);
         float[] quad = {400, 2700, 400, 3300, 1200, 3300, 1200, 2700};
@@ -92,7 +92,7 @@ public class MapLightingProjectedFacesTest {
 
     @Test
     public void archivedExteriorRectangleUsesYFaceInsteadOfTheLaterXFace() {
-        TiledMapLayerData map = map(256, 128);
+        TiledLayerData map = map(256, 128);
         SpatialBlockData horizontal = block(19, 24, 16, 6.9969482f, .23499489f, 0, 157.34424f);
         SpatialBlockData perpendicular = block(3, 25.765625f, 16, .23064041f, 4.9792404f, 0, 157.34424f);
         float[] quad = {1000, 2500, 1000, 3100, 1700, 3100, 1700, 2500};
@@ -106,7 +106,7 @@ public class MapLightingProjectedFacesTest {
 
     @Test
     public void archivedStructureOneUsesTheSamePhysicalFrontRule() {
-        TiledMapLayerData map = map(256, 128);
+        TiledLayerData map = map(256, 128);
         SpatialBlockData horizontal = block(1, 18, 38.765625f, 13, .22789764f, 0, 158);
         SpatialBlockData perpendicular = block(40, 26.758629f, 36, .24137115f, 2.9519424f, 0, 158);
         float[] quad = {-1800, 4000, -1800, 4500, -1000, 4500, -1000, 4000};
@@ -122,7 +122,7 @@ public class MapLightingProjectedFacesTest {
 
     @Test
     public void crossingDepthsSplitTheOverlapInsteadOfSortingWholeFaces() {
-        TiledMapLayerData map = map(32, 16);
+        TiledLayerData map = map(32, 16);
         SpatialBlockData a = block(8, 0, 0, 4, .5f, 0, 200), b = block(1, 2, -2, .5f, 4, 0, 200);
         LightingSurface surface = receiver(map, QUAD, a, b);
         assertAt(surface, QUAD, new float[]{39, -8, 100}, new float[]{39, -8, 100, 0, -1, 0});
@@ -136,7 +136,7 @@ public class MapLightingProjectedFacesTest {
 
     @Test
     public void parallelSuperposedAndCrossingVolumesAreNotAssumedToBeAnL() {
-        TiledMapLayerData map = map(32, 16);
+        TiledLayerData map = map(32, 16);
         SpatialBlockData[] blocks = {block(91, 0, 0, 5, .5f, 0, 70), block(3, 0, 2, 4, .5f, 10, 110),
                 block(52, 2, -2, .5f, 6, 0, 90), block(7, -1, 1, 3, .4f, 140, 30)};
         LightingSurface first = receiver(map, QUAD, blocks);
@@ -155,7 +155,7 @@ public class MapLightingProjectedFacesTest {
 
     @Test
     public void coplanarTiesAndExtrapolationDoNotDependOnIdentifiersOrInsertion() {
-        TiledMapLayerData map = map(32, 16);
+        TiledLayerData map = map(32, 16);
         SpatialBlockData a = block(1, 0, 0, 3, .5f, 0, 50), b = block(2, 2, 0, 3, .5f, 0, 50);
         LightingSurface first = receiver(map, QUAD, a, b);
         Assert.assertNotNull(first.receiverVertices);
@@ -179,7 +179,7 @@ public class MapLightingProjectedFacesTest {
 
     @Test
     public void nativeOffsetsMirroredAndSkewedQuadsKeepTheSamePhysicalSelection() {
-        TiledMapLayerData map = map(32, 16);
+        TiledLayerData map = map(32, 16);
         SpatialBlockData a = block(1, 0, 0, 5, .5f, 0, 80), b = block(2, 2, -2, .5f, 6, 0, 130);
         for (float[] q : new float[][]{{250, -100, 250, 450, -150, 450, -150, -100},
                 {-150, 450, -150, -100, 250, -100, 250, 450}, {-200, -150, -100, 400, 300, 500, 200, -50}}) {
@@ -191,7 +191,7 @@ public class MapLightingProjectedFacesTest {
 
     @Test
     public void textureOnlyReuseNeverReplacesAnExplicitAssetSupport() {
-        TiledMapLayerData map = map(32, 16);
+        TiledLayerData map = map(32, 16);
         float[] q = {0, 0, 0, 16, 16, 16, 16, 0};
         LocalSurfaceDescription mesh = new LocalSurfaceDescription();
         mesh.xyz = new float[]{-8, 8, 0, -8, 8, 16, 0, 0, 0};
@@ -203,7 +203,7 @@ public class MapLightingProjectedFacesTest {
         description.geometry = mesh;
         com.badlogic.gdx.utils.Array<TileSurfaceDescription> descriptions = new com.badlogic.gdx.utils.Array<TileSurfaceDescription>();
         descriptions.add(description);
-        MapLightingGeometry g = new MapLightingGeometry();
+        TiledLayerLightingGeometry g = new TiledLayerLightingGeometry();
         g.descriptions(descriptions);
         g.ensure(map, null);
         LightingSurface local = g.receiver(map, 0, 0, 7, (byte) 0, q), automatic = g.receiver(map, 0, 0, 8, (byte) 0, q);
@@ -216,17 +216,17 @@ public class MapLightingProjectedFacesTest {
 
     @Test
     public void coplanarCasterSubmissionUsesGeometryWithoutChangingAnyFace() {
-        TiledMapLayerData map = map(32, 16);
+        TiledLayerData map = map(32, 16);
         SpatialBlockData a = block(98, 0, 0, 3, .5f, 0, 80), b = block(1, 2, 0, 3, .5f, 0, 80);
         a.linkedTileRefsAuthored = b.linkedTileRefsAuthored = false; // Explicit opaque reference only.
         SpatialBlocksComponent blocks = new SpatialBlocksComponent();
         blocks.blocks.add(a);
         blocks.blocks.add(b);
-        MapLightingGeometry forward = new MapLightingGeometry();
+        TiledLayerLightingGeometry forward = new TiledLayerLightingGeometry();
         forward.ensure(map, blocks);
         blocks.blocks.reverse();
         blocks.revision++;
-        MapLightingGeometry reverse = new MapLightingGeometry();
+        TiledLayerLightingGeometry reverse = new TiledLayerLightingGeometry();
         reverse.ensure(map, blocks);
         Assert.assertEquals(12, forward.casters.size);
         Assert.assertEquals(12, reverse.casters.size);
@@ -237,7 +237,7 @@ public class MapLightingProjectedFacesTest {
         for (SpatialBlockData block : new SpatialBlockData[]{a, b}) {
             SpatialBlocksComponent one = new SpatialBlocksComponent();
             one.blocks.add(block);
-            MapLightingGeometry single = new MapLightingGeometry();
+            TiledLayerLightingGeometry single = new TiledLayerLightingGeometry();
             single.ensure(map, one);
             for (LightingSurface face : single.casters) {
                 boolean present = false;
@@ -253,11 +253,11 @@ public class MapLightingProjectedFacesTest {
 
     @Test
     public void cacheTracksGeometryAssociationsAndProjectionButNotRepeatedLookup() {
-        TiledMapLayerData map = map(32, 16);
+        TiledLayerData map = map(32, 16);
         SpatialBlocksComponent blocks = new SpatialBlocksComponent();
         SpatialBlockData a = block(1, 0, 0, 3, .5f, 0, 50);
         blocks.blocks.add(a);
-        MapLightingGeometry geometry = new MapLightingGeometry();
+        TiledLayerLightingGeometry geometry = new TiledLayerLightingGeometry();
         Assert.assertTrue(geometry.ensure(map, blocks));
         LightingSurface first = geometry.receiver(map, 0, 0, 7, (byte) 0, QUAD);
         for (int i = 0; i < 1000; i++) {
@@ -296,7 +296,7 @@ public class MapLightingProjectedFacesTest {
 
     @Test
     public void casterGeometryAndSingleOwnerReceiversStayUnchangedByExtraNonOverlappingMembership() {
-        TiledMapLayerData map = map(32, 16);
+        TiledLayerData map = map(32, 16);
         SpatialBlockData a = block(1, 0, 0, 3, .5f, 0, 50);
         a.linkedTileRefsAuthored = false; // Receiver-only membership, opaque reference.
         float[] quad = {0, 5, 0, 45, 30, 45, 30, 5};
@@ -313,7 +313,7 @@ public class MapLightingProjectedFacesTest {
         SpatialBlocksComponent blocks = new SpatialBlocksComponent();
         blocks.blocks.add(a);
         blocks.blocks.add(remote);
-        MapLightingGeometry geometry = new MapLightingGeometry();
+        TiledLayerLightingGeometry geometry = new TiledLayerLightingGeometry();
         geometry.ensure(map, blocks);
         float[][] original = new float[geometry.casters.size][];
         for (int i = 0; i < original.length; i++) original[i] = geometry.casters.get(i).vertices.clone();
@@ -322,8 +322,8 @@ public class MapLightingProjectedFacesTest {
             Assert.assertArrayEquals(original[i], geometry.casters.get(i).vertices, 0);
     }
 
-    private static TiledMapLayerData map(int w, int h) {
-        return new TiledMapLayerData(64, 64, w, h, 16, TiledProjection.ISO);
+    private static TiledLayerData map(int w, int h) {
+        return new TiledLayerData(64, 64, w, h, 16, TiledProjection.ISO);
     }
 
     private static int ownerAt(LightingSurface s, float[] q, float x, float y, float z) {
@@ -354,10 +354,10 @@ public class MapLightingProjectedFacesTest {
         return b;
     }
 
-    private static LightingSurface receiver(TiledMapLayerData map, float[] quad, SpatialBlockData... bs) {
+    private static LightingSurface receiver(TiledLayerData map, float[] quad, SpatialBlockData... bs) {
         SpatialBlocksComponent blocks = new SpatialBlocksComponent();
         for (SpatialBlockData b : bs) blocks.blocks.add(b);
-        MapLightingGeometry geometry = new MapLightingGeometry();
+        TiledLayerLightingGeometry geometry = new TiledLayerLightingGeometry();
         geometry.ensure(map, blocks);
         LightingSurface result = geometry.receiver(map, 0, 0, 7, (byte) 0, quad);
         coverage(result);
@@ -406,7 +406,7 @@ public class MapLightingProjectedFacesTest {
         Assert.assertEquals(sy, LightingCoordinates.screenY(p[0], p[1], p[2]), .001f);
     }
 
-    private static void verifyAgainstCameraRays(LightingSurface surface, float[] q, TiledMapLayerData map, SpatialBlockData[] blocks) {
+    private static void verifyAgainstCameraRays(LightingSurface surface, float[] q, TiledLayerData map, SpatialBlockData[] blocks) {
         int hits = 0;
         for (int y = 0; y < 59; y++)
             for (int x = 0; x < 53; x++) {

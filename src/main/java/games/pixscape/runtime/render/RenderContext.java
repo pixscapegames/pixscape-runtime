@@ -17,7 +17,7 @@ public final class RenderContext {
     public final DrawList drawList;
     public final FrameRenderQueue frameQueue;
     public final VfxRenderState vfxState;
-    public final TiledMapRenderState tiledState;
+    public final TiledRenderState tiledState;
 
     public final MetricsBatch batch;
     public final GLCaps glCaps;
@@ -27,7 +27,7 @@ public final class RenderContext {
                          DrawList drawList,
                          FrameRenderQueue frameQueue,
                          VfxRenderState vfxState,
-                         TiledMapRenderState tiledState,
+                         TiledRenderState tiledState,
                          MetricsBatch batch,
                          GLCaps glCaps) {
         this.dynamicEntityState = dynamicEntityState;

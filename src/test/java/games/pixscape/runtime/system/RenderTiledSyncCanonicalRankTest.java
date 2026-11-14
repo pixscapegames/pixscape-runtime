@@ -11,7 +11,7 @@ import games.pixscape.runtime.component.PixscapeIdentityComponent;
 import games.pixscape.runtime.component.TiledLayerComponent;
 import games.pixscape.runtime.render.BlendMode;
 import games.pixscape.runtime.render.SortKey64;
-import games.pixscape.runtime.render.TiledMapRenderState;
+import games.pixscape.runtime.render.TiledRenderState;
 import games.pixscape.runtime.service.AtlasAssetBinding;
 import games.pixscape.runtime.service.AtlasBindingTestFactory;
 import games.pixscape.runtime.service.AtlasRuntimeService;
@@ -20,7 +20,7 @@ import games.pixscape.runtime.spatial.SpatialLayerRuntimeRegistry;
 import games.pixscape.runtime.spatial.SpatialTileOrderCache;
 import games.pixscape.runtime.spatial.SpatialTileSyncInvariantException;
 import games.pixscape.runtime.tiled.TileChunk;
-import games.pixscape.runtime.tiled.TiledMapLayerData;
+import games.pixscape.runtime.tiled.TiledLayerData;
 import games.pixscape.runtime.tiled.TiledProjection;
 import games.pixscape.runtime.tiled.profile.RuntimeTilesetAnchor;
 import games.pixscape.runtime.tiled.profile.RuntimeTilesetProfile;
@@ -139,7 +139,7 @@ public class RenderTiledSyncCanonicalRankTest {
     private static Fixture fixture(boolean spatial, int[][] occupiedCells) {
         OrthographicCamera camera = new OrthographicCamera(256f, 256f);
         camera.position.set(0f, 0f, 0f);
-        TiledMapRenderState state = new TiledMapRenderState(32);
+        TiledRenderState state = new TiledRenderState(32);
         SpatialLayerRuntimeRegistry registry = new SpatialLayerRuntimeRegistry();
         RenderTiledSyncSystem sync = new RenderTiledSyncSystem(camera, state, new TestAtlas(),
                 1, null, profiles(), registry);
@@ -159,7 +159,7 @@ public class RenderTiledSyncCanonicalRankTest {
         TiledLayerComponent tiled = mapEntity.edit().create(TiledLayerComponent.class);
         tiled.atlasTag = "main";
         tiled.spatialEnabled = spatial;
-        TiledMapLayerData map = new TiledMapLayerData(4, 4, 16, 8, 2,
+        TiledLayerData map = new TiledLayerData(4, 4, 16, 8, 2,
                 TiledProjection.ISO);
         map.spatialEnabled = spatial;
         for (int i = 0; i < occupiedCells.length; i++) {
@@ -185,13 +185,13 @@ public class RenderTiledSyncCanonicalRankTest {
 
     private static final class Fixture {
         final World world;
-        final TiledMapRenderState state;
+        final TiledRenderState state;
         final SpatialLayerRuntimeRegistry registry;
-        final TiledMapLayerData map;
+        final TiledLayerData map;
         final int entityId;
 
-        Fixture(World world, TiledMapRenderState state, SpatialLayerRuntimeRegistry registry,
-                TiledMapLayerData map, int entityId) {
+        Fixture(World world, TiledRenderState state, SpatialLayerRuntimeRegistry registry,
+                TiledLayerData map, int entityId) {
             this.world = world;
             this.state = state;
             this.registry = registry;

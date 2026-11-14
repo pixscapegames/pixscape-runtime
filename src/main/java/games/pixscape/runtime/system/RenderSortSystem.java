@@ -21,7 +21,7 @@ import games.pixscape.runtime.render.*;
 public final class RenderSortSystem extends BaseSystem implements ProfiledSystem {
 
     private final DynamicEntityRenderState ecsState;
-    private final TiledMapRenderState tiledState;
+    private final TiledRenderState tiledState;
     private final VfxRenderState vfxState;
     private final DrawList drawList;
 
@@ -42,13 +42,13 @@ public final class RenderSortSystem extends BaseSystem implements ProfiledSystem
     }
 
     public RenderSortSystem(DynamicEntityRenderState ecsState,
-                            TiledMapRenderState tiledState,
+                            TiledRenderState tiledState,
                             DrawList drawList) {
         this(ecsState, tiledState, null, drawList, -1, -1);
     }
 
     public RenderSortSystem(DynamicEntityRenderState ecsState,
-                            TiledMapRenderState tiledState,
+                            TiledRenderState tiledState,
                             VfxRenderState vfxState,
                             DrawList drawList,
                             int vfxStartInclusive,
@@ -139,12 +139,12 @@ public final class RenderSortSystem extends BaseSystem implements ProfiledSystem
                 continue;
             }
 
-            if (tiledState == null || source < 0 || source >= tiledState.getVisibleMapCount()) {
+            if (tiledState == null || source < 0 || source >= tiledState.getVisibleTileLayerCount()) {
                 continue;
             }
-            int start = tiledState.visibleMapRefStart(source);
-            int refCount = tiledState.visibleMapRefCount(source);
-            TiledRenderOrder prepared = tiledState.visibleMapPreparedOrder(source);
+            int start = tiledState.visibleTileLayerRefStart(source);
+            int refCount = tiledState.visibleTileLayerRefCount(source);
+            TiledRenderOrder prepared = tiledState.visibleTileLayerPreparedOrder(source);
             if (prepared != null && prepared.isPrepared())
                 prepared.filterVisible(tiledState, visibleRefs, start, refCount);
             else sortTiledRefSlice(visibleRefs, start, refCount);

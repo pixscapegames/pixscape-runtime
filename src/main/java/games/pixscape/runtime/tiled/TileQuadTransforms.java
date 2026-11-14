@@ -16,7 +16,7 @@ public final class TileQuadTransforms {
      * 4,5 = TR
      * 6,7 = BR
      */
-    public static void buildSpriteQuad(TiledMapLayerData map,
+    public static void buildSpriteQuad(TiledLayerData map,
                                        int gx,
                                        int gy,
                                        int spriteW,
@@ -37,7 +37,7 @@ public final class TileQuadTransforms {
         applyTransformFlags(spriteW, spriteH, flags, out8);
     }
 
-    public static void buildSpriteQuad(TiledMapLayerData map,
+    public static void buildSpriteQuad(TiledLayerData map,
                                        int gx,
                                        int gy,
                                        int spriteW,

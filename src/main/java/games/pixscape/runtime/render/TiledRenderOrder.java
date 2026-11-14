@@ -3,13 +3,13 @@ package games.pixscape.runtime.render;
 import com.badlogic.gdx.utils.LongMap;
 import games.pixscape.runtime.spatial.SpatialProjectedFaceCache;
 import games.pixscape.runtime.tiled.TileChunk;
-import games.pixscape.runtime.tiled.TiledMapLayerData;
+import games.pixscape.runtime.tiled.TiledLayerData;
 
 /**
- * Prepared unsigned-key order of published refs for one map instance, before visibility filtering.
+ * Prepared unsigned-key order of published refs for one layer instance, before visibility filtering.
  */
 public final class TiledRenderOrder {
-    private final TiledMapLayerData map;
+    private final TiledLayerData layer;
     private int sourceRevision = Integer.MIN_VALUE;
     private boolean dirty = true;
     private int[] orderedRefs = new int[0];
@@ -19,12 +19,12 @@ public final class TiledRenderOrder {
     private int size;
     private int preparationCount;
 
-    TiledRenderOrder(TiledMapLayerData map) {
-        this.map = map;
+    TiledRenderOrder(TiledLayerData layer) {
+        this.layer = layer;
     }
 
-    boolean belongsTo(TiledMapLayerData source) {
-        return map == source;
+    boolean belongsTo(TiledLayerData source) {
+        return layer == source;
     }
 
     private int cornerRevision = -1;
@@ -57,10 +57,10 @@ public final class TiledRenderOrder {
     }
 
     private void dirtyCorner(int gx, int gy) {
-        if (!map.isInside(gx, gy)) return;
-        TileChunk chunk = map.getChunk(gx / map.chunkSize, gy / map.chunkSize);
+        if (!layer.isInside(gx, gy)) return;
+        TileChunk chunk = layer.getChunk(gx / layer.chunkSize, gy / layer.chunkSize);
         if (chunk == null || chunk.dirtyState == TileChunk.DirtyState.FULL) return;
-        int local = (gy % map.chunkSize) * chunk.chunkWidth + gx % map.chunkSize;
+        int local = (gy % layer.chunkSize) * chunk.chunkWidth + gx % layer.chunkSize;
         if (!chunk.dirtyLocalIndices.contains(local)) chunk.markLocalDirty(local);
     }
 
@@ -69,28 +69,28 @@ public final class TiledRenderOrder {
     }
 
     public boolean isPrepared() {
-        return !dirty && sourceRevision == map.contentStateRevision();
+        return !dirty && sourceRevision == layer.contentStateRevision();
     }
 
-    void release(TiledMapRenderState state) {
+    void release(TiledRenderState state) {
         for (int i = 0; i < size; i++) {
             int ref = orderedRefs[i];
             if (state.preparedOrderOwner[ref] == this) state.preparedOrderOwner[ref] = null;
         }
     }
 
-    public void prepare(TiledMapRenderState state) {
-        if (!dirty && sourceRevision == map.contentStateRevision()) return;
+    public void prepare(TiledRenderState state) {
+        if (!dirty && sourceRevision == layer.contentStateRevision()) return;
         release(state);
         int required = 0;
-        for (int cy = 0; cy < map.getChunksY(); cy++) {
-            for (int cx = 0; cx < map.getChunksX(); cx++) {
-                TileChunk chunk = map.getChunk(cx, cy);
+        for (int cy = 0; cy < layer.getChunksY(); cy++) {
+            for (int cx = 0; cx < layer.getChunksX(); cx++) {
+                TileChunk chunk = layer.getChunk(cx, cy);
                 if (chunk != null) required += chunk.getRenderableRefCount();
             }
         }
         if (required > orderedRefs.length) {
-            // Bounded by the map's published refs; keep storage until its owner is removed.
+            // Bounded by the layer's published refs; keep storage until its owner is removed.
             orderedRefs = new int[required];
             scratch = new int[required];
             selectedWords = new int[(required + 31) >>> 5];
@@ -98,9 +98,9 @@ public final class TiledRenderOrder {
         size = 0;
         // This is exactly the visibility publisher's traversal, including equal-key ties.
         // IntMap iteration order is deliberately not used.
-        for (int cy = 0; cy < map.getChunksY(); cy++) {
-            for (int cx = 0; cx < map.getChunksX(); cx++) {
-                TileChunk chunk = map.getChunk(cx, cy);
+        for (int cy = 0; cy < layer.getChunksY(); cy++) {
+            for (int cx = 0; cx < layer.getChunksX(); cx++) {
+                TileChunk chunk = layer.getChunk(cx, cy);
                 if (chunk == null) continue;
                 for (int i = 0; i < chunk.getRenderableRefCount(); i++) {
                     orderedRefs[size++] = chunk.renderRefStartIndex + chunk.renderableLocalIndices.get(i);
@@ -112,7 +112,7 @@ public final class TiledRenderOrder {
             state.preparedOrderRank[orderedRefs[i]] = i;
             state.preparedOrderOwner[orderedRefs[i]] = this;
         }
-        sourceRevision = map.contentStateRevision();
+        sourceRevision = layer.contentStateRevision();
         dirty = false;
         preparationCount++;
     }
@@ -120,7 +120,7 @@ public final class TiledRenderOrder {
     /**
      * O(visible refs + covered rank words), without scanning invisible quads or sorting again.
      */
-    public void filterVisible(TiledMapRenderState state, int[] refs, int start, int count) {
+    public void filterVisible(TiledRenderState state, int[] refs, int start, int count) {
         if (count <= 1) return;
         int firstWord = Integer.MAX_VALUE;
         int lastWord = 0;
@@ -146,7 +146,7 @@ public final class TiledRenderOrder {
     /**
      * The existing stable, unsigned 64-bit LSD radix comparator, shared by preparation and raw groups.
      */
-    public static void sortRefs(TiledMapRenderState state, int[] refs, int start, int count,
+    public static void sortRefs(TiledRenderState state, int[] refs, int start, int count,
                                 int[] scratch, int[] buckets) {
         if (count <= 1) return;
         for (int pass = 0; pass < 8; pass++) {

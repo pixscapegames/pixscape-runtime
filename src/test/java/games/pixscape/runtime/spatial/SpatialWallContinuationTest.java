@@ -16,7 +16,7 @@ import games.pixscape.runtime.render.batch.performance.RenderStats;
 import games.pixscape.runtime.system.RenderExtractFrameQueueSystem;
 import games.pixscape.runtime.system.SpatialRenderOrderSystem;
 import games.pixscape.runtime.tiled.TileChunk;
-import games.pixscape.runtime.tiled.TiledMapLayerData;
+import games.pixscape.runtime.tiled.TiledLayerData;
 import games.pixscape.runtime.tiled.TiledProjection;
 import org.junit.Assert;
 import org.junit.Assume;
@@ -425,7 +425,7 @@ public class SpatialWallContinuationTest {
 
     private static final class Fixture implements AutoCloseable {
         final DynamicEntityRenderState ecs = new DynamicEntityRenderState(1);
-        final TiledMapRenderState tiled = new TiledMapRenderState(1024);
+        final TiledRenderState tiled = new TiledRenderState(1024);
         final DrawList draw = new DrawList(8);
         final FrameRenderQueue queue = new FrameRenderQueue(8);
         float upperOffsetX, upperOffsetY;
@@ -442,7 +442,7 @@ public class SpatialWallContinuationTest {
                     }
                 });
         final int[] refs = new int[2], owners = new int[2];
-        final TiledMapLayerData[] maps = new TiledMapLayerData[2];
+        final TiledLayerData[] maps = new TiledLayerData[2];
         final World world;
         final int actor, slot;
         final boolean large;
@@ -472,7 +472,7 @@ public class SpatialWallContinuationTest {
             ecs.textureHandle[slot] = 1;
             ecs.layerIndex[slot] = 0;
             for (int part = 0; part < 2; part++) {
-                TiledMapLayerData map = maps[part] = new TiledMapLayerData(16, 16, 256, 128, 16, TiledProjection.ISO);
+                TiledLayerData map = maps[part] = new TiledLayerData(16, 16, 256, 128, 16, TiledProjection.ISO);
                 map.spatialEnabled = true;
                 map.defaultTileAltitude = map.originY = part * 128;
                 map.visualPaddingTop = 1024;

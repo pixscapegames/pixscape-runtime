@@ -19,9 +19,9 @@ public final class LocalSurfaceCompiler {
             vertices[o + 4] = d.uv[index * 2 + 1];
             System.arraycopy(d.normals, index * 3, vertices, o + 5, 3);
         }
-        LightingSurface s = new LightingSurface(MapLightingGeometry.completeLocal(vertices));
+        LightingSurface s = new LightingSurface(TiledLayerLightingGeometry.completeLocal(vertices));
         s.receiveLight = d.receiveLight;
-        s.receiverVertices = MapLightingGeometry.completeReceiverVertices(s.vertices, null, 0);
+        s.receiverVertices = TiledLayerLightingGeometry.completeReceiverVertices(s.vertices, null, 0);
         s.shadowCaster = d.shadowCaster;
         s.twoSided = d.twoSided;
         s.forwardTopology = ForwardTopology.compile(s);

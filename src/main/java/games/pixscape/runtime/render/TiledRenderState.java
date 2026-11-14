@@ -6,7 +6,7 @@ package games.pixscape.runtime.render;
  * <p>
  * Owns stable logical tiled refs and draw-ready tiled quad data for the internal render pipeline.
  */
-public final class TiledMapRenderState {
+public final class TiledRenderState {
     /**
      * Derived scene gate; authored scene metadata remains authoritative.
      */
@@ -16,21 +16,21 @@ public final class TiledMapRenderState {
     int[] preparedOrderRank;
     TiledRenderOrder[] preparedOrderOwner;
 
-    public TiledRenderOrder prepareOrderForMap(int entityId, games.pixscape.runtime.tiled.TiledMapLayerData map) {
+    public TiledRenderOrder prepareOrderForLayer(int entityId, games.pixscape.runtime.tiled.TiledLayerData layer) {
         TiledRenderOrder order = preparedOrders.get(entityId);
-        if (order == null || !order.belongsTo(map)) {
+        if (order == null || !order.belongsTo(layer)) {
             if (order != null) order.release(this);
-            order = new TiledRenderOrder(map);
+            order = new TiledRenderOrder(layer);
             preparedOrders.put(entityId, order);
         }
         return order;
     }
 
-    public TiledRenderOrder orderForMap(int entityId) {
+    public TiledRenderOrder orderForLayer(int entityId) {
         return preparedOrders.get(entityId);
     }
 
-    public void removeOrderForMap(int entityId) {
+    public void removeOrderForLayer(int entityId) {
         TiledRenderOrder old = preparedOrders.remove(entityId);
         if (old != null) old.release(this);
     }
@@ -43,8 +43,8 @@ public final class TiledMapRenderState {
     public final com.badlogic.gdx.utils.IntMap<TileCornerSplit> cornerSplits = new com.badlogic.gdx.utils.IntMap<>();
     public final com.badlogic.gdx.utils.IntMap<games.pixscape.runtime.render.lighting.LightingSurface> lightingSurfaces =
             new com.badlogic.gdx.utils.IntMap<games.pixscape.runtime.render.lighting.LightingSurface>();
-    public final com.badlogic.gdx.utils.IntMap<games.pixscape.runtime.render.lighting.MapLightingGeometry> lightingMaps =
-            new com.badlogic.gdx.utils.IntMap<games.pixscape.runtime.render.lighting.MapLightingGeometry>();
+    public final com.badlogic.gdx.utils.IntMap<games.pixscape.runtime.render.lighting.TiledLayerLightingGeometry> lightingMaps =
+            new com.badlogic.gdx.utils.IntMap<games.pixscape.runtime.render.lighting.TiledLayerLightingGeometry>();
 
     public void replacePreviewReceiver(int ref, float[] quad, games.pixscape.runtime.render.lighting.LightingSurface receiver) {
         TileCornerSplit split = cornerSplits.get(ref);
@@ -61,14 +61,14 @@ public final class TiledMapRenderState {
     private int[] visibleRefs;
     private int visibleRefCount;
 
-    private int[] visibleMapEntityId;
-    private int[] visibleMapLayerIndex;
-    private int[] visibleMapZIndex;
-    private long[] visibleMapCompositionKey;
-    private int[] visibleMapRefStart;
-    private int[] visibleMapRefCount;
-    private TiledRenderOrder[] visibleMapPreparedOrder;
-    private int visibleMapCount;
+    private int[] visibleTileLayerEntityId;
+    private int[] visibleTileLayerLayerIndex;
+    private int[] visibleTileLayerZIndex;
+    private long[] visibleTileLayerCompositionKey;
+    private int[] visibleTileLayerRefStart;
+    private int[] visibleTileLayerRefCount;
+    private TiledRenderOrder[] visibleTileLayerPreparedOrder;
+    private int visibleTileLayerCount;
 
     private int refCount;
 
@@ -97,10 +97,10 @@ public final class TiledMapRenderState {
     public float[] alpha;
     public byte[] repeatFlags;
 
-    public TiledMapRenderState() {
+    public TiledRenderState() {
     }
 
-    public TiledMapRenderState(int initialCapacity) {
+    public TiledRenderState(int initialCapacity) {
         setCapacity(initialCapacity);
     }
 
@@ -112,12 +112,12 @@ public final class TiledMapRenderState {
         lightingMaps.clear();
         lightingRevision++;
         if (newCapacity <= 0) {
-            throw new IllegalArgumentException("TiledMapRenderState capacity must be > 0");
+            throw new IllegalArgumentException("TiledRenderState capacity must be > 0");
         }
 
         allocate(newCapacity, false);
         visibleRefCount = 0;
-        visibleMapCount = 0;
+        visibleTileLayerCount = 0;
         refCount = 0;
         growthCount = 0;
     }
@@ -142,9 +142,9 @@ public final class TiledMapRenderState {
     }
 
     public void clearVisibleRefs() {
-        for (int i = 0; i < visibleMapCount; i++) visibleMapPreparedOrder[i] = null;
+        for (int i = 0; i < visibleTileLayerCount; i++) visibleTileLayerPreparedOrder[i] = null;
         visibleRefCount = 0;
-        visibleMapCount = 0;
+        visibleTileLayerCount = 0;
     }
 
     public void addVisibleRef(int tiledRenderRef) {
@@ -172,36 +172,36 @@ public final class TiledMapRenderState {
         return refStart;
     }
 
-    public void addVisibleMap(int mapEntityId,
+    public void addVisibleTileLayer(int tileLayerEntityId,
                               int layerIndex,
                               int zIndex,
                               long compositionKey,
                               int visibleRefStart,
                               int visibleRefCount) {
         // A separate publisher may have added refs after Runtime preparation (Studio standalone textures).
-        TiledRenderOrder order = preparedOrders.get(mapEntityId);
+        TiledRenderOrder order = preparedOrders.get(tileLayerEntityId);
         if (order != null) order.invalidate();
-        addPreparedVisibleMap(mapEntityId, layerIndex, zIndex, compositionKey, visibleRefStart, visibleRefCount, null);
+        addPreparedVisibleTileLayer(tileLayerEntityId, layerIndex, zIndex, compositionKey, visibleRefStart, visibleRefCount, null);
     }
 
     /**
-     * Only a publisher whose traversal matches the prepared map order may attach that order.
+     * Only a publisher whose traversal matches the prepared layer order may attach that order.
      */
-    public void addPreparedVisibleMap(int mapEntityId, int layerIndex, int zIndex, long compositionKey,
+    public void addPreparedVisibleTileLayer(int tileLayerEntityId, int layerIndex, int zIndex, long compositionKey,
                                       int visibleRefStart, int visibleRefCount, TiledRenderOrder order) {
-        if (mapEntityId < 0 || visibleRefStart < 0 || visibleRefCount <= 0
+        if (tileLayerEntityId < 0 || visibleRefStart < 0 || visibleRefCount <= 0
                 || visibleRefStart + visibleRefCount > this.visibleRefCount) {
             throw new IllegalArgumentException("Visible Tiled Map group must reference a valid non-empty ref range.");
         }
-        ensureVisibleMapCapacity(visibleMapCount + 1);
-        visibleMapEntityId[visibleMapCount] = mapEntityId;
-        visibleMapLayerIndex[visibleMapCount] = layerIndex;
-        visibleMapZIndex[visibleMapCount] = zIndex;
-        visibleMapCompositionKey[visibleMapCount] = compositionKey;
-        visibleMapRefStart[visibleMapCount] = visibleRefStart;
-        visibleMapRefCount[visibleMapCount] = visibleRefCount;
-        visibleMapPreparedOrder[visibleMapCount] = order;
-        visibleMapCount++;
+        ensureVisibleTileLayerCapacity(visibleTileLayerCount + 1);
+        visibleTileLayerEntityId[visibleTileLayerCount] = tileLayerEntityId;
+        visibleTileLayerLayerIndex[visibleTileLayerCount] = layerIndex;
+        visibleTileLayerZIndex[visibleTileLayerCount] = zIndex;
+        visibleTileLayerCompositionKey[visibleTileLayerCount] = compositionKey;
+        visibleTileLayerRefStart[visibleTileLayerCount] = visibleRefStart;
+        visibleTileLayerRefCount[visibleTileLayerCount] = visibleRefCount;
+        visibleTileLayerPreparedOrder[visibleTileLayerCount] = order;
+        visibleTileLayerCount++;
     }
 
     public void setRenderDataForRef(int tiledRenderRef,
@@ -295,36 +295,36 @@ public final class TiledMapRenderState {
         return visibleRefCount;
     }
 
-    public int getVisibleMapCount() {
-        return visibleMapCount;
+    public int getVisibleTileLayerCount() {
+        return visibleTileLayerCount;
     }
 
-    public int visibleMapEntityId(int groupIndex) {
-        return visibleMapEntityId[groupIndex];
+    public int visibleTileLayerEntityId(int groupIndex) {
+        return visibleTileLayerEntityId[groupIndex];
     }
 
-    public int visibleMapLayerIndex(int groupIndex) {
-        return visibleMapLayerIndex[groupIndex];
+    public int visibleTileLayerLayerIndex(int groupIndex) {
+        return visibleTileLayerLayerIndex[groupIndex];
     }
 
-    public int visibleMapZIndex(int groupIndex) {
-        return visibleMapZIndex[groupIndex];
+    public int visibleTileLayerZIndex(int groupIndex) {
+        return visibleTileLayerZIndex[groupIndex];
     }
 
-    public long visibleMapCompositionKey(int groupIndex) {
-        return visibleMapCompositionKey[groupIndex];
+    public long visibleTileLayerCompositionKey(int groupIndex) {
+        return visibleTileLayerCompositionKey[groupIndex];
     }
 
-    public int visibleMapRefStart(int groupIndex) {
-        return visibleMapRefStart[groupIndex];
+    public int visibleTileLayerRefStart(int groupIndex) {
+        return visibleTileLayerRefStart[groupIndex];
     }
 
-    public int visibleMapRefCount(int groupIndex) {
-        return visibleMapRefCount[groupIndex];
+    public int visibleTileLayerRefCount(int groupIndex) {
+        return visibleTileLayerRefCount[groupIndex];
     }
 
-    public TiledRenderOrder visibleMapPreparedOrder(int groupIndex) {
-        return visibleMapPreparedOrder[groupIndex];
+    public TiledRenderOrder visibleTileLayerPreparedOrder(int groupIndex) {
+        return visibleTileLayerPreparedOrder[groupIndex];
     }
 
     public int getRefCount() {
@@ -443,21 +443,21 @@ public final class TiledMapRenderState {
         capacity = newCapacity;
     }
 
-    private void ensureVisibleMapCapacity(int required) {
-        if (visibleMapEntityId != null && required <= visibleMapEntityId.length) return;
-        int current = visibleMapEntityId != null ? visibleMapEntityId.length : 0;
+    private void ensureVisibleTileLayerCapacity(int required) {
+        if (visibleTileLayerEntityId != null && required <= visibleTileLayerEntityId.length) return;
+        int current = visibleTileLayerEntityId != null ? visibleTileLayerEntityId.length : 0;
         int next = Math.max(4, current);
         while (next < required) next <<= 1;
 
-        visibleMapEntityId = grow(visibleMapEntityId, next, visibleMapCount);
-        visibleMapLayerIndex = grow(visibleMapLayerIndex, next, visibleMapCount);
-        visibleMapZIndex = grow(visibleMapZIndex, next, visibleMapCount);
-        visibleMapCompositionKey = grow(visibleMapCompositionKey, next, visibleMapCount);
-        visibleMapRefStart = grow(visibleMapRefStart, next, visibleMapCount);
-        visibleMapRefCount = grow(visibleMapRefCount, next, visibleMapCount);
+        visibleTileLayerEntityId = grow(visibleTileLayerEntityId, next, visibleTileLayerCount);
+        visibleTileLayerLayerIndex = grow(visibleTileLayerLayerIndex, next, visibleTileLayerCount);
+        visibleTileLayerZIndex = grow(visibleTileLayerZIndex, next, visibleTileLayerCount);
+        visibleTileLayerCompositionKey = grow(visibleTileLayerCompositionKey, next, visibleTileLayerCount);
+        visibleTileLayerRefStart = grow(visibleTileLayerRefStart, next, visibleTileLayerCount);
+        visibleTileLayerRefCount = grow(visibleTileLayerRefCount, next, visibleTileLayerCount);
         TiledRenderOrder[] orders = new TiledRenderOrder[next];
-        if (visibleMapPreparedOrder != null) System.arraycopy(visibleMapPreparedOrder, 0, orders, 0, visibleMapCount);
-        visibleMapPreparedOrder = orders;
+        if (visibleTileLayerPreparedOrder != null) System.arraycopy(visibleTileLayerPreparedOrder, 0, orders, 0, visibleTileLayerCount);
+        visibleTileLayerPreparedOrder = orders;
     }
 
     private static int[] grow(int[] source, int capacity, int count) {

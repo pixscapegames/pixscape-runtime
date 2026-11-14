@@ -3,7 +3,7 @@ package games.pixscape.runtime.spatial;
 import com.badlogic.gdx.utils.Array;
 import com.badlogic.gdx.utils.IntMap;
 import com.badlogic.gdx.utils.LongMap;
-import games.pixscape.runtime.tiled.TiledMapLayerData;
+import games.pixscape.runtime.tiled.TiledLayerData;
 import games.pixscape.runtime.tiled.TiledProjection;
 
 import java.util.Comparator;
@@ -37,7 +37,7 @@ final class SpatialRoofSupports {
     /**
      * Rebuilt only with compiled geometry/projection. No runtime-frame traversal.
      */
-    static Array<SpatialRoofSupports> collect(SpatialCompiledLayerCache compiled, TiledMapLayerData map) {
+    static Array<SpatialRoofSupports> collect(SpatialCompiledLayerCache compiled, TiledLayerData map) {
         Array<SpatialRoofSupports> result = new Array<SpatialRoofSupports>();
         if (map.projection != TiledProjection.ORTHO || compiled.source() == null
                 || compiled.structureCount() == 0) return result;

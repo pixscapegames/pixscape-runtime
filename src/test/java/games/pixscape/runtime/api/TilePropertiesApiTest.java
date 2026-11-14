@@ -58,7 +58,7 @@ public class TilePropertiesApiTest {
             map.tileWidth = 16;
             map.tileHeight = 16;
             map.chunkSize = 8;
-            map.data = map.createMapData();
+            map.data = map.createLayerData();
             map.data.setTile(0, 0, 101);
             map.data.setTile(1, 0, 101);
             TileAnimationDefData animation = new TileAnimationDefData();

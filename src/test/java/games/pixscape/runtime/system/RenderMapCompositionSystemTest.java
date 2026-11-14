@@ -111,7 +111,7 @@ public class RenderMapCompositionSystemTest {
 
     private static final class Fixture {
         final DynamicEntityRenderState ecsState = new DynamicEntityRenderState(16);
-        final TiledMapRenderState tiledState = new TiledMapRenderState(16);
+        final TiledRenderState tiledState = new TiledRenderState(16);
         final LayerStateSOA layerState = new LayerStateSOA(2);
         final DrawList drawList = new DrawList(32);
         final World world;
@@ -158,7 +158,7 @@ public class RenderMapCompositionSystemTest {
             }
             long groupKey = SortKey64.packForBlend(
                     1, BlendMode.ALPHA.id, 0, 0, zIndex, mapEntityId);
-            tiledState.addVisibleMap(mapEntityId, 0, zIndex, groupKey, start, refs.length);
+            tiledState.addVisibleTileLayer(mapEntityId, 0, zIndex, groupKey, start, refs.length);
             return refs;
         }
 

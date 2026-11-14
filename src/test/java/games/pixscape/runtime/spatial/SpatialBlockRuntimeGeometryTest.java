@@ -2,7 +2,7 @@ package games.pixscape.runtime.spatial;
 
 import com.badlogic.gdx.utils.IntArray;
 import games.pixscape.runtime.component.spatial.SpatialBlocksComponent;
-import games.pixscape.runtime.tiled.TiledMapLayerData;
+import games.pixscape.runtime.tiled.TiledLayerData;
 import games.pixscape.runtime.tiled.TiledProjection;
 import org.junit.Assert;
 import org.junit.Test;
@@ -11,7 +11,7 @@ public class SpatialBlockRuntimeGeometryTest {
 
     @Test
     public void tileCellFootprintCornersProjectInOrtho() {
-        TiledMapLayerData map = new TiledMapLayerData(16, 16, 32, 20, 4);
+        TiledLayerData map = new TiledLayerData(16, 16, 32, 20, 4);
         map.originX = 5f;
         map.originY = -3f;
         SpatialBlockData block = block(7, 1.5f, 2f, 3f, 2.5f);
@@ -31,7 +31,7 @@ public class SpatialBlockRuntimeGeometryTest {
 
     @Test
     public void tileCellFootprintCornersProjectInIsoWithoutTwoToOneAssumption() {
-        TiledMapLayerData map = new TiledMapLayerData(
+        TiledLayerData map = new TiledLayerData(
                 16,
                 16,
                 90,
@@ -58,7 +58,7 @@ public class SpatialBlockRuntimeGeometryTest {
 
     @Test
     public void oneByOneIsoBlockFootprintMatchesTileCellFootprint() {
-        TiledMapLayerData map = new TiledMapLayerData(
+        TiledLayerData map = new TiledLayerData(
                 16,
                 16,
                 90,
@@ -81,7 +81,7 @@ public class SpatialBlockRuntimeGeometryTest {
 
     @Test
     public void thinIsoBlockFootprintUsesCellOriginOffset() {
-        TiledMapLayerData map = new TiledMapLayerData(
+        TiledLayerData map = new TiledLayerData(
                 16,
                 16,
                 90,

@@ -1,7 +1,7 @@
 package games.pixscape.runtime.spatial;
 
 import games.pixscape.runtime.component.spatial.SpatialBlocksComponent;
-import games.pixscape.runtime.tiled.TiledMapLayerData;
+import games.pixscape.runtime.tiled.TiledLayerData;
 import games.pixscape.runtime.tiled.TiledProjection;
 
 import java.util.Arrays;
@@ -11,7 +11,7 @@ import java.util.Arrays;
  */
 public final class SpatialTileOrderCache {
     private final SpatialTileOrderCompiler compiler = new SpatialTileOrderCompiler();
-    private TiledMapLayerData sourceMap;
+    private TiledLayerData sourceMap;
     private int sourceMapRevision = Integer.MIN_VALUE;
     private SpatialBlocksComponent sourceBlocks;
     private int sourceBlocksRevision = Integer.MIN_VALUE;
@@ -37,7 +37,7 @@ public final class SpatialTileOrderCache {
     public int tileOrderCycleCount;
 
     public boolean ensure(int layerEntity,
-                          TiledMapLayerData map,
+                          TiledLayerData map,
                           SpatialBlocksComponent blocks,
                           SpatialCompiledLayerCache compiled) {
         if (map == null || compiled == null) return false;
@@ -57,7 +57,7 @@ public final class SpatialTileOrderCache {
     }
 
     private void rebuild(int layerEntity,
-                         TiledMapLayerData map,
+                         TiledLayerData map,
                          SpatialBlocksComponent blocks,
                          SpatialCompiledLayerCache compiled) {
         try {
@@ -99,7 +99,7 @@ public final class SpatialTileOrderCache {
     /**
      * True only for an authored owner, compiled anchor, or explicit per-cell spatial metadata.
      */
-    public boolean requiresCanonicalRank(TiledMapLayerData map, int gx, int gy) {
+    public boolean requiresCanonicalRank(TiledLayerData map, int gx, int gy) {
         if (gx < 0 || gy < 0 || gx >= mapWidth || gy >= mapHeight) return false;
         int cell = gy * mapWidth + gx;
         return ownerBlockIdByCell[cell] != 0 || anchorStructureIdByCell[cell] != 0
@@ -116,7 +116,7 @@ public final class SpatialTileOrderCache {
         return anchorStructureIdByCell[gy * mapWidth + gx];
     }
 
-    private void rebuildParticipation(TiledMapLayerData map,
+    private void rebuildParticipation(TiledLayerData map,
                                       SpatialBlocksComponent blocks,
                                       SpatialCompiledLayerCache compiled) {
         int cells = map.mapWidth * map.mapHeight;
@@ -149,7 +149,7 @@ public final class SpatialTileOrderCache {
         }
     }
 
-    private static boolean inside(TiledMapLayerData map, int gx, int gy) {
+    private static boolean inside(TiledLayerData map, int gx, int gy) {
         return gx >= 0 && gy >= 0 && gx < map.mapWidth && gy < map.mapHeight;
     }
 

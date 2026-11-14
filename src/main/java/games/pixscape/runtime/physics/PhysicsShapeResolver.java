@@ -2,7 +2,7 @@ package games.pixscape.runtime.physics;
 
 import com.badlogic.gdx.math.MathUtils;
 import games.pixscape.runtime.spatial.SpatialBlockData;
-import games.pixscape.runtime.tiled.TiledMapLayerData;
+import games.pixscape.runtime.tiled.TiledLayerData;
 
 /**
  * Pure authored-to-resolved physics shape mapping.
@@ -24,7 +24,7 @@ public final class PhysicsShapeResolver {
     public ResolvedPhysicsShape resolveLinked(
             PhysicsShapeData source,
             SpatialBlockData block,
-            TiledMapLayerData map,
+            TiledLayerData map,
             float bodyWorldX,
             float bodyWorldY,
             float bodyRotationRad,

@@ -111,7 +111,7 @@ public final class ActorShadowRectangleShadowGlCheck extends ApplicationAdapter 
         batch = forward ? new TextureArrayMeshBatch(512) : new MultiTextureMeshBatch(512);
         if (forward) ((TextureArrayMeshBatch) batch).setTextureArrayBundle(bundle);
         stats = new RenderStats();
-        geometry = new LightingGeometrySystem(dynamic, new TiledMapRenderState(4), queue, layers);
+        geometry = new LightingGeometrySystem(dynamic, new TiledRenderState(4), queue, layers);
         submit = new RenderSubmitSystem(layers, queue, camera, .22f, .22f, .22f, batch, stats, new RenderStatsSink(100), forward);
         world = new World(new WorldConfigurationBuilder().with(geometry, submit).build());
         geometry.setEnabled(false);

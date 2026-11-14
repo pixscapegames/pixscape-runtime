@@ -22,7 +22,7 @@ import games.pixscape.runtime.particle.ParticleEffect;
 import games.pixscape.runtime.particle.ParticleEffectPool;
 import games.pixscape.runtime.particle.ParticleRuntimeAvailability;
 import games.pixscape.runtime.system.RenderParticleSyncSystem;
-import games.pixscape.runtime.tiled.TiledMapLayerData;
+import games.pixscape.runtime.tiled.TiledLayerData;
 import org.junit.*;
 
 import java.lang.reflect.Field;
@@ -149,7 +149,7 @@ public class EntityRefIdentitySafetyTest {
             int entity = world.create();
             tiled(world, entity, 2);
             EntityRef ref = engine.api().entities().requireEntityId(entity);
-            TiledMapRef map = engine.api().tiled().requireEntityId(entity);
+            TiledLayerRef map = engine.api().tiled().requireEntityId(entity);
 
             for (int i = 0; i < 20; i++) {
                 Assert.assertTrue(ref.exists());
@@ -190,7 +190,7 @@ public class EntityRefIdentitySafetyTest {
             World world = engine.getWorld();
             int first = world.create();
             world.getMapper(TransformComponent.class).create(first).x = 10f;
-            TiledMapLayerData firstMap = tiled(world, first, 2);
+            TiledLayerData firstMap = tiled(world, first, 2);
             world.process();
 
             EntityRef oldEntity = engine.api().entities().requireEntityId(first);
@@ -200,7 +200,7 @@ public class EntityRefIdentitySafetyTest {
             ParticleFacade oldParticles = oldEntity.particles();
             ShaderFacade oldShader = oldEntity.shader();
             RenderOrderFacade oldRenderOrder = oldEntity.renderOrder();
-            TiledMapRef oldTiled = engine.api().tiled().requireEntityId(first);
+            TiledLayerRef oldTiled = engine.api().tiled().requireEntityId(first);
 
             world.delete(first);
             world.process();
@@ -214,7 +214,7 @@ public class EntityRefIdentitySafetyTest {
             AnimationComponent replacementAnimation =
                     world.getMapper(AnimationComponent.class).create(replacement);
             replacementAnimation.fps = 17f;
-            TiledMapLayerData replacementMap = tiled(world, replacement, 4);
+            TiledLayerData replacementMap = tiled(world, replacement, 4);
 
             Assert.assertFalse(oldEntity.exists());
             Assert.assertEquals(-1, oldEntity.stableId());
@@ -222,11 +222,11 @@ public class EntityRefIdentitySafetyTest {
             Assert.assertEquals(-1, oldTiled.stableId());
             Assert.assertEquals(0f, oldTransform.x(), 0f);
             assertStalePosition(oldTransform);
-            Assert.assertEquals(0, oldTiled.map().width());
+            Assert.assertEquals(0, oldTiled.layer().width());
             Assert.assertFalse(oldSprite.exists());
             Assert.assertFalse(oldShader.exists());
             Assert.assertFalse(oldRenderOrder.exists());
-            Assert.assertFalse(oldTiled.map().isInside(0, 0));
+            Assert.assertFalse(oldTiled.layer().isInside(0, 0));
 
             oldTransform.setX(200f);
             oldTransform.setPosition(Float.NaN, Float.POSITIVE_INFINITY);
@@ -236,7 +236,7 @@ public class EntityRefIdentitySafetyTest {
             oldParticles.play();
             oldParticles.setEffect("", "");
             oldShader.use("").setFloat("", 1f);
-            oldTiled.map().setVisible(false);
+            oldTiled.layer().setVisible(false);
             oldEntity.remove();
 
             Assert.assertEquals(100f, replacementTransform.x, 0f);
@@ -246,10 +246,10 @@ public class EntityRefIdentitySafetyTest {
             Assert.assertTrue(world.getEntityManager().isActive(replacement));
 
             EntityRef freshEntity = engine.api().entities().ofEntityId(replacement);
-            TiledMapRef freshTiled = engine.api().tiled().ofEntityId(replacement);
+            TiledLayerRef freshTiled = engine.api().tiled().ofEntityId(replacement);
             Assert.assertTrue(freshEntity.exists());
             Assert.assertTrue(freshTiled.exists());
-            Assert.assertEquals(4, freshTiled.map().width());
+            Assert.assertEquals(4, freshTiled.layer().width());
             Assert.assertTrue(firstMap.visible);
         } finally {
             engine.dispose();
@@ -435,8 +435,8 @@ public class EntityRefIdentitySafetyTest {
                 new ParticleEffectPool(new ParticleEffect(), 0, 4));
     }
 
-    private static TiledMapLayerData tiled(World world, int entityId, int width) {
-        TiledMapLayerData data = new TiledMapLayerData(width, 1, 16, 16, 1);
+    private static TiledLayerData tiled(World world, int entityId, int width) {
+        TiledLayerData data = new TiledLayerData(width, 1, 16, 16, 1);
         world.getMapper(TiledLayerComponent.class).create(entityId).data = data;
         return data;
     }

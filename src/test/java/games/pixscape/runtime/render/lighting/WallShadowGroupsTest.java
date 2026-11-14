@@ -2,7 +2,7 @@ package games.pixscape.runtime.render.lighting;
 
 import games.pixscape.runtime.component.spatial.SpatialBlocksComponent;
 import games.pixscape.runtime.spatial.SpatialBlockData;
-import games.pixscape.runtime.tiled.TiledMapLayerData;
+import games.pixscape.runtime.tiled.TiledLayerData;
 import games.pixscape.runtime.tiled.TiledProjection;
 import org.junit.Test;
 
@@ -24,8 +24,8 @@ public class WallShadowGroupsTest {
         return b;
     }
 
-    private static TiledMapLayerData map() {
-        return new TiledMapLayerData(64, 64, 256, 128, 16, TiledProjection.ISO);
+    private static TiledLayerData map() {
+        return new TiledLayerData(64, 64, 256, 128, 16, TiledProjection.ISO);
     }
 
     @Test
@@ -56,7 +56,7 @@ public class WallShadowGroupsTest {
 
     @Test
     public void orthoCollinearStripsShareGroupsButPerpendicularReturnsCastOntoThem() {
-        var map = new TiledMapLayerData(12, 12, 32, 16, 4, TiledProjection.ORTHO);
+        var map = new TiledLayerData(12, 12, 32, 16, 4, TiledProjection.ORTHO);
         var ids = new ShadowExclusionIdentities();
         var groups = new WallShadowGroups();
         var blocks = new SpatialBlocksComponent();

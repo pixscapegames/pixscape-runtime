@@ -12,7 +12,7 @@ import games.pixscape.runtime.render.*;
 import games.pixscape.runtime.render.batch.performance.RenderStats;
 import games.pixscape.runtime.system.RenderExtractFrameQueueSystem;
 import games.pixscape.runtime.tiled.TileChunk;
-import games.pixscape.runtime.tiled.TiledMapLayerData;
+import games.pixscape.runtime.tiled.TiledLayerData;
 import games.pixscape.runtime.tiled.TiledProjection;
 import org.junit.Assert;
 import org.junit.Assume;
@@ -275,11 +275,11 @@ public class SpatialJunctionLocalityTest {
 
     static final class Fixture implements AutoCloseable {
         final SpatialBlocksComponent blocks = new SpatialBlocksComponent();
-        final TiledMapLayerData map = new TiledMapLayerData(50, 50, 256, 128, 16, TiledProjection.ISO);
+        final TiledLayerData map = new TiledLayerData(50, 50, 256, 128, 16, TiledProjection.ISO);
         final SpatialCompiledLayerCache compiled = new SpatialCompiledLayerCache();
         final SpatialProjectedFaceCache faces = new SpatialProjectedFaceCache();
         final SpatialTileOrderCache ranks = new SpatialTileOrderCache();
-        final TiledMapRenderState tiled = new TiledMapRenderState();
+        final TiledRenderState tiled = new TiledRenderState();
         final DynamicEntityRenderState ecs = new DynamicEntityRenderState(1);
         final SpatialActorCollector actors = new SpatialActorCollector();
         final SpatialFaceRelationSolver solver = new SpatialFaceRelationSolver();

@@ -1,6 +1,6 @@
 package games.pixscape.runtime.spatial;
 
-import games.pixscape.runtime.tiled.TiledMapLayerData;
+import games.pixscape.runtime.tiled.TiledLayerData;
 
 /**
  * Allocation-free primitive geometry and validation rules for authored rectangular walls.
@@ -134,7 +134,7 @@ public final class SpatialWallGeometry {
     }
 
     public static CoverageValidation validateAuthoredWall(SpatialBlockData wall,
-                                                          TiledMapLayerData map,
+                                                          TiledLayerData map,
                                                           Bounds bounds) {
         if (wall == null) return CoverageValidation.MISSING_WALL;
         if (wall.id <= 0) return CoverageValidation.INVALID_BLOCK_ID;

@@ -111,7 +111,7 @@ public final class RoundedWallSupport {
         // The silhouette is x-monotone. Complete only its upper and lower strips,
         // rather than successively subtracting every triangle and fragmenting empty UV space.
         receiver = new LightingSurface(join(front, top, coverage(outerXY, innerXY, base, height, quad)));
-        receiver.receiverVertices = MapLightingGeometry.completeReceiverVertices(receiver.vertices, quad, base);
+        receiver.receiverVertices = TiledLayerLightingGeometry.completeReceiverVertices(receiver.vertices, quad, base);
         receiver.forwardTopology = ForwardTopology.compile(receiver, quad);
         float[] physical = receiver.receiverVertices == null ? receiver.vertices : receiver.receiverVertices;
         receiver.curveNormals = new float[physical.length / 8 * 3];

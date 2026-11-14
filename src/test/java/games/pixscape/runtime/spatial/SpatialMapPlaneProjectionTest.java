@@ -4,7 +4,7 @@ import games.pixscape.runtime.component.spatial.SpatialBlocksComponent;
 import games.pixscape.runtime.physics.PhysicsShapeData;
 import games.pixscape.runtime.physics.PhysicsShapeResolver;
 import games.pixscape.runtime.physics.ResolvedPhysicsShape;
-import games.pixscape.runtime.tiled.TiledMapLayerData;
+import games.pixscape.runtime.tiled.TiledLayerData;
 import games.pixscape.runtime.tiled.TiledProjection;
 import org.junit.Assert;
 import org.junit.Test;
@@ -15,7 +15,7 @@ public class SpatialMapPlaneProjectionTest {
         float[][] cases = {{0, 0, 0}, {128, 128, 0}, {256, 256, 0},
                 {128, 160, 32}, {128, 96, -32}};
         for (TiledProjection projection : TiledProjection.values()) {
-            TiledMapLayerData map = map(projection);
+            TiledLayerData map = map(projection);
             for (float[] c : cases) {
                 map.defaultTileAltitude = c[0];
                 float[] cell = new float[8], base = new float[2], top = new float[2];
@@ -31,7 +31,7 @@ public class SpatialMapPlaneProjectionTest {
 
     @Test
     public void changingOnlyMapPlaneReprojectsFacesAndOrderWithoutRecompilingAbsoluteStructures() {
-        TiledMapLayerData map = map(TiledProjection.ISO);
+        TiledLayerData map = map(TiledProjection.ISO);
         map.setTile(27, 18, 1);
         SpatialBlocksComponent blocks = new SpatialBlocksComponent();
         SpatialBlockData block = new SpatialBlockData();
@@ -76,7 +76,7 @@ public class SpatialMapPlaneProjectionTest {
 
     @Test
     public void linkedPhysicsUsesSamePlaneWithoutChangingAbsoluteBlockAltitude() {
-        TiledMapLayerData map = map(TiledProjection.ISO);
+        TiledLayerData map = map(TiledProjection.ISO);
         map.defaultTileAltitude = 128;
         SpatialBlockData block = new SpatialBlockData();
         block.id = 1;
@@ -96,8 +96,8 @@ public class SpatialMapPlaneProjectionTest {
         Assert.assertEquals(128, block.altitude, 0);
     }
 
-    private static TiledMapLayerData map(TiledProjection projection) {
-        TiledMapLayerData map = new TiledMapLayerData(50, 50, 256, 128, 16, projection);
+    private static TiledLayerData map(TiledProjection projection) {
+        TiledLayerData map = new TiledLayerData(50, 50, 256, 128, 16, projection);
         map.originX = 37;
         map.originY = -83;
         return map;

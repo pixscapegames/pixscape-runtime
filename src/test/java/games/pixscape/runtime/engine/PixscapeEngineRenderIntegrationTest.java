@@ -50,7 +50,7 @@ public class PixscapeEngineRenderIntegrationTest {
     private static World createSceneWorld(SceneMetaRuntime meta) {
         return WorldConfigFactory.buildWorld(new com.badlogic.gdx.graphics.OrthographicCamera(),
                 new DynamicEntityRenderState(), new LayerStateSOA(), new DrawList(), new FrameRenderQueue(),
-                new VfxRenderState(), new TiledMapRenderState(),
+                new VfxRenderState(), new TiledRenderState(),
                 new games.pixscape.runtime.render.batch.performance.RenderStats(), 0,
                 new games.pixscape.runtime.service.AtlasRuntimeService(), null, null, meta, 16,
                 new games.pixscape.runtime.service.TileAnimationRegistry(),
@@ -154,7 +154,7 @@ public class PixscapeEngineRenderIntegrationTest {
         PixscapeEngine engine = new PixscapeEngine();
         java.lang.reflect.Field tiledField = PixscapeEngine.class.getDeclaredField("tiledState");
         tiledField.setAccessible(true);
-        tiledField.set(engine, new TiledMapRenderState(10000));
+        tiledField.set(engine, new TiledRenderState(10000));
 
         engine.dispose();
 

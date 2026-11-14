@@ -1,13 +1,13 @@
 package games.pixscape.runtime.spatial;
 
 import com.badlogic.gdx.utils.IntMap;
-import games.pixscape.runtime.tiled.TiledMapLayerData;
+import games.pixscape.runtime.tiled.TiledLayerData;
 
 /** Scene-owned caches shared by tiled publication and actor composition. Owner access/removal is O(1). */
 public final class SpatialLayerRuntimeRegistry {
     private final IntMap<Entry> owners = new IntMap<>();
 
-    public SpatialLayerFaceRuntime forLayer(int layerEntity, TiledMapLayerData sourceMap) {
+    public SpatialLayerFaceRuntime forLayer(int layerEntity, TiledLayerData sourceMap) {
         Entry entry = owners.get(layerEntity);
         if (entry == null || entry.source != sourceMap) {
             entry = new Entry(sourceMap, layerEntity);
@@ -20,7 +20,7 @@ public final class SpatialLayerRuntimeRegistry {
         owners.remove(layerEntity);
     }
 
-    public void discardReplacedMap(int layerEntity, TiledMapLayerData map) {
+    public void discardReplacedMap(int layerEntity, TiledLayerData map) {
         Entry entry = owners.get(layerEntity);
         if (entry != null && entry.source != map) {
             owners.remove(layerEntity);
@@ -32,10 +32,10 @@ public final class SpatialLayerRuntimeRegistry {
     }
 
     private static final class Entry {
-        final TiledMapLayerData source;
+        final TiledLayerData source;
         final SpatialLayerFaceRuntime runtime = new SpatialLayerFaceRuntime();
 
-        Entry(TiledMapLayerData source, int owner) {
+        Entry(TiledLayerData source, int owner) {
             this.source = source;
             runtime.layerEntity = owner;
         }

@@ -13,7 +13,7 @@ import games.pixscape.runtime.physics.PhysicsGeometryData;
 import games.pixscape.runtime.physics.PhysicsShapeData;
 import games.pixscape.runtime.physics.PreparedPhysicsBodyCandidate;
 import games.pixscape.runtime.spatial.SpatialBlockData;
-import games.pixscape.runtime.tiled.TiledMapLayerData;
+import games.pixscape.runtime.tiled.TiledLayerData;
 import games.pixscape.runtime.tiled.TiledProjection;
 import org.junit.Assert;
 import org.junit.Test;
@@ -198,8 +198,8 @@ public class PhysicsLinkedBodyCompilationTest {
         return owner;
     }
 
-    private static TiledMapLayerData tiledData() {
-        return new TiledMapLayerData(
+    private static TiledLayerData tiledData() {
+        return new TiledLayerData(
                 20, 20, 32, 16, 8, TiledProjection.ORTHO);
     }
 

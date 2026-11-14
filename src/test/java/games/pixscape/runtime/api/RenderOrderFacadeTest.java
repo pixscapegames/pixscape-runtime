@@ -22,7 +22,7 @@ import games.pixscape.runtime.render.VfxRenderState;
 import games.pixscape.runtime.service.AtlasRuntimeService;
 import games.pixscape.runtime.system.DirtyTrackerSystem;
 import games.pixscape.runtime.system.RenderParticleSyncSystem;
-import games.pixscape.runtime.tiled.TiledMapLayerData;
+import games.pixscape.runtime.tiled.TiledLayerData;
 import org.junit.Assert;
 import org.junit.Test;
 
@@ -533,7 +533,7 @@ public class RenderOrderFacadeTest {
             int entityId = world.create();
             world.getMapper(EntityIndexComponent.class).create(entityId).layerIndex = layerIndex;
             TiledLayerComponent tiled = world.getMapper(TiledLayerComponent.class).create(entityId);
-            tiled.data = new TiledMapLayerData(1, 1, 16, 16, 1);
+            tiled.data = new TiledLayerData(1, 1, 16, 16, 1);
             world.process();
             return entityId;
         }

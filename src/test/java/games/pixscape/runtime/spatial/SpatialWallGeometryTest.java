@@ -1,6 +1,6 @@
 package games.pixscape.runtime.spatial;
 
-import games.pixscape.runtime.tiled.TiledMapLayerData;
+import games.pixscape.runtime.tiled.TiledLayerData;
 import org.junit.Assert;
 import org.junit.Test;
 
@@ -14,7 +14,7 @@ public class SpatialWallGeometryTest {
 
     @Test
     public void fractionalInsetFootprintIsValidAndCopyPreservesExactValues() {
-        TiledMapLayerData map = occupiedMap(20, 10);
+        TiledLayerData map = occupiedMap(20, 10);
         SpatialBlockData wall = linkedWall(9, 13, 10, 6, 17, 6);
         wall.x = 10.14f;
         wall.y = 6.38f;
@@ -32,7 +32,7 @@ public class SpatialWallGeometryTest {
 
     @Test
     public void rejectsMalformedGeometryButAllowsFootprintOutsideImageAnchors() {
-        TiledMapLayerData map = occupiedMap(4, 4);
+        TiledLayerData map = occupiedMap(4, 4);
         SpatialBlockData wall = linkedWall(1, 1, 1, 1, 2, 2);
         wall.x = 1.2f;
         wall.y = 1.3f;
@@ -55,7 +55,7 @@ public class SpatialWallGeometryTest {
 
     @Test
     public void linkedRefsRemainOneCompleteOccupiedRectangleIndependentOfFootprint() {
-        TiledMapLayerData map = occupiedMap(4, 4);
+        TiledLayerData map = occupiedMap(4, 4);
         SpatialBlockData wall = linkedWall(1, 1, 1, 1, 2, 2);
         wall.x = 1.25f;
         wall.y = 1.25f;
@@ -77,7 +77,7 @@ public class SpatialWallGeometryTest {
 
     @Test
     public void linkedRefOrderingAndAssetChangesDoNotAffectValidity() {
-        TiledMapLayerData map = occupiedMap(3, 3);
+        TiledLayerData map = occupiedMap(3, 3);
         SpatialBlockData wall = linkedWall(1, 1, 0, 0, 1, 1);
         wall.linkedTileRefs.get(0).tileAssetId = 999;
         wall.linkedTileRefs.swap(0, 3);
@@ -107,7 +107,7 @@ public class SpatialWallGeometryTest {
         assertJunction(invalid, footprint(0f, 0f, 1f, 1f), JunctionClassification.INVALID);
     }
 
-    private CoverageValidation validate(SpatialBlockData wall, TiledMapLayerData map) {
+    private CoverageValidation validate(SpatialBlockData wall, TiledLayerData map) {
         return SpatialWallGeometry.validateAuthoredWall(wall, map, aBounds);
     }
 
@@ -138,8 +138,8 @@ public class SpatialWallGeometryTest {
         return wall;
     }
 
-    private static TiledMapLayerData occupiedMap(int width, int height) {
-        TiledMapLayerData map = new TiledMapLayerData(width, height, 16, 16, 2);
+    private static TiledLayerData occupiedMap(int width, int height) {
+        TiledLayerData map = new TiledLayerData(width, height, 16, 16, 2);
         for (int gy = 0; gy < height; gy++) for (int gx = 0; gx < width; gx++) map.setTile(gx, gy, 1);
         return map;
     }

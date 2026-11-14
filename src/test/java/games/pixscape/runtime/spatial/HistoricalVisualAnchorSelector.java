@@ -1,8 +1,8 @@
 package games.pixscape.runtime.spatial;
 
 import games.pixscape.runtime.render.DynamicEntityRenderState;
-import games.pixscape.runtime.render.TiledMapRenderState;
-import games.pixscape.runtime.tiled.TiledMapLayerData;
+import games.pixscape.runtime.render.TiledRenderState;
+import games.pixscape.runtime.tiled.TiledLayerData;
 
 /**
  * Frozen previous selector: isolates historical relation/locality tests from the new candidate contract.
@@ -12,7 +12,7 @@ final class HistoricalVisualAnchorSelector extends SpatialVisualAnchorSelector {
     private final float[] tileQuad = new float[8];
 
     public void select(int actor, SpatialActorCollector actors, DynamicEntityRenderState ecs,
-                       TiledMapRenderState tiled, TiledMapLayerData map,
+                       TiledRenderState tiled, TiledLayerData map,
                        SpatialProjectedFaceCache faces, float mapOffsetX, float mapOffsetY) {
         candidateCount = 0;
         if (ecs == null || tiled == null || map == null || faces == null) return;

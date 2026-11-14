@@ -11,7 +11,7 @@ public class RenderSortSystemTest {
     @Test
     public void sortsMixedDomainsByResolvedSortKey() {
         DynamicEntityRenderState ecsState = new DynamicEntityRenderState(4);
-        TiledMapRenderState tiledState = new TiledMapRenderState(4);
+        TiledRenderState tiledState = new TiledRenderState(4);
         VfxRenderState vfxState = new VfxRenderState(4);
         DrawList drawList = new DrawList(4);
         int tiledRef = tiledState.registerRef();

@@ -29,7 +29,7 @@ public class UnlitLightPublicationTest {
         LayerStateSOA layers = new LayerStateSOA(1);
         layers.touchLayerIndex(0);
         layers.enabled[0] = true;
-        World world = new World(new WorldConfigurationBuilder().with(new LightingGeometrySystem(dynamic, new TiledMapRenderState(4), queue, layers)).build());
+        World world = new World(new WorldConfigurationBuilder().with(new LightingGeometrySystem(dynamic, new TiledRenderState(4), queue, layers)).build());
         try {
             world.process();
             assertEquals(0, queue.lighting.lights.size);

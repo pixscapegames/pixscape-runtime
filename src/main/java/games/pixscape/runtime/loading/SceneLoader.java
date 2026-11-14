@@ -176,7 +176,7 @@ public final class SceneLoader {
             TiledLayerComponent tiled = tiledMaps.getSafe(entityId, null);
             if (tiled == null) continue;
             try {
-                tiled.validateMapConfiguration();
+                tiled.validateGridConfiguration();
             } catch (IllegalArgumentException ex) {
                 throw new IllegalArgumentException(
                         "Scene '" + sceneFile.path()

@@ -1,7 +1,7 @@
 package games.pixscape.runtime.api;
 
 /**
- * High-level API for runtime Tiled Maps.
+ * High-level API for tile definitions and individual tile layers.
  */
 public interface TiledAPI {
     /**
@@ -11,7 +11,7 @@ public interface TiledAPI {
      * <pre>{@code
      * TileDefinition tile = engine.api().tiled().tile(tilesetAssetId, 7);
      * int cost = tile == null ? 1 : tile.properties().getInt("cost", 1);
-     * TileDefinition placed = engine.api().tiled().ofEntityId(mapEntityId)
+     * TileDefinition placed = engine.api().tiled().ofEntityId(tileLayerEntityId)
      *         .tiles().definition(3, 4);
      * boolean solid = placed != null && placed.properties().getBoolean("solid", false);
      * }</pre>
@@ -19,26 +19,26 @@ public interface TiledAPI {
     TileDefinition tile(int tilesetId, int localId);
 
     /**
-     * Returns a tolerant tiled view bound to the current entity incarnation and World.
+     * Returns a tolerant tile-layer view bound to the current entity incarnation and World.
      */
-    TiledMapRef ofEntityId(int entityId);
+    TiledLayerRef ofEntityId(int entityId);
 
     /**
-     * Returns a tolerant tiled view bound to the entity currently resolved by stable ID.
+     * Returns a tolerant tile-layer view bound to the entity currently resolved by stable ID.
      */
-    TiledMapRef ofStableId(int stableId);
+    TiledLayerRef ofStableId(int stableId);
 
     /**
-     * Strictly resolves a tiled entity at acquisition time.
+     * Strictly resolves a tile-layer entity at acquisition time.
      * The returned reference can later become stale and inert.
      */
-    TiledMapRef requireEntityId(int entityId);
+    TiledLayerRef requireEntityId(int entityId);
 
     /**
-     * Strictly resolves a tiled stable ID at acquisition time.
+     * Strictly resolves a tile-layer stable ID at acquisition time.
      * The returned reference can later become stale and inert.
      */
-    TiledMapRef requireStableId(int stableId);
+    TiledLayerRef requireStableId(int stableId);
 
     /**
      * Global animated tile definition registry.

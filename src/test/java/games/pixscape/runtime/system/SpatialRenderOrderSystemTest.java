@@ -19,7 +19,7 @@ import games.pixscape.runtime.spatial.SpatialLayerRuntimeRegistry;
 import games.pixscape.runtime.spatial.SpatialRectangleTestData;
 import games.pixscape.runtime.spatial.SpatialWallContinuationCache;
 import games.pixscape.runtime.tiled.TileChunk;
-import games.pixscape.runtime.tiled.TiledMapLayerData;
+import games.pixscape.runtime.tiled.TiledLayerData;
 import games.pixscape.runtime.tiled.TiledProjection;
 import org.junit.Assert;
 import org.junit.Test;
@@ -30,7 +30,7 @@ public class SpatialRenderOrderSystemTest {
     public void orthogonalWallAfterRoofKeepsItsProjectedFaceDuringActorMotion() throws Exception {
         Fixture f = new Fixture(1024);
         f.createLayer(2, true);
-        TiledMapLayerData map = f.createBlockMap(16, 16, 16, 16, 300);
+        TiledLayerData map = f.createBlockMap(16, 16, 16, 16, 300);
         SpatialBlockData first = block(1, 6.75f, 2, .25f, 10);
         first.structureId = 1;
         first.height = 16;
@@ -229,7 +229,7 @@ public class SpatialRenderOrderSystemTest {
         Fixture fixture = new Fixture(512);
         fixture.createLayer(1, true);
         fixture.createLayer(2, true);
-        TiledMapLayerData map = fixture.createBlockMap(2, 1, 16, 16, 300);
+        TiledLayerData map = fixture.createBlockMap(2, 1, 16, 16, 300);
         fixture.createSpatialTiledLayerWithMap(0, map);
         int tileA = fixture.createLinkedTile(map, 0, 0, 101, 0, 10);
         int higher = fixture.createActor(10f, 10f, 0, 1, true);
@@ -344,7 +344,7 @@ public class SpatialRenderOrderSystemTest {
     public void tiledDrawIndexMappingUsesMapRenderRef() {
         Fixture fixture = new Fixture(512, true);
         fixture.createLayer(2, true);
-        TiledMapLayerData map = fixture.createBlockMap(3, 3, 16, 16, 300);
+        TiledLayerData map = fixture.createBlockMap(3, 3, 16, 16, 300);
         fixture.createBlockTiledLayer(1, map, block(10, 0f, 0f, 1f, 1f));
         int tile = fixture.createLinkedTile(map, 0, 0, 101, 1, 20);
         int mapRenderRef = map.tiledRenderRefForTile(0, 0);
@@ -378,7 +378,7 @@ public class SpatialRenderOrderSystemTest {
     public void spatialActorsSortInsideSameActorOnlySpanBetweenTileAnchors() {
         Fixture fixture = new Fixture(512);
         fixture.createLayer(0, true);
-        TiledMapLayerData map = fixture.createBlockMap(2, 1, 16, 16, 300);
+        TiledLayerData map = fixture.createBlockMap(2, 1, 16, 16, 300);
         fixture.createSpatialTiledLayerWithMap(0, map);
         int tileA = fixture.createLinkedTile(map, 0, 0, 101, 0, 10);
         int higher = fixture.createActor(10f, 10f, 0, 0, true);
@@ -397,7 +397,7 @@ public class SpatialRenderOrderSystemTest {
     public void unconstrainedSpatialActorsSortAcrossOrdinaryTileAnchor() {
         Fixture fixture = new Fixture(512);
         fixture.createLayer(0, true);
-        TiledMapLayerData map = fixture.createBlockMap(3, 1, 16, 16, 300);
+        TiledLayerData map = fixture.createBlockMap(3, 1, 16, 16, 300);
         fixture.createSpatialTiledLayerWithMap(0, map);
         int tileA = fixture.createLinkedTile(map, 0, 0, 101, 0, 10);
         int higher = fixture.createActor(10f, 10f, 0, 0, true);
@@ -455,7 +455,7 @@ public class SpatialRenderOrderSystemTest {
     public void postSpatialPipelineDoesNotResortDrawListBeforeSubmit() {
         Fixture fixture = new Fixture(512, true);
         fixture.createLayer(0, true);
-        TiledMapLayerData map = fixture.createBlockMap(3, 3, 16, 16, 300);
+        TiledLayerData map = fixture.createBlockMap(3, 3, 16, 16, 300);
         fixture.createBlockTiledLayer(1, map, block(10, 0f, 0f, 1f, 1f));
         int tile = fixture.createLinkedTile(map, 0, 0, 101, 1, 20);
         int actor = fixture.createActor(8f, 24f, 0, 0, true);
@@ -473,7 +473,7 @@ public class SpatialRenderOrderSystemTest {
     public void completeNonActorRelativeOrderIsPreserved() {
         Fixture fixture = new Fixture(512, true);
         fixture.createLayer(2, true);
-        TiledMapLayerData map = fixture.createBlockMap(3, 3, 16, 16, 300);
+        TiledLayerData map = fixture.createBlockMap(3, 3, 16, 16, 300);
         fixture.createBlockTiledLayer(1, map, block(10, 0f, 0f, 1f, 1f));
         int renderA = fixture.createRenderOnlySlot(40, 2, 0, 5);
         int tile = fixture.createLinkedTile(map, 0, 0, 101, 1, 20);
@@ -509,7 +509,7 @@ public class SpatialRenderOrderSystemTest {
     public void repeatedSpatialRunsProduceIdenticalDrawOrder() {
         Fixture fixture = new Fixture(512);
         fixture.createLayer(2, true);
-        TiledMapLayerData map = fixture.createBlockMap(3, 3, 16, 16, 300);
+        TiledLayerData map = fixture.createBlockMap(3, 3, 16, 16, 300);
         fixture.createBlockTiledLayer(1, map, block(10, 0f, 0f, 2f, 2f));
         int tile = fixture.createLinkedTile(map, 0, 0, 101, 1, 10);
         int back = fixture.createActor(8f, 24f, 0, 2, true);
@@ -530,7 +530,7 @@ public class SpatialRenderOrderSystemTest {
     public void reversedActorCreationOrderKeepsDeterministicSpatialResult() {
         Fixture forward = new Fixture(512);
         forward.createLayer(2, true);
-        TiledMapLayerData forwardMap = forward.createBlockMap(3, 3, 16, 16, 300);
+        TiledLayerData forwardMap = forward.createBlockMap(3, 3, 16, 16, 300);
         forward.createBlockTiledLayer(1, forwardMap, block(10, 0f, 0f, 2f, 2f));
         forward.createLinkedTile(forwardMap, 0, 0, 101, 1, 10);
         forward.createActorInRenderSlot(8f, 24f, 0, 2, 50);
@@ -540,7 +540,7 @@ public class SpatialRenderOrderSystemTest {
 
         Fixture reversed = new Fixture(512);
         reversed.createLayer(2, true);
-        TiledMapLayerData reversedMap = reversed.createBlockMap(3, 3, 16, 16, 300);
+        TiledLayerData reversedMap = reversed.createBlockMap(3, 3, 16, 16, 300);
         reversed.createBlockTiledLayer(1, reversedMap, block(10, 0f, 0f, 2f, 2f));
         reversed.createLinkedTile(reversedMap, 0, 0, 101, 1, 10);
         reversed.createActorInRenderSlot(8f, 8f, 0, 2, 51);
@@ -558,7 +558,7 @@ public class SpatialRenderOrderSystemTest {
     public void actorFootBelowTileCellBlockReferenceRendersBeforeLinkedTile() {
         Fixture fixture = new Fixture(512);
         fixture.createLayer(2, true);
-        TiledMapLayerData map = fixture.createBlockMap(3, 3, 16, 16, 300);
+        TiledLayerData map = fixture.createBlockMap(3, 3, 16, 16, 300);
         fixture.createBlockTiledLayer(1, map, block(10, 0f, 0f, 2f, 2f));
         int tile = fixture.createLinkedTile(map, 0, 0, 101, 1, 10);
         int actor = fixture.createActor(8f, 24f, 0, 2, true);
@@ -574,7 +574,7 @@ public class SpatialRenderOrderSystemTest {
     public void actorFootBelowTileCellBlockReferenceRendersBeforeLinkedTileFromEarlierBucket() {
         Fixture fixture = new Fixture(512);
         fixture.createLayer(2, true);
-        TiledMapLayerData map = fixture.createBlockMap(3, 3, 16, 16, 300);
+        TiledLayerData map = fixture.createBlockMap(3, 3, 16, 16, 300);
         fixture.createBlockTiledLayer(1, map, block(10, 0f, 0f, 2f, 2f));
         int tile = fixture.createLinkedTile(map, 0, 0, 101, 1, 20);
         int actor = fixture.createActor(8f, 24f, 0, 2, true);
@@ -590,7 +590,7 @@ public class SpatialRenderOrderSystemTest {
     public void actorOutsideBlockKeepsLegacyPosition() {
         Fixture fixture = new Fixture(512);
         fixture.createLayer(2, true);
-        TiledMapLayerData map = fixture.createBlockMap(3, 3, 16, 16, 300);
+        TiledLayerData map = fixture.createBlockMap(3, 3, 16, 16, 300);
         fixture.createBlockTiledLayer(1, map, block(10, 0f, 0f, 2f, 2f));
         int tile = fixture.createLinkedTile(map, 0, 0, 101, 1, 10);
         int actor = fixture.createActor(40f, 40f, 0, 2, true);
@@ -605,7 +605,7 @@ public class SpatialRenderOrderSystemTest {
     public void actorCircleFootprintFindsBlockWhenFootPointMisses() {
         Fixture fixture = new Fixture(512);
         fixture.createLayer(2, true);
-        TiledMapLayerData map = fixture.createBlockMap(4, 4, 16, 16, 300);
+        TiledLayerData map = fixture.createBlockMap(4, 4, 16, 16, 300);
         fixture.createBlockTiledLayer(1, map, block(10, 1f, 1f, 1f, 1f));
         int tile = fixture.createLinkedTile(map, 1, 1, 101, 1, 20);
         int actor = fixture.createActor(8f, 24f, 0, 2, true);
@@ -622,7 +622,7 @@ public class SpatialRenderOrderSystemTest {
     public void actorCircleFootprintMissDoesNotCreateBlockIntent() {
         Fixture fixture = new Fixture(512);
         fixture.createLayer(2, true);
-        TiledMapLayerData map = fixture.createBlockMap(4, 4, 16, 16, 300);
+        TiledLayerData map = fixture.createBlockMap(4, 4, 16, 16, 300);
         fixture.createBlockTiledLayer(1, map, block(10, 2f, 2f, 1f, 1f));
         int tile = fixture.createLinkedTile(map, 2, 2, 101, 1, 10);
         int actor = fixture.createActor(8f, 8f, 0, 2, true);
@@ -639,7 +639,7 @@ public class SpatialRenderOrderSystemTest {
     public void actorWithoutCircleFootprintDoesNotCreateBlockIntent() {
         Fixture fixture = new Fixture(512);
         fixture.createLayer(2, true);
-        TiledMapLayerData map = fixture.createBlockMap(3, 3, 16, 16, 300);
+        TiledLayerData map = fixture.createBlockMap(3, 3, 16, 16, 300);
         fixture.createBlockTiledLayer(1, map, block(10, 0f, 0f, 2f, 2f));
         int tile = fixture.createLinkedTile(map, 0, 0, 101, 1, 10);
         int actor = fixture.createActor(8f, 18f, 0, 2, true);
@@ -656,7 +656,7 @@ public class SpatialRenderOrderSystemTest {
     public void actorLeftOfLowerBaseSegmentKeepsLegacyOrder() {
         Fixture fixture = new Fixture(512);
         fixture.createLayer(2, true);
-        TiledMapLayerData map = fixture.createBlockMap(3, 3, 16, 16, 300);
+        TiledLayerData map = fixture.createBlockMap(3, 3, 16, 16, 300);
         SpatialBlockData block = block(10, 0f, 0f, 1f, 1f);
         block.beginAuthoredLinkedTileRefs();
         block.addLinkedTileRef(0, 0, 101);
@@ -676,7 +676,7 @@ public class SpatialRenderOrderSystemTest {
     public void authoredBlockIgnoresActorOutsideFiniteBottomSegmentInfluence() {
         Fixture fixture = new Fixture(512);
         fixture.createLayer(2, true);
-        TiledMapLayerData map = fixture.createBlockMap(6, 3, 16, 16, 300);
+        TiledLayerData map = fixture.createBlockMap(6, 3, 16, 16, 300);
         SpatialBlockData block = block(10, 0f, 0f, 1f, 1f);
         block.beginAuthoredLinkedTileRefs();
         block.addLinkedTileRef(0, 0, 101);
@@ -696,7 +696,7 @@ public class SpatialRenderOrderSystemTest {
     public void authoredBlockOutsideActorQueryBboxStillUsesBottomSegmentRelation() {
         Fixture fixture = new Fixture(512);
         fixture.createLayer(2, true);
-        TiledMapLayerData map = fixture.createBlockMap(4, 4, 16, 16, 300);
+        TiledLayerData map = fixture.createBlockMap(4, 4, 16, 16, 300);
         SpatialBlockData block = block(10, 0f, 2f, 1f, 1f);
         block.beginAuthoredLinkedTileRefs();
         block.addLinkedTileRef(0, 2, 101);
@@ -716,7 +716,7 @@ public class SpatialRenderOrderSystemTest {
     public void actorBetweenTwoAuthoredWallsRendersBetweenTheirLinkedTiles() {
         Fixture fixture = new Fixture(512);
         fixture.createLayer(2, true);
-        TiledMapLayerData map = fixture.createBlockMap(3, 3, 16, 16, 300);
+        TiledLayerData map = fixture.createBlockMap(3, 3, 16, 16, 300);
         SpatialBlockData backWall = block(10, 0f, 0f, 1f, 1f);
         backWall.beginAuthoredLinkedTileRefs();
         backWall.addLinkedTileRef(0, 0, 101);
@@ -740,7 +740,7 @@ public class SpatialRenderOrderSystemTest {
     public void authoredBlockWithVerticalNonOverlapIsNotApplicable() {
         Fixture fixture = new Fixture(512);
         fixture.createLayer(2, true);
-        TiledMapLayerData map = fixture.createBlockMap(3, 3, 16, 16, 300);
+        TiledLayerData map = fixture.createBlockMap(3, 3, 16, 16, 300);
         SpatialBlockData block = block(10, 0f, 0f, 1f, 1f);
         block.altitude = 10f;
         block.height = 5f;
@@ -762,7 +762,7 @@ public class SpatialRenderOrderSystemTest {
     public void authoredBlockUsesActorBaseAltitudeInsteadOfVisualHeightOverlap() {
         Fixture fixture = new Fixture(512);
         fixture.createLayer(2, true);
-        TiledMapLayerData map = fixture.createBlockMap(3, 3, 16, 16, 300);
+        TiledLayerData map = fixture.createBlockMap(3, 3, 16, 16, 300);
         SpatialBlockData block = block(10, 0f, 0f, 1f, 1f);
         block.altitude = 10f;
         block.height = 5f;
@@ -787,7 +787,7 @@ public class SpatialRenderOrderSystemTest {
     public void authoredBlockCapturesHighestReachedLowerAltitude() {
         Fixture fixture = new Fixture(512);
         fixture.createLayer(2, true);
-        TiledMapLayerData map = fixture.createBlockMap(3, 3, 16, 16, 300);
+        TiledLayerData map = fixture.createBlockMap(3, 3, 16, 16, 300);
         SpatialBlockData block = block(10, 0f, 0f, 1f, 1f);
         block.altitude = 10f;
         block.height = 5f;
@@ -812,7 +812,7 @@ public class SpatialRenderOrderSystemTest {
     public void authoredBlockSelectionUsesHighestReachedAltitudeBeforeBlockId() {
         Fixture fixture = new Fixture(512);
         fixture.createLayer(2, true);
-        TiledMapLayerData map = fixture.createBlockMap(3, 3, 16, 16, 300);
+        TiledLayerData map = fixture.createBlockMap(3, 3, 16, 16, 300);
         SpatialBlockData ground = block(10, 0f, 0f, 1f, 1f);
         ground.altitude = 0f;
         ground.beginAuthoredLinkedTileRefs();
@@ -840,7 +840,7 @@ public class SpatialRenderOrderSystemTest {
     public void authoredBlockWithInvalidLinkedRefsIsNotApplicable() {
         Fixture fixture = new Fixture(512);
         fixture.createLayer(2, true);
-        TiledMapLayerData map = fixture.createBlockMap(3, 3, 16, 16, 300);
+        TiledLayerData map = fixture.createBlockMap(3, 3, 16, 16, 300);
         SpatialBlockData block = block(10, 0f, 0f, 1f, 1f);
         block.beginAuthoredLinkedTileRefs();
         block.addLinkedTileRef(0, 0, 101);
@@ -858,7 +858,7 @@ public class SpatialRenderOrderSystemTest {
     public void actorBehindSpatialTileRendersBeforeTileAnchorRegardlessOfLayerOrder() {
         Fixture fixture = new Fixture(512);
         fixture.createLayer(2, true);
-        TiledMapLayerData map = fixture.createBlockMap(3, 3, 16, 16, 300);
+        TiledLayerData map = fixture.createBlockMap(3, 3, 16, 16, 300);
         fixture.createSpatialTiledLayerWithMap(1, map);
         fixture.setSpatialTile(map, 0, 0, 101, 0f, 12f);
         int anchor = fixture.createTiledSlot(map.tiledRenderRefForTile(0, 0), 1, 10);
@@ -876,7 +876,7 @@ public class SpatialRenderOrderSystemTest {
     public void actorInFrontOfSpatialTileRendersAfterTileAnchor() {
         Fixture fixture = new Fixture(512);
         fixture.createLayer(2, true);
-        TiledMapLayerData map = fixture.createBlockMap(3, 3, 16, 16, 300);
+        TiledLayerData map = fixture.createBlockMap(3, 3, 16, 16, 300);
         fixture.createSpatialTiledLayerWithMap(1, map);
         fixture.setSpatialTile(map, 0, 0, 101, 0f, 12f);
         int anchor = fixture.createTiledSlot(map.tiledRenderRefForTile(0, 0), 1, 20);
@@ -894,7 +894,7 @@ public class SpatialRenderOrderSystemTest {
     public void actorOutsideSpatialTileGroundFootprintDoesNotMove() {
         Fixture fixture = new Fixture(512);
         fixture.createLayer(2, true);
-        TiledMapLayerData map = fixture.createBlockMap(3, 3, 16, 16, 300);
+        TiledLayerData map = fixture.createBlockMap(3, 3, 16, 16, 300);
         fixture.createSpatialTiledLayerWithMap(1, map);
         fixture.setSpatialTile(map, 0, 0, 101, 0f, 12f);
         int anchor = fixture.createTiledSlot(map.tiledRenderRefForTile(0, 0), 1, 10);
@@ -912,7 +912,7 @@ public class SpatialRenderOrderSystemTest {
     public void tileWithoutSpatialHeightDoesNotAffectActorDepth() {
         Fixture fixture = new Fixture(512);
         fixture.createLayer(2, true);
-        TiledMapLayerData map = fixture.createBlockMap(3, 3, 16, 16, 300);
+        TiledLayerData map = fixture.createBlockMap(3, 3, 16, 16, 300);
         fixture.createSpatialTiledLayerWithMap(1, map);
         map.setTile(0, 0, 101);
         int anchor = fixture.createTiledSlot(map.tiledRenderRefForTile(0, 0), 1, 10);
@@ -930,7 +930,7 @@ public class SpatialRenderOrderSystemTest {
     public void actorMovingAroundSpatialTileFlipsLocalDepthStably() {
         Fixture fixture = new Fixture(512);
         fixture.createLayer(2, true);
-        TiledMapLayerData map = fixture.createBlockMap(3, 3, 16, 16, 300);
+        TiledLayerData map = fixture.createBlockMap(3, 3, 16, 16, 300);
         fixture.createSpatialTiledLayerWithMap(1, map);
         fixture.setSpatialTile(map, 0, 0, 101, 0f, 12f);
         int anchor = fixture.createTiledSlot(map.tiledRenderRefForTile(0, 0), 1, 10);
@@ -951,7 +951,7 @@ public class SpatialRenderOrderSystemTest {
     public void authoredSpatialBlockWinsOverDirectSpatialTileCandidate() {
         Fixture fixture = new Fixture(512);
         fixture.createLayer(2, true);
-        TiledMapLayerData map = fixture.createBlockMap(3, 3, 16, 16, 300);
+        TiledLayerData map = fixture.createBlockMap(3, 3, 16, 16, 300);
         SpatialBlockData block = block(10, 0f, 0f, 1f, 2f);
         block.beginAuthoredLinkedTileRefs();
         block.addLinkedTileRef(0, 1, 202);
@@ -973,14 +973,14 @@ public class SpatialRenderOrderSystemTest {
     public void authoredSpatialBlockRemainsBestWhenLaterSpatialTileIsCloser() {
         Fixture fixture = new Fixture(512);
         fixture.createLayer(2, true);
-        TiledMapLayerData blockMap = fixture.createBlockMap(3, 3, 16, 16, 300);
+        TiledLayerData blockMap = fixture.createBlockMap(3, 3, 16, 16, 300);
         SpatialBlockData block = block(10, 0f, 0f, 1f, 2f);
         block.beginAuthoredLinkedTileRefs();
         block.addLinkedTileRef(0, 1, 202);
         fixture.createBlockTiledLayer(1, blockMap, block);
         int authoredTile = fixture.createLinkedTile(blockMap, 0, 1, 202, 1, 20);
 
-        TiledMapLayerData directMap = fixture.createBlockMap(3, 3, 16, 16, 400);
+        TiledLayerData directMap = fixture.createBlockMap(3, 3, 16, 16, 400);
         fixture.createSpatialTiledLayerWithMap(3, directMap);
         fixture.setSpatialTile(directMap, 0, 0, 101, 0f, 12f);
         int directTile = fixture.createTiledSlot(directMap.tiledRenderRefForTile(0, 0), 3, 30);
@@ -999,7 +999,7 @@ public class SpatialRenderOrderSystemTest {
     public void directSpatialTileStillOrdersActorWithoutSpatialBlock() {
         Fixture fixture = new Fixture(512);
         fixture.createLayer(2, true);
-        TiledMapLayerData map = fixture.createBlockMap(3, 3, 16, 16, 300);
+        TiledLayerData map = fixture.createBlockMap(3, 3, 16, 16, 300);
         fixture.createSpatialTiledLayerWithMap(1, map);
         fixture.setSpatialTile(map, 0, 0, 101, 0f, 12f);
         int anchor = fixture.createTiledSlot(map.tiledRenderRefForTile(0, 0), 1, 20);
@@ -1017,7 +1017,7 @@ public class SpatialRenderOrderSystemTest {
     public void authoredSpatialBlocksStillUseDeterministicTieBreak() {
         Fixture fixture = new Fixture(512);
         fixture.createLayer(2, true);
-        TiledMapLayerData map = fixture.createBlockMap(3, 3, 16, 16, 300);
+        TiledLayerData map = fixture.createBlockMap(3, 3, 16, 16, 300);
         SpatialBlockData higherId = block(20, 0f, 0f, 1f, 2f);
         higherId.beginAuthoredLinkedTileRefs();
         higherId.addLinkedTileRef(0, 1, 202);
@@ -1040,7 +1040,7 @@ public class SpatialRenderOrderSystemTest {
     public void overlappingVisualAnchorsWithSeparatedVolumesDoNotCreatePlannerConflict() {
         Fixture fixture = new Fixture(512, true);
         fixture.createLayer(2, true);
-        TiledMapLayerData map = fixture.createBlockMap(6, 3, 16, 16, 300);
+        TiledLayerData map = fixture.createBlockMap(6, 3, 16, 16, 300);
 
         SpatialBlockData left = block(10, 0f, 1f, 2.4f, 1f);
         left.beginAuthoredLinkedTileRefs();
@@ -1080,7 +1080,7 @@ public class SpatialRenderOrderSystemTest {
     public void unresolvedAuthoredSpatialBlockRefsDoNotOverrideDirectSpatialTile() {
         Fixture fixture = new Fixture(512);
         fixture.createLayer(2, true);
-        TiledMapLayerData map = fixture.createBlockMap(3, 3, 16, 16, 300);
+        TiledLayerData map = fixture.createBlockMap(3, 3, 16, 16, 300);
         SpatialBlockData block = block(10, 0f, 0f, 1f, 1f);
         block.beginAuthoredLinkedTileRefs();
         block.addLinkedTileRef(0, 1, 202);
@@ -1102,7 +1102,7 @@ public class SpatialRenderOrderSystemTest {
     public void isoSpatialTileUsesGroundCellNotTextureBounds() {
         Fixture fixture = new Fixture(512);
         fixture.createLayer(2, true);
-        TiledMapLayerData map = fixture.createBlockMap(4, 4, 90, 30, 300, TiledProjection.ISO);
+        TiledLayerData map = fixture.createBlockMap(4, 4, 90, 30, 300, TiledProjection.ISO);
         fixture.createSpatialTiledLayerWithMap(1, map);
         fixture.setSpatialTile(map, 0, 0, 101, 0f, 12f);
         int anchor = fixture.createTiledSlot(map.tiledRenderRefForTile(0, 0), 1, 10);
@@ -1120,7 +1120,7 @@ public class SpatialRenderOrderSystemTest {
     public void isoActorClearlyInFrontOfSpatialTileRendersAboveTile() {
         Fixture fixture = new Fixture(512);
         fixture.createLayer(2, true);
-        TiledMapLayerData map = fixture.createBlockMap(4, 4, 90, 30, 300, TiledProjection.ISO);
+        TiledLayerData map = fixture.createBlockMap(4, 4, 90, 30, 300, TiledProjection.ISO);
         fixture.createSpatialTiledLayerWithMap(1, map);
         fixture.setSpatialTile(map, 0, 0, 101, 0f, 12f);
         int anchor = fixture.createTiledSlot(map.tiledRenderRefForTile(0, 0), 1, 20);
@@ -1138,7 +1138,7 @@ public class SpatialRenderOrderSystemTest {
     public void isoActorClearlyBehindSpatialTileRendersBelowTile() {
         Fixture fixture = new Fixture(512);
         fixture.createLayer(2, true);
-        TiledMapLayerData map = fixture.createBlockMap(4, 4, 90, 30, 300, TiledProjection.ISO);
+        TiledLayerData map = fixture.createBlockMap(4, 4, 90, 30, 300, TiledProjection.ISO);
         fixture.createSpatialTiledLayerWithMap(1, map);
         fixture.setSpatialTile(map, 0, 0, 101, 0f, 12f);
         int anchor = fixture.createTiledSlot(map.tiledRenderRefForTile(0, 0), 1, 10);
@@ -1156,7 +1156,7 @@ public class SpatialRenderOrderSystemTest {
     public void actorBaseSegmentIntersectingIsoTileBaseRendersBelowTile() {
         Fixture fixture = new Fixture(512);
         fixture.createLayer(2, true);
-        TiledMapLayerData map = fixture.createBlockMap(4, 4, 90, 30, 300, TiledProjection.ISO);
+        TiledLayerData map = fixture.createBlockMap(4, 4, 90, 30, 300, TiledProjection.ISO);
         fixture.createSpatialTiledLayerWithMap(1, map);
         fixture.setSpatialTile(map, 0, 0, 101, 0f, 12f);
         int anchor = fixture.createTiledSlot(map.tiledRenderRefForTile(0, 0), 1, 10);
@@ -1174,7 +1174,7 @@ public class SpatialRenderOrderSystemTest {
     public void isoActorRightOfSpatialTileRendersAboveTile() {
         Fixture fixture = new Fixture(512);
         fixture.createLayer(2, true);
-        TiledMapLayerData map = fixture.createBlockMap(4, 4, 90, 30, 300, TiledProjection.ISO);
+        TiledLayerData map = fixture.createBlockMap(4, 4, 90, 30, 300, TiledProjection.ISO);
         fixture.createSpatialTiledLayerWithMap(1, map);
         fixture.setSpatialTile(map, 0, 0, 101, 0f, 12f);
         int anchor = fixture.createTiledSlot(map.tiledRenderRefForTile(0, 0), 1, 20);
@@ -1192,7 +1192,7 @@ public class SpatialRenderOrderSystemTest {
     public void isoActorBottomLeftOfSpatialTileRendersAboveTile() {
         Fixture fixture = new Fixture(512);
         fixture.createLayer(2, true);
-        TiledMapLayerData map = fixture.createBlockMap(4, 4, 90, 30, 300, TiledProjection.ISO);
+        TiledLayerData map = fixture.createBlockMap(4, 4, 90, 30, 300, TiledProjection.ISO);
         fixture.createSpatialTiledLayerWithMap(1, map);
         fixture.setSpatialTile(map, 0, 0, 101, 0f, 12f);
         int anchor = fixture.createTiledSlot(map.tiledRenderRefForTile(0, 0), 1, 20);
@@ -1210,7 +1210,7 @@ public class SpatialRenderOrderSystemTest {
     public void isoActorCrossingTileBaseFlipsOrder() {
         Fixture fixture = new Fixture(512);
         fixture.createLayer(2, true);
-        TiledMapLayerData map = fixture.createBlockMap(4, 4, 90, 30, 300, TiledProjection.ISO);
+        TiledLayerData map = fixture.createBlockMap(4, 4, 90, 30, 300, TiledProjection.ISO);
         fixture.createSpatialTiledLayerWithMap(1, map);
         fixture.setSpatialTile(map, 0, 0, 101, 0f, 12f);
         int anchor = fixture.createTiledSlot(map.tiledRenderRefForTile(0, 0), 1, 10);
@@ -1232,7 +1232,7 @@ public class SpatialRenderOrderSystemTest {
     public void spatialTileOrderIsIndependentFromRelativeActorAndTiledLayers() {
         Fixture fixture = new Fixture(512);
         fixture.createLayer(1, true);
-        TiledMapLayerData map = fixture.createBlockMap(4, 4, 90, 30, 300, TiledProjection.ISO);
+        TiledLayerData map = fixture.createBlockMap(4, 4, 90, 30, 300, TiledProjection.ISO);
         fixture.createSpatialTiledLayerWithMap(3, map);
         fixture.setSpatialTile(map, 0, 0, 101, 0f, 12f);
         int anchor = fixture.createTiledSlot(map.tiledRenderRefForTile(0, 0), 3, 20);
@@ -1253,7 +1253,7 @@ public class SpatialRenderOrderSystemTest {
         SpatialBlockData block = block(10, 0f, 0f, 2f, 2f);
         block.altitude = 10f;
         block.height = 5f;
-        TiledMapLayerData map = fixture.createBlockMap(3, 3, 16, 16, 300);
+        TiledLayerData map = fixture.createBlockMap(3, 3, 16, 16, 300);
         fixture.createBlockTiledLayer(1, map, block);
         int tile = fixture.createLinkedTile(map, 0, 0, 101, 1, 10);
         int actor = fixture.createActor(8f, 8f, 0, 2, true);
@@ -1268,7 +1268,7 @@ public class SpatialRenderOrderSystemTest {
     public void spatialActorWithoutCircleFixtureDoesNotCreateBlockIntent() {
         Fixture fixture = new Fixture(512);
         fixture.createLayer(2, true);
-        TiledMapLayerData map = fixture.createBlockMap(3, 3, 16, 16, 300);
+        TiledLayerData map = fixture.createBlockMap(3, 3, 16, 16, 300);
         fixture.createBlockTiledLayer(1, map, block(10, 0f, 0f, 2f, 2f));
         int tile = fixture.createLinkedTile(map, 0, 0, 101, 1, 10);
         int actor = fixture.createActor(8f, 24f, 0, 2, true);
@@ -1285,7 +1285,7 @@ public class SpatialRenderOrderSystemTest {
     public void circleFixtureWithoutSpatialHeightDoesNotCreateBlockIntent() {
         Fixture fixture = new Fixture(512);
         fixture.createLayer(2, true);
-        TiledMapLayerData map = fixture.createBlockMap(3, 3, 16, 16, 300);
+        TiledLayerData map = fixture.createBlockMap(3, 3, 16, 16, 300);
         fixture.createBlockTiledLayer(1, map, block(10, 0f, 0f, 2f, 2f));
         int tile = fixture.createLinkedTile(map, 0, 0, 101, 1, 10);
         int actor = fixture.createActor(8f, 24f, 0, 2, false);
@@ -1302,7 +1302,7 @@ public class SpatialRenderOrderSystemTest {
     public void blockWithoutLinkedTilesKeepsActorStable() {
         Fixture fixture = new Fixture(512);
         fixture.createLayer(2, true);
-        TiledMapLayerData map = fixture.createBlockMap(3, 3, 16, 16, 300);
+        TiledLayerData map = fixture.createBlockMap(3, 3, 16, 16, 300);
         fixture.createBlockTiledLayer(1, map, block(10, 0f, 0f, 2f, 2f));
         int actor = fixture.createActor(8f, 8f, 0, 2, true);
 
@@ -1316,7 +1316,7 @@ public class SpatialRenderOrderSystemTest {
     public void blockFootprintLinksNeighborTileWhenOriginCellIsEmpty() {
         Fixture fixture = new Fixture(512);
         fixture.createLayer(2, true);
-        TiledMapLayerData map = fixture.createBlockMap(4, 4, 16, 16, 300);
+        TiledLayerData map = fixture.createBlockMap(4, 4, 16, 16, 300);
         SpatialBlockData block = block(10, 0.75f, 0f, 0.75f, 1f);
         block.beginAuthoredLinkedTileRefs();
         block.addLinkedTileRef(1, 0, 101);
@@ -1335,7 +1335,7 @@ public class SpatialRenderOrderSystemTest {
     public void fullyUnresolvedBlockIsSkippedWithoutDeletingLinkedRefs() {
         Fixture fixture = new Fixture(512);
         fixture.createLayer(2, true);
-        TiledMapLayerData map = fixture.createBlockMap(3, 3, 16, 16, 300);
+        TiledLayerData map = fixture.createBlockMap(3, 3, 16, 16, 300);
         SpatialBlockData block = block(10, 0f, 0f, 1f, 1f);
         block.beginAuthoredLinkedTileRefs();
         block.addLinkedTileRef(0, 0, 101);
@@ -1355,7 +1355,7 @@ public class SpatialRenderOrderSystemTest {
     public void clearedLinkedTileCellSkipsBlockAndRepaintReactivatesIt() {
         Fixture fixture = new Fixture(512);
         fixture.createLayer(2, true);
-        TiledMapLayerData map = fixture.createBlockMap(3, 3, 16, 16, 300);
+        TiledLayerData map = fixture.createBlockMap(3, 3, 16, 16, 300);
         SpatialBlockData block = block(10, 0f, 0f, 1f, 1f);
         block.beginAuthoredLinkedTileRefs();
         block.addLinkedTileRef(0, 0, 101);
@@ -1388,7 +1388,7 @@ public class SpatialRenderOrderSystemTest {
     public void hiddenLinkedTileLayerSkipsBlockAndShowReactivatesIt() {
         Fixture fixture = new Fixture(512);
         fixture.createLayer(2, true);
-        TiledMapLayerData map = fixture.createBlockMap(3, 3, 16, 16, 300);
+        TiledLayerData map = fixture.createBlockMap(3, 3, 16, 16, 300);
         SpatialBlockData block = block(10, 0f, 0f, 1f, 1f);
         fixture.createBlockTiledLayer(1, map, block);
         int tile = fixture.createLinkedTile(map, 0, 0, 101, 1, 20);
@@ -1414,7 +1414,7 @@ public class SpatialRenderOrderSystemTest {
     public void multipleActorsAroundSameBlockSplitAroundLinkedTileBase() {
         Fixture fixture = new Fixture(512);
         fixture.createLayer(2, true);
-        TiledMapLayerData map = fixture.createBlockMap(3, 3, 16, 16, 300);
+        TiledLayerData map = fixture.createBlockMap(3, 3, 16, 16, 300);
         fixture.createBlockTiledLayer(1, map, block(10, 0f, 0f, 2f, 2f));
         int tile = fixture.createLinkedTile(map, 0, 0, 101, 1, 10);
         int back = fixture.createActor(8f, 12f, 0, 2, true);
@@ -1432,7 +1432,7 @@ public class SpatialRenderOrderSystemTest {
     public void blockOrderingDoesNotMoveActorAcrossSpatialActorWithHigherFootY() {
         Fixture fixture = new Fixture(512);
         fixture.createLayer(2, true);
-        TiledMapLayerData map = fixture.createBlockMap(3, 3, 16, 16, 300);
+        TiledLayerData map = fixture.createBlockMap(3, 3, 16, 16, 300);
         fixture.createBlockTiledLayer(1, map, block(10, 0f, 0f, 2f, 2f));
         int tile = fixture.createLinkedTile(map, 0, 0, 101, 1, 20);
         int lower = fixture.createActor(24f, 18f, 0, 2, true);
@@ -1450,7 +1450,7 @@ public class SpatialRenderOrderSystemTest {
     public void actorMovesBeforeBlockWhenRelationClampsToFrontBucket() {
         Fixture fixture = new Fixture(512);
         fixture.createLayer(2, true);
-        TiledMapLayerData map = fixture.createBlockMap(3, 3, 16, 16, 300);
+        TiledLayerData map = fixture.createBlockMap(3, 3, 16, 16, 300);
         fixture.createBlockTiledLayer(1, map, block(10, 0f, 0f, 1f, 1f));
         int tile = fixture.createLinkedTile(map, 0, 0, 101, 1, 20);
         int tileB = fixture.createTiledSlot(301, 1, 30);
@@ -1466,7 +1466,7 @@ public class SpatialRenderOrderSystemTest {
     @Test
     public void spatialBlockKeepsInternalLinkedTileDrawOrder() {
         Fixture fixture = new Fixture(512);
-        TiledMapLayerData map = fixture.createBlockMap(
+        TiledLayerData map = fixture.createBlockMap(
                 5, 2, 90, 30, 300, TiledProjection.ISO);
         fixture.createBlockTiledLayer(1, map, block(10, 0f, 0f, 4f, 1f));
         int tile0 = fixture.createLinkedTile(map, 0, 0, 101, 1, 40);
@@ -1485,7 +1485,7 @@ public class SpatialRenderOrderSystemTest {
     public void exactAnchorCompositionNeverChangesTiledSlotRelativeOrder() {
         Fixture fixture = new Fixture(512, true);
         fixture.createLayer(2, true);
-        TiledMapLayerData map = fixture.createBlockMap(
+        TiledLayerData map = fixture.createBlockMap(
                 5, 2, 90, 30, 300, TiledProjection.ISO);
         fixture.createBlockTiledLayer(1, map, block(10, 0f, 0f, 4f, 1f));
         int tile0 = fixture.createLinkedTile(map, 0, 0, 101, 1, 40);
@@ -1517,7 +1517,7 @@ public class SpatialRenderOrderSystemTest {
     public void spatialDisabledBaselineKeepsFinalDrawOrderIdenticalToPreSpatialOrder() {
         Fixture fixture = new Fixture(512, true);
         fixture.createLayer(2, false);
-        TiledMapLayerData map = fixture.createBlockMap(
+        TiledLayerData map = fixture.createBlockMap(
                 4, 2, 90, 30, 300, TiledProjection.ISO);
         fixture.createTiledLayerWithMap(1, map, false);
         int tile0 = fixture.createLinkedTile(map, 0, 0, 101, 1, 30);
@@ -1537,7 +1537,7 @@ public class SpatialRenderOrderSystemTest {
     public void equalTieSpatialInputsStayDeterministicAndKeepTileOrder() {
         Fixture fixture = new Fixture(512, true);
         fixture.createLayer(2, true);
-        TiledMapLayerData map = fixture.createBlockMap(3, 3, 16, 16, 300);
+        TiledLayerData map = fixture.createBlockMap(3, 3, 16, 16, 300);
         fixture.createBlockTiledLayer(1, map, block(10, 0f, 0f, 2f, 1f));
         int tile0 = fixture.createLinkedTile(map, 0, 0, 101, 1, 10);
         int tile1 = fixture.createLinkedTile(map, 1, 0, 101, 1, 10);
@@ -1564,14 +1564,14 @@ public class SpatialRenderOrderSystemTest {
         fixture.createLayer(2, true);
         fixture.createLayer(4, true);
 
-        TiledMapLayerData lowerMap = fixture.createBlockMap(
+        TiledLayerData lowerMap = fixture.createBlockMap(
                 4, 2, 90, 30, 300, TiledProjection.ISO);
         fixture.createBlockTiledLayer(1, lowerMap, block(10, 0f, 0f, 2f, 1f));
         int lower0 = fixture.createLinkedTile(lowerMap, 0, 0, 101, 1, 30);
         int lower1 = fixture.createLinkedTile(lowerMap, 1, 0, 101, 1, 20);
         int lower2 = fixture.createLinkedTile(lowerMap, 2, 0, 101, 1, 10);
 
-        TiledMapLayerData upperMap = fixture.createBlockMap(
+        TiledLayerData upperMap = fixture.createBlockMap(
                 4, 2, 90, 30, 400, TiledProjection.ISO);
         fixture.createBlockTiledLayer(3, upperMap, block(20, 0f, 0f, 2f, 1f));
         int upper0 = fixture.createLinkedTile(upperMap, 0, 0, 202, 3, 30);
@@ -1596,7 +1596,7 @@ public class SpatialRenderOrderSystemTest {
     public void isoBlockOrderingUsesConfiguredNonTwoToOneProjection() {
         Fixture fixture = new Fixture(512);
         fixture.createLayer(2, true);
-        TiledMapLayerData map = fixture.createBlockMap(4, 4, 90, 30, 300, TiledProjection.ISO);
+        TiledLayerData map = fixture.createBlockMap(4, 4, 90, 30, 300, TiledProjection.ISO);
         fixture.createBlockTiledLayer(1, map, block(10, 0f, 0f, 1f, 1f));
         int tile = fixture.createLinkedTile(map, 0, 0, 101, 1, 10);
 
@@ -1615,7 +1615,7 @@ public class SpatialRenderOrderSystemTest {
     public void highLinkedTileSlotAndDifferentActorEntityRemainSafe() {
         Fixture fixture = new Fixture(1024);
         fixture.createLayer(2, true);
-        TiledMapLayerData map = fixture.createBlockMap(3, 3, 16, 16, 700);
+        TiledLayerData map = fixture.createBlockMap(3, 3, 16, 16, 700);
         fixture.createBlockTiledLayer(1, map, block(10, 0f, 0f, 2f, 2f));
         int tile = fixture.createLinkedTile(map, 0, 0, 101, 1, 10);
         int actorEntity = fixture.createActorInRenderSlot(8f, 8f, 0, 2, 50);
@@ -1633,7 +1633,7 @@ public class SpatialRenderOrderSystemTest {
 
         final RenderDataScratch state;
         final DynamicEntityRenderState ecsState;
-        final TiledMapRenderState tiledState;
+        final TiledRenderState tiledState;
         final LayerStateSOA layerState;
         final DrawList drawList;
         final RenderStats stats;
@@ -1653,7 +1653,7 @@ public class SpatialRenderOrderSystemTest {
         Fixture(int capacity, boolean captureOrder) {
             state = new RenderDataScratch(capacity);
             ecsState = new DynamicEntityRenderState(capacity);
-            tiledState = new TiledMapRenderState(16);
+            tiledState = new TiledRenderState(16);
             layerState = new LayerStateSOA(16);
             for (int i = 0; i < layerState.enabled.length; i++) {
                 layerState.enabled[i] = true;
@@ -1701,13 +1701,13 @@ public class SpatialRenderOrderSystemTest {
             tiled.spatialEnabled = true;
             tiled.defaultTileAltitude = 0f;
             tiled.defaultTileHeight = 10f;
-            tiled.data = new TiledMapLayerData(1, 1, 16, 16, 1);
+            tiled.data = new TiledLayerData(1, 1, 16, 16, 1);
             tiled.data.spatialEnabled = true;
             tiled.data.defaultTileAltitude = 0f;
             tiled.data.defaultTileHeight = 10f;
         }
 
-        int createBlockTiledLayer(int layerIndex, TiledMapLayerData map, SpatialBlockData... blocks) {
+        int createBlockTiledLayer(int layerIndex, TiledLayerData map, SpatialBlockData... blocks) {
             ensureMapRenderRefs(map);
             int host = world.create();
             LayerComponent layer = world.getMapper(LayerComponent.class).create(host);
@@ -1730,7 +1730,7 @@ public class SpatialRenderOrderSystemTest {
             return entity;
         }
 
-        int createSpatialTiledLayerWithMap(int layerIndex, TiledMapLayerData map) {
+        int createSpatialTiledLayerWithMap(int layerIndex, TiledLayerData map) {
             ensureMapRenderRefs(map);
             int host = world.create();
             LayerComponent layer = world.getMapper(LayerComponent.class).create(host);
@@ -1747,7 +1747,7 @@ public class SpatialRenderOrderSystemTest {
             return entity;
         }
 
-        int createTiledLayerWithMap(int layerIndex, TiledMapLayerData map, boolean spatialEnabled) {
+        int createTiledLayerWithMap(int layerIndex, TiledLayerData map, boolean spatialEnabled) {
             ensureMapRenderRefs(map);
             int host = world.create();
             LayerComponent layer = world.getMapper(LayerComponent.class).create(host);
@@ -1772,12 +1772,12 @@ public class SpatialRenderOrderSystemTest {
             return entity;
         }
 
-        void setSpatialTile(TiledMapLayerData map, int gx, int gy, int assetId, float altitude, float height) {
+        void setSpatialTile(TiledLayerData map, int gx, int gy, int assetId, float altitude, float height) {
             map.setTile(gx, gy, assetId);
             map.setTileSpatialOverride(gx, gy, altitude, height, 0);
         }
 
-        int createLinkedTile(TiledMapLayerData map, int gx, int gy, int assetId, int layerIndex, int runtimeOrder) {
+        int createLinkedTile(TiledLayerData map, int gx, int gy, int assetId, int layerIndex, int runtimeOrder) {
             map.setTile(gx, gy, assetId);
             ensureMapRenderRefs(map);
             int tiledRenderRef = map.tiledRenderRefForTile(gx, gy);
@@ -1819,17 +1819,17 @@ public class SpatialRenderOrderSystemTest {
             }
         }
 
-        TiledMapLayerData createBlockMap(int width, int height, int tileWidth, int tileHeight, int startSlot) {
+        TiledLayerData createBlockMap(int width, int height, int tileWidth, int tileHeight, int startSlot) {
             return createBlockMap(width, height, tileWidth, tileHeight, startSlot, TiledProjection.ORTHO);
         }
 
-        TiledMapLayerData createBlockMap(int width,
+        TiledLayerData createBlockMap(int width,
                                          int height,
                                          int tileWidth,
                                          int tileHeight,
                                          int startSlot,
                                          TiledProjection projection) {
-            TiledMapLayerData map = new TiledMapLayerData(width, height, tileWidth, tileHeight, Math.max(width, height), projection);
+            TiledLayerData map = new TiledLayerData(width, height, tileWidth, tileHeight, Math.max(width, height), projection);
             ensureMapRenderRefs(map, startSlot);
             return map;
         }
@@ -1910,7 +1910,7 @@ public class SpatialRenderOrderSystemTest {
         }
 
         private void addSingleRefMapGroup(int tiledRenderRef, int layerIndex) {
-            tiledState.addVisibleMap(
+            tiledState.addVisibleTileLayer(
                     tiledRenderRef,
                     layerIndex,
                     0,
@@ -1920,11 +1920,11 @@ public class SpatialRenderOrderSystemTest {
             );
         }
 
-        void ensureMapRenderRefs(TiledMapLayerData map) {
+        void ensureMapRenderRefs(TiledLayerData map) {
             ensureMapRenderRefs(map, tiledState.getRefCount());
         }
 
-        void ensureMapRenderRefs(TiledMapLayerData map, int startRef) {
+        void ensureMapRenderRefs(TiledLayerData map, int startRef) {
             if (map == null) return;
             int nextRef = startRef;
             for (int cy = 0; cy < map.getChunksY(); cy++) {
@@ -2105,7 +2105,7 @@ public class SpatialRenderOrderSystemTest {
         return block;
     }
 
-    private static void ensureV2LinkedRefs(SpatialBlockData block, TiledMapLayerData map) {
+    private static void ensureV2LinkedRefs(SpatialBlockData block, TiledLayerData map) {
         if (block == null || map == null || block.linkedTileRefs.size > 0) return;
 
         int minGx = (int) Math.floor(block.x);

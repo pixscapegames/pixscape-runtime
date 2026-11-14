@@ -10,11 +10,11 @@ import games.pixscape.runtime.component.spatial.SpatialBlocksComponent;
 import games.pixscape.runtime.render.DynamicEntityRenderState;
 import games.pixscape.runtime.render.FrameRenderQueue;
 import games.pixscape.runtime.render.LayerStateSOA;
-import games.pixscape.runtime.render.TiledMapRenderState;
+import games.pixscape.runtime.render.TiledRenderState;
 import games.pixscape.runtime.spatial.SpatialBlockData;
 import games.pixscape.runtime.system.LightingGeometrySystem;
 import games.pixscape.runtime.system.RenderTiledSyncSystem;
-import games.pixscape.runtime.tiled.TiledMapLayerData;
+import games.pixscape.runtime.tiled.TiledLayerData;
 import games.pixscape.runtime.tiled.TiledProjection;
 import org.junit.Test;
 
@@ -170,7 +170,7 @@ public class WallShadowPublicationTest {
 
     @Test
     public void constructionEditRepublishesGroupsWhileUnchangedFramesReuseThem() {
-        TiledMapRenderState tiled = new TiledMapRenderState(4);
+        TiledRenderState tiled = new TiledRenderState(4);
         FrameRenderQueue queue = new FrameRenderQueue(4);
         LayerStateSOA layers = new LayerStateSOA(1);
         World world = new World(new WorldConfigurationBuilder().with(new LightingGeometrySystem(
@@ -178,12 +178,12 @@ public class WallShadowPublicationTest {
         try {
             int owner = world.create();
             world.process();
-            TiledMapLayerData map = new TiledMapLayerData(16, 16, 256, 128, 16, TiledProjection.ISO);
+            TiledLayerData map = new TiledLayerData(16, 16, 256, 128, 16, TiledProjection.ISO);
             SpatialBlocksComponent blocks = new SpatialBlocksComponent();
             SpatialBlockData first = wall(1, 0), second = wall(2, 2);
             blocks.blocks.add(first);
             blocks.blocks.add(second);
-            MapLightingGeometry geometry = new MapLightingGeometry();
+            TiledLayerLightingGeometry geometry = new TiledLayerLightingGeometry();
             assertTrue(geometry.ensure(map, blocks));
             tiled.lightingMaps.put(owner, geometry);
             LightingSurface a = surface(owner, 1), b = surface(owner, 2);
@@ -242,7 +242,7 @@ public class WallShadowPublicationTest {
     }
 
     private static Fixture fixture(boolean includeTiledSync) {
-        TiledMapRenderState tiled = new TiledMapRenderState(4);
+        TiledRenderState tiled = new TiledRenderState(4);
         FrameRenderQueue queue = new FrameRenderQueue(4);
         DynamicEntityRenderState dynamic = new DynamicEntityRenderState(4);
         LayerStateSOA layers = new LayerStateSOA(1);
@@ -254,10 +254,10 @@ public class WallShadowPublicationTest {
     }
 
     private static void publishOwner(Fixture fixture, int owner, int ref, int block) {
-        TiledMapLayerData map = new TiledMapLayerData(16, 16, 256, 128, 16, TiledProjection.ISO);
+        TiledLayerData map = new TiledLayerData(16, 16, 256, 128, 16, TiledProjection.ISO);
         SpatialBlocksComponent blocks = new SpatialBlocksComponent();
         blocks.blocks.add(wall(block, block * 2));
-        MapLightingGeometry geometry = new MapLightingGeometry();
+        TiledLayerLightingGeometry geometry = new TiledLayerLightingGeometry();
         assertTrue(geometry.ensure(map, blocks));
         fixture.tiled.lightingMaps.put(owner, geometry);
         LightingSurface surface = surface(owner, block);
@@ -292,11 +292,11 @@ public class WallShadowPublicationTest {
 
     private static final class Fixture {
         final World world;
-        final TiledMapRenderState tiled;
+        final TiledRenderState tiled;
         final FrameRenderQueue queue;
         final DynamicEntityRenderState dynamic;
 
-        Fixture(World world, TiledMapRenderState tiled, FrameRenderQueue queue, DynamicEntityRenderState dynamic) {
+        Fixture(World world, TiledRenderState tiled, FrameRenderQueue queue, DynamicEntityRenderState dynamic) {
             this.world = world;
             this.tiled = tiled;
             this.queue = queue;

@@ -1,8 +1,8 @@
 package games.pixscape.runtime.spatial;
 
 import games.pixscape.runtime.render.DynamicEntityRenderState;
-import games.pixscape.runtime.render.TiledMapRenderState;
-import games.pixscape.runtime.tiled.TiledMapLayerData;
+import games.pixscape.runtime.render.TiledRenderState;
+import games.pixscape.runtime.tiled.TiledLayerData;
 
 /** Selects visible tile anchors touched by the actor's spatial influence envelope. */
 public class SpatialVisualAnchorSelector {
@@ -11,7 +11,7 @@ public class SpatialVisualAnchorSelector {
     private final SpatialVisualAnchorQuery.Workspace query = new SpatialVisualAnchorQuery.Workspace();
 
     public void select(int actor, SpatialActorCollector actors, DynamicEntityRenderState ecs,
-                       TiledMapRenderState tiled, TiledMapLayerData map,
+                       TiledRenderState tiled, TiledLayerData map,
                        SpatialProjectedFaceCache faces, float mapOffsetX, float mapOffsetY) {
         candidateCount = 0;
         if (ecs == null || tiled == null || map == null || faces == null) {

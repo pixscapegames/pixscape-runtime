@@ -4,7 +4,7 @@ import com.artemis.PooledComponent;
 import com.badlogic.gdx.utils.ByteArray;
 import com.badlogic.gdx.utils.IntArray;
 import games.pixscape.runtime.tiled.TileTransformFlags;
-import games.pixscape.runtime.tiled.TiledMapLayerData;
+import games.pixscape.runtime.tiled.TiledLayerData;
 import games.pixscape.runtime.tiled.TiledProjection;
 
 import java.util.Arrays;
@@ -12,7 +12,7 @@ import java.util.Arrays;
 public final class TiledLayerComponent extends PooledComponent {
 
     // Runtime dense structure (NON serialized)
-    public transient TiledMapLayerData data;
+    public transient TiledLayerData data;
 
     public String atlasTag = "main";
 
@@ -87,11 +87,11 @@ public final class TiledLayerComponent extends PooledComponent {
     }
 
     /**
-     * Builds transient map data exclusively from this map's authored configuration.
+     * Builds the transient cell grid for this tile layer.
      */
-    public TiledMapLayerData createMapData() {
-        validateMapConfiguration();
-        TiledMapLayerData result = new TiledMapLayerData(
+    public TiledLayerData createLayerData() {
+        validateGridConfiguration();
+        TiledLayerData result = new TiledLayerData(
                 mapWidthCells, mapHeightCells, tileWidth, tileHeight, chunkSize, projection);
         result.originX = originX;
         result.originY = originY;
@@ -101,7 +101,7 @@ public final class TiledLayerComponent extends PooledComponent {
         return result;
     }
 
-    public void validateMapConfiguration() {
+    public void validateGridConfiguration() {
         if (projection == null || tileWidth <= 0 || tileHeight <= 0
                 || mapWidthCells <= 0 || mapHeightCells <= 0 || chunkSize <= 0) {
             throw new IllegalArgumentException(

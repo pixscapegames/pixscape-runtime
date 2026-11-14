@@ -1,6 +1,6 @@
 package games.pixscape.runtime.render.lighting;
 
-import games.pixscape.runtime.tiled.TiledMapLayerData;
+import games.pixscape.runtime.tiled.TiledLayerData;
 import games.pixscape.runtime.tiled.TiledProjection;
 
 /**
@@ -29,7 +29,7 @@ public final class LightingCoordinates {
     /**
      * The drawn plane is D; physical Z is the authored absolute altitude A.
      */
-    public static void mapPoint(TiledMapLayerData map, float gx, float gy,
+    public static void mapPoint(TiledLayerData map, float gx, float gy,
                                 float altitude, float[] out, int offset) {
         // Algebraic inverse of projectSpatialPoint, evaluated before float rounding.
         // A cancels from XY. A screen-space float round trip otherwise moves a

@@ -6,8 +6,8 @@ import com.badlogic.gdx.utils.LongMap;
 import com.badlogic.gdx.utils.ObjectMap;
 import com.badlogic.gdx.utils.Pool;
 import games.pixscape.runtime.render.DynamicEntityRenderState;
-import games.pixscape.runtime.render.TiledMapRenderState;
-import games.pixscape.runtime.tiled.TiledMapLayerData;
+import games.pixscape.runtime.render.TiledRenderState;
+import games.pixscape.runtime.tiled.TiledLayerData;
 import games.pixscape.runtime.tiled.TiledProjection;
 
 import java.util.Arrays;
@@ -56,7 +56,7 @@ public final class SpatialSharedAnchorIndex {
     /** Borrowed frame handle. Invalid after removal; no authored or persistent identity. */
     public static final class Context implements Pool.Poolable {
         int owner, slot, memberSlot, revision;
-        TiledMapLayerData map;
+        TiledLayerData map;
         SpatialProjectedFaceCache faces;
         float offsetX, offsetY;
         Cohort cohort;
@@ -100,7 +100,7 @@ public final class SpatialSharedAnchorIndex {
         int width, height, tw, th;
         int ox, oy, dx, dy, left, right, top, bottom;
 
-        void set(TiledMapLayerData map, float offsetX, float offsetY) {
+        void set(TiledLayerData map, float offsetX, float offsetY) {
             projection = map.projection;
             width = map.mapWidth;
             height = map.mapHeight;
@@ -183,7 +183,7 @@ public final class SpatialSharedAnchorIndex {
     }
 
     /** No scan/allocation on an unchanged publication; numerical revisions are scoped to cache identity. */
-    public Context publish(int owner, TiledMapLayerData map, SpatialProjectedFaceCache faces, float dx, float dy) {
+    public Context publish(int owner, TiledLayerData map, SpatialProjectedFaceCache faces, float dx, float dy) {
         Context c = byOwner.get(owner);
         boolean fresh = c == null;
         if (fresh) {
@@ -323,7 +323,7 @@ public final class SpatialSharedAnchorIndex {
     }
 
     /** A replaced source must not remain borrowed, even in a frame with no visible actors. */
-    public boolean discardReplacedMap(int owner, TiledMapLayerData map) {
+    public boolean discardReplacedMap(int owner, TiledLayerData map) {
         Context c = byOwner.get(owner);
         return c != null && c.map != map && remove(owner);
     }
@@ -348,7 +348,7 @@ public final class SpatialSharedAnchorIndex {
         return sharedContexts;
     }
 
-    public void search(SpatialActorCollector actors, DynamicEntityRenderState ecs, TiledMapRenderState tiled) {
+    public void search(SpatialActorCollector actors, DynamicEntityRenderState ecs, TiledRenderState tiled) {
         if (sharedContexts == 0) {
             return;
         }
@@ -411,7 +411,7 @@ public final class SpatialSharedAnchorIndex {
 
         @Override
         public void select(int actor, SpatialActorCollector actors, DynamicEntityRenderState ecs,
-                           TiledMapRenderState tiled, TiledMapLayerData map,
+                           TiledRenderState tiled, TiledLayerData map,
                            SpatialProjectedFaceCache faces, float dx, float dy) {
             Candidates list = context.candidates[actor];
             candidateCount = list.size;

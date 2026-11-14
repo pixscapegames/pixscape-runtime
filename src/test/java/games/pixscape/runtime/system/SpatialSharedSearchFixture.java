@@ -18,7 +18,7 @@ import games.pixscape.runtime.service.AtlasAssetBinding;
 import games.pixscape.runtime.service.AtlasBindingTestFactory;
 import games.pixscape.runtime.service.AtlasRuntimeService;
 import games.pixscape.runtime.spatial.*;
-import games.pixscape.runtime.tiled.TiledMapLayerData;
+import games.pixscape.runtime.tiled.TiledLayerData;
 import games.pixscape.runtime.tiled.TiledProjection;
 import games.pixscape.runtime.tiled.profile.*;
 
@@ -27,7 +27,7 @@ import java.util.Arrays;
 /** Actual tiled publication, draw-list build/sort and spatial system, without GL submission. */
 final class SpatialSharedSearchFixture implements AutoCloseable {
     final DynamicEntityRenderState ecs;
-    final TiledMapRenderState tiled = new TiledMapRenderState(64);
+    final TiledRenderState tiled = new TiledRenderState(64);
     final DrawList draws = new DrawList(64);
     final SpatialLayerRuntimeRegistry registry = new SpatialLayerRuntimeRegistry();
     final SpatialSharedAnchorIndex search;
@@ -35,7 +35,7 @@ final class SpatialSharedSearchFixture implements AutoCloseable {
     final World world;
     final SpatialRenderOrderSystem spatial;
     final int[] owners, actors;
-    final TiledMapLayerData[] maps;
+    final TiledLayerData[] maps;
     final float[] offsetX = new float[16], offsetY = new float[16];
     final LayerDisplayOffsetResolver offsets = new LayerDisplayOffsetResolver() {
         public void resolveLayer(int layer, Vector2 out) {
@@ -53,7 +53,7 @@ final class SpatialSharedSearchFixture implements AutoCloseable {
         camera = new OrthographicCamera(8192, 8192);
         ecs = new DynamicEntityRenderState(actorCount);
         owners = new int[count];
-        maps = new TiledMapLayerData[count];
+        maps = new TiledLayerData[count];
         actors = new int[actorCount];
         camera.update();
         LayerStateSOA layers = new LayerStateSOA(16);
@@ -117,7 +117,7 @@ final class SpatialSharedSearchFixture implements AutoCloseable {
         TiledLayerComponent component = world.getMapper(TiledLayerComponent.class).create(owner);
         component.spatialEnabled = true;
         component.atlasTag = "main";
-        TiledMapLayerData map = new TiledMapLayerData(64, 64, 64, 32, 64, TiledProjection.ISO);
+        TiledLayerData map = new TiledLayerData(64, 64, 64, 32, 64, TiledProjection.ISO);
         component.data = maps[m] = map;
         map.spatialEnabled = true;
         map.defaultTileAltitude = 32 * m;

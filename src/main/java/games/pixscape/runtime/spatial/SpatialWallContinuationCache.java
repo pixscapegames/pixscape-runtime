@@ -2,7 +2,7 @@ package games.pixscape.runtime.spatial;
 
 import com.badlogic.gdx.utils.Array;
 import com.badlogic.gdx.utils.IntMap;
-import games.pixscape.runtime.tiled.TiledMapLayerData;
+import games.pixscape.runtime.tiled.TiledLayerData;
 import games.pixscape.runtime.tiled.TiledProjection;
 
 import java.util.Arrays;
@@ -35,7 +35,7 @@ public final class SpatialWallContinuationCache {
     /**
      * Rebuilds only when owners, projected geometry, or owning display layers change.
      */
-    public boolean ensure(SpatialLayerFaceRuntime[] runtimes, TiledMapLayerData[] maps,
+    public boolean ensure(SpatialLayerFaceRuntime[] runtimes, TiledLayerData[] maps,
                           int[] displayLayers, int count) {
         boolean changed = count != mapCount;
         for (int i = 0; i < count && !changed; i++)
@@ -53,7 +53,7 @@ public final class SpatialWallContinuationCache {
         HashMap<Edge, Array<Wall>> edges = new HashMap<Edge, Array<Wall>>();
         for (int m = 0; m < count; m++) {
             SpatialLayerFaceRuntime runtime = runtimes[m];
-            TiledMapLayerData map = maps[m];
+            TiledLayerData map = maps[m];
             SpatialProjectedFaceCache projected = runtime.projected;
             revisions[m] = projected.revision();
             faceOffsets[m] = faceCount;
@@ -132,11 +132,11 @@ public final class SpatialWallContinuationCache {
         bucket.add(wall);
     }
 
-    private void connect(Wall upper, Array<Wall> candidates, TiledMapLayerData[] maps, boolean firstEdge) {
+    private void connect(Wall upper, Array<Wall> candidates, TiledLayerData[] maps, boolean firstEdge) {
         if (candidates == null) return;
         for (int i = 0; i < candidates.size; i++) {
             Wall lower = candidates.get(i);
-            TiledMapLayerData a = maps[lower.map], b = maps[upper.map];
+            TiledLayerData a = maps[lower.map], b = maps[upper.map];
             if (lower.map == upper.map
                     || a.projection != b.projection || a.tileWidth != b.tileWidth || a.tileHeight != b.tileHeight
                     || !(lower.base < upper.base && upper.base <= lower.top)) continue;
@@ -156,7 +156,7 @@ public final class SpatialWallContinuationCache {
         }
     }
 
-    private void flatten(Face face, Array<Face> faces, TiledMapLayerData[] maps) {
+    private void flatten(Face face, Array<Face> faces, TiledLayerData[] maps) {
         if (references[face.global] != null) return;
         HashSet<Portion> unique = new HashSet<Portion>();
         for (int i = 0; i < face.parents.size; i++) {
@@ -179,7 +179,7 @@ public final class SpatialWallContinuationCache {
             Face source = faces.get(portion.face);
             SpatialProjectedFaceCache projected = sources[source.map].projected;
             // X is altitude-independent. Recover the finite common portion on the reference line.
-            TiledMapLayerData map = maps[source.map];
+            TiledLayerData map = maps[source.map];
             double shiftX = map.projection == TiledProjection.ISO
                     ? (double) map.originX / map.tileWidth + ((double) map.originY - map.defaultTileAltitude) / map.tileHeight
                     : (double) map.originX / map.tileWidth;

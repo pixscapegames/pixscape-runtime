@@ -5,7 +5,7 @@ import com.artemis.World;
 import com.artemis.WorldConfiguration;
 import games.pixscape.runtime.component.spatial.SpatialBlocksComponent;
 import games.pixscape.runtime.tiled.TileChunk;
-import games.pixscape.runtime.tiled.TiledMapLayerData;
+import games.pixscape.runtime.tiled.TiledLayerData;
 import games.pixscape.runtime.tiled.TiledProjection;
 import org.junit.Assert;
 import org.junit.Test;
@@ -15,7 +15,7 @@ public class SpatialLayerRuntimeRegistryTest {
     @Test
     public void removalReplacementAndClearReleaseOnlyTheIntendedOwners() {
         SpatialLayerRuntimeRegistry registry = new SpatialLayerRuntimeRegistry();
-        TiledMapLayerData map = mapWithRenderRefs(0);
+        TiledLayerData map = mapWithRenderRefs(0);
         SpatialLayerFaceRuntime first = registry.forLayer(7, map);
         SpatialLayerFaceRuntime other = registry.forLayer(8, map);
         registry.remove(999);
@@ -32,7 +32,7 @@ public class SpatialLayerRuntimeRegistryTest {
     @Test
     public void sameEntityAndSourceMapReturnSameRuntime() {
         SpatialLayerRuntimeRegistry registry = new SpatialLayerRuntimeRegistry();
-        TiledMapLayerData map = mapWithRenderRefs(0);
+        TiledLayerData map = mapWithRenderRefs(0);
 
         SpatialLayerFaceRuntime first = registry.forLayer(7, map);
         SpatialLayerFaceRuntime second = registry.forLayer(7, map);
@@ -62,7 +62,7 @@ public class SpatialLayerRuntimeRegistryTest {
         Entity firstEntity = world.createEntity();
         SpatialBlocksComponent pooled = firstEntity.edit().create(SpatialBlocksComponent.class);
         pooled.blocks.add(wall(1, 1, 1));
-        TiledMapLayerData firstMap = mapWithRenderRefs(0);
+        TiledLayerData firstMap = mapWithRenderRefs(0);
         SpatialLayerFaceRuntime firstRuntime = compile(registry, firstEntity.getId(), firstMap, pooled);
         assertCurrentSource(firstRuntime, firstMap, 1, 1);
 
@@ -73,7 +73,7 @@ public class SpatialLayerRuntimeRegistryTest {
         Entity secondEntity = world.createEntity();
         SpatialBlocksComponent secondSource = secondEntity.edit().create(SpatialBlocksComponent.class);
         secondSource.blocks.add(wall(2, 2, 2));
-        TiledMapLayerData secondMap = mapWithRenderRefs(64);
+        TiledLayerData secondMap = mapWithRenderRefs(64);
         SpatialLayerFaceRuntime secondRuntime = compile(registry, secondEntity.getId(), secondMap, secondSource);
 
         Assert.assertEquals(reusedEntityId, secondEntity.getId());
@@ -88,7 +88,7 @@ public class SpatialLayerRuntimeRegistryTest {
         Entity returnEntity = world.createEntity();
         SpatialBlocksComponent returnSource = returnEntity.edit().create(SpatialBlocksComponent.class);
         returnSource.blocks.add(wall(1, 1, 1));
-        TiledMapLayerData returnMap = mapWithRenderRefs(128);
+        TiledLayerData returnMap = mapWithRenderRefs(128);
         SpatialLayerFaceRuntime returnRuntime = compile(
                 registry, returnEntity.getId(), returnMap, returnSource);
 
@@ -103,7 +103,7 @@ public class SpatialLayerRuntimeRegistryTest {
 
     private static SpatialLayerFaceRuntime compile(SpatialLayerRuntimeRegistry registry,
                                                    int layerEntity,
-                                                   TiledMapLayerData map,
+                                                   TiledLayerData map,
                                                    SpatialBlocksComponent blocks) {
         SpatialLayerFaceRuntime runtime = registry.forLayer(layerEntity, map);
         Assert.assertTrue(runtime.compiled.ensure(blocks));
@@ -113,7 +113,7 @@ public class SpatialLayerRuntimeRegistryTest {
     }
 
     private static void assertCurrentSource(SpatialLayerFaceRuntime runtime,
-                                            TiledMapLayerData map,
+                                            TiledLayerData map,
                                             int gx,
                                             int gy) {
         Assert.assertEquals(1, runtime.compiled.compilationCount());
@@ -129,8 +129,8 @@ public class SpatialLayerRuntimeRegistryTest {
         Assert.assertTrue(runtime.tileOrder.rank(gx, gy) >= 0);
     }
 
-    private static TiledMapLayerData mapWithRenderRefs(int firstRef) {
-        TiledMapLayerData map = new TiledMapLayerData(
+    private static TiledLayerData mapWithRenderRefs(int firstRef) {
+        TiledLayerData map = new TiledLayerData(
                 4, 4, 16, 8, 2, TiledProjection.ISO);
         map.spatialEnabled = true;
         for (int gy = 0; gy < map.mapHeight; gy++) {

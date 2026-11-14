@@ -1,8 +1,8 @@
 package games.pixscape.runtime.spatial;
 
 import games.pixscape.runtime.render.DynamicEntityRenderState;
-import games.pixscape.runtime.render.TiledMapRenderState;
-import games.pixscape.runtime.tiled.TiledMapLayerData;
+import games.pixscape.runtime.render.TiledRenderState;
+import games.pixscape.runtime.tiled.TiledLayerData;
 import games.pixscape.runtime.tiled.TiledProjection;
 import org.junit.Assert;
 import org.junit.Test;
@@ -11,7 +11,7 @@ public class SpatialVisualAnchorSelectorTest {
 
     @Test
     public void textureMarginsAndFrameGeometryCannotMoveOrGrowInfluence() {
-        Fixture f = new Fixture(new TiledMapLayerData(4, 4, 16, 16, 1), 2);
+        Fixture f = new Fixture(new TiledLayerData(4, 4, 16, 16, 1), 2);
         f.anchor(0, 0, 0, 0, 0, 16, 16);
         f.anchor(2, 2, 1, 40, 40, 56, 56);
         f.actor(4, 4, 12, 14);
@@ -28,7 +28,7 @@ public class SpatialVisualAnchorSelectorTest {
 
     @Test
     public void closedEdgeContactIsIncludedButActualGapAndDegenerateAreaAreExcluded() {
-        Fixture f = new Fixture(new TiledMapLayerData(4, 4, 16, 16, 1), 1);
+        Fixture f = new Fixture(new TiledLayerData(4, 4, 16, 16, 1), 1);
         f.anchor(0, 0, 0, 0, 0, 16, 16);
         f.actor(16, 4, 26, 14);
         f.select();
@@ -43,7 +43,7 @@ public class SpatialVisualAnchorSelectorTest {
 
     @Test
     public void rectangleWidthIsIndependentOfHeightAndFootprintRadius() {
-        Fixture f = new Fixture(new TiledMapLayerData(4, 4, 16, 16, 1), 2);
+        Fixture f = new Fixture(new TiledLayerData(4, 4, 16, 16, 1), 2);
         f.anchor(0, 0, 0, 16, 4, 24, 20);
         f.anchor(2, 2, 1, 40, 40, 56, 56);
         f.actor(4, 4, 18, 24);
@@ -59,7 +59,7 @@ public class SpatialVisualAnchorSelectorTest {
 
     @Test
     public void openingAndDistantCornerBranchContributeOnlyOverlappingAnchors() {
-        Fixture f = new Fixture(new TiledMapLayerData(10, 10, 16, 16, 2, TiledProjection.ISO), 3);
+        Fixture f = new Fixture(new TiledLayerData(10, 10, 16, 16, 2, TiledProjection.ISO), 3);
         f.anchor(0, 0, 0, 0f, 0f, 16f, 16f);
         f.anchor(2, 0, 1, 16f, 0f, 32f, 16f); // cell (1,0) is an opening.
         f.anchor(8, 8, 2, 200f, 200f, 216f, 216f); // distant corner branch.
@@ -77,7 +77,7 @@ public class SpatialVisualAnchorSelectorTest {
 
     @Test
     public void tileImageOverhangIsFoundOutsideItsLogicalCell() {
-        TiledMapLayerData map = new TiledMapLayerData(10, 10, 16, 16, 2, TiledProjection.ORTHO);
+        TiledLayerData map = new TiledLayerData(10, 10, 16, 16, 2, TiledProjection.ORTHO);
         map.setVisualPadding(40f, 0f, 0f, 0f);
         Fixture f = new Fixture(map, 1);
         f.anchor(5, 5, 0, 40f, 80f, 96f, 96f);
@@ -90,7 +90,7 @@ public class SpatialVisualAnchorSelectorTest {
 
     @Test
     public void aabbContactWithoutQuadContactIsRejected() {
-        Fixture f = new Fixture(new TiledMapLayerData(3, 3, 16, 16, 1), 1);
+        Fixture f = new Fixture(new TiledLayerData(3, 3, 16, 16, 1), 1);
         f.anchor(0, 0, 0, 0f, 0f, 10f, 10f);
         f.actor(8f, 8f, 18f, 18f);
         // Place a diamond wholly within the AABB, but outside the actor's top-right corner.
@@ -110,7 +110,7 @@ public class SpatialVisualAnchorSelectorTest {
 
     @Test
     public void actorAndMapDisplayOffsetsAreAppliedOnce() {
-        Fixture f = new Fixture(new TiledMapLayerData(3, 3, 16, 16, 1), 1);
+        Fixture f = new Fixture(new TiledLayerData(3, 3, 16, 16, 1), 1);
         f.anchor(0, 0, 0, 10f, 0f, 20f, 10f);
         f.actor(0f, 0f, 10f, 10f);
         f.ecs.offsetX[f.actors.actorSlot[0]] = 20f;
@@ -125,14 +125,14 @@ public class SpatialVisualAnchorSelectorTest {
     }
 
     private static final class Fixture {
-        final TiledMapLayerData map;
+        final TiledLayerData map;
         final SpatialProjectedFaceCache faces = new SpatialProjectedFaceCache();
         final SpatialActorCollector actors = new SpatialActorCollector();
         final DynamicEntityRenderState ecs = new DynamicEntityRenderState(4);
-        final TiledMapRenderState tiled = new TiledMapRenderState(4);
+        final TiledRenderState tiled = new TiledRenderState(4);
         final SpatialVisualAnchorSelector selector = new SpatialVisualAnchorSelector();
 
-        Fixture(TiledMapLayerData map, int anchors) {
+        Fixture(TiledLayerData map, int anchors) {
             this.map = map;
             faces.anchorCount = anchors;
             faces.anchorGx = new int[anchors];

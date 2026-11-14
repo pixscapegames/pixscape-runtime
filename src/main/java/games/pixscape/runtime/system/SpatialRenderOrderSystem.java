@@ -17,13 +17,13 @@ import games.pixscape.runtime.profiling.SystemProfiler;
 import games.pixscape.runtime.profiling.SystemProfilers;
 import games.pixscape.runtime.render.*;
 import games.pixscape.runtime.spatial.*;
-import games.pixscape.runtime.tiled.TiledMapLayerData;
+import games.pixscape.runtime.tiled.TiledLayerData;
 
 import java.util.Arrays;
 
 public final class SpatialRenderOrderSystem extends BaseSystem implements ProfiledSystem {
     private final DynamicEntityRenderState ecsState;
-    private final TiledMapRenderState tiledState;
+    private final TiledRenderState tiledState;
     private final DrawList drawList;
 
     private ComponentMapper<LayerComponent> mLayer;
@@ -50,7 +50,7 @@ public final class SpatialRenderOrderSystem extends BaseSystem implements Profil
     private SpatialFaceRelationSolver relationSolver;
     private final SpatialWallContinuationCache wallContinuations = new SpatialWallContinuationCache();
     private SpatialLayerFaceRuntime[] preparedMaps = new SpatialLayerFaceRuntime[0];
-    private TiledMapLayerData[] preparedMapData = new TiledMapLayerData[0];
+    private TiledLayerData[] preparedMapData = new TiledLayerData[0];
     private int[] preparedMapLayers = new int[0];
     private float[] preparedMapOffsetX = new float[0], preparedMapOffsetY = new float[0];
     private SpatialSharedAnchorIndex.Context[] preparedSearch = new SpatialSharedAnchorIndex.Context[0];
@@ -77,19 +77,19 @@ public final class SpatialRenderOrderSystem extends BaseSystem implements Profil
         this(ecsState, null, drawList);
     }
 
-    public SpatialRenderOrderSystem(DynamicEntityRenderState ecsState, TiledMapRenderState tiledState, DrawList drawList) {
+    public SpatialRenderOrderSystem(DynamicEntityRenderState ecsState, TiledRenderState tiledState, DrawList drawList) {
         this(ecsState, tiledState, drawList, null);
     }
 
     public SpatialRenderOrderSystem(DynamicEntityRenderState ecsState,
-                                    TiledMapRenderState tiledState,
+                                    TiledRenderState tiledState,
                                     DrawList drawList,
                                     SpatialLayerRuntimeRegistry spatialRuntimeRegistry) {
         this(ecsState, tiledState, drawList, spatialRuntimeRegistry, null);
     }
 
     public SpatialRenderOrderSystem(DynamicEntityRenderState ecsState,
-                                    TiledMapRenderState tiledState,
+                                    TiledRenderState tiledState,
                                     DrawList drawList,
                                     SpatialLayerRuntimeRegistry spatialRuntimeRegistry,
                                     LayerDisplayOffsetResolver displayOffsetResolver) {
@@ -99,7 +99,7 @@ public final class SpatialRenderOrderSystem extends BaseSystem implements Profil
 
     // A null index exercises the native selector for differential integration tests.
     SpatialRenderOrderSystem(DynamicEntityRenderState ecsState,
-                             TiledMapRenderState tiledState,
+                             TiledRenderState tiledState,
                              DrawList drawList,
                              SpatialLayerRuntimeRegistry spatialRuntimeRegistry,
                              LayerDisplayOffsetResolver displayOffsetResolver,
@@ -223,7 +223,7 @@ public final class SpatialRenderOrderSystem extends BaseSystem implements Profil
         if (preparedMaps.length < faceMapCount) {
             int capacity = Math.max(faceMapCount, Math.max(8, preparedMaps.length * 2));
             preparedMaps = new SpatialLayerFaceRuntime[capacity];
-            preparedMapData = new TiledMapLayerData[capacity];
+            preparedMapData = new TiledLayerData[capacity];
             preparedMapLayers = new int[capacity];
             preparedMapOffsetX = new float[capacity];
             preparedMapOffsetY = new float[capacity];

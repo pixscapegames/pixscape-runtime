@@ -9,7 +9,7 @@ import games.pixscape.runtime.component.spatial.SpatialHeightComponent;
 import games.pixscape.runtime.component.spatial.SpatialPhysicsFootprintComponent;
 import games.pixscape.runtime.render.*;
 import games.pixscape.runtime.tiled.TileChunk;
-import games.pixscape.runtime.tiled.TiledMapLayerData;
+import games.pixscape.runtime.tiled.TiledLayerData;
 import games.pixscape.runtime.tiled.TiledProjection;
 
 import java.util.Arrays;
@@ -24,12 +24,12 @@ final class SpatialCornerFixture implements AutoCloseable {
     static final String[] EXPECTED = {"BFFF", "BFBB", "BFXF", "BFFX"};
     static final float[] DX = {0f, 0f, -25f, 25f};
     static final float[] DY = {18f, -18f, 0f, 0f};
-    final TiledMapLayerData map = new TiledMapLayerData(10, 10, 200, 100, 4, TiledProjection.ISO);
+    final TiledLayerData map = new TiledLayerData(10, 10, 200, 100, 4, TiledProjection.ISO);
     final SpatialBlocksComponent blocks = new SpatialBlocksComponent();
     final SpatialCompiledLayerCache compiled = new SpatialCompiledLayerCache();
     final SpatialProjectedFaceCache faces = new SpatialProjectedFaceCache();
     final SpatialTileOrderCache ranks = new SpatialTileOrderCache();
-    final TiledMapRenderState tiled = new TiledMapRenderState(64);
+    final TiledRenderState tiled = new TiledRenderState(64);
     final DynamicEntityRenderState ecs = new DynamicEntityRenderState(1);
     final SpatialActorCollector actors = new SpatialActorCollector();
     final SpatialFaceRelationSolver solver = new SpatialFaceRelationSolver();

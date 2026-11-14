@@ -15,7 +15,7 @@ import games.pixscape.runtime.render.batch.performance.RenderStats;
 public final class RenderExtractFrameQueueSystem extends BaseSystem implements ProfiledSystem {
     private com.artemis.ComponentMapper<games.pixscape.runtime.component.ShaderParamsComponent> mShaderParams;
     private final DynamicEntityRenderState ecsState;
-    private final TiledMapRenderState tiledState;
+    private final TiledRenderState tiledState;
     private final VfxRenderState vfxState;
     private final DrawList drawList;
     private final FrameRenderQueue frameQueue;
@@ -26,7 +26,7 @@ public final class RenderExtractFrameQueueSystem extends BaseSystem implements P
     private SystemProfiler profiler = SystemProfilers.DISABLED;
 
     public RenderExtractFrameQueueSystem(DynamicEntityRenderState ecsState,
-                                         TiledMapRenderState tiledState,
+                                         TiledRenderState tiledState,
                                          DrawList drawList,
                                          FrameRenderQueue frameQueue,
                                          RenderStats stats,
@@ -37,7 +37,7 @@ public final class RenderExtractFrameQueueSystem extends BaseSystem implements P
     }
 
     public RenderExtractFrameQueueSystem(DynamicEntityRenderState ecsState,
-                                         TiledMapRenderState tiledState,
+                                         TiledRenderState tiledState,
                                          VfxRenderState vfxState,
                                          DrawList drawList,
                                          FrameRenderQueue frameQueue,
@@ -58,7 +58,7 @@ public final class RenderExtractFrameQueueSystem extends BaseSystem implements P
      * Extracts all render domains with the owning Layer's display parallax.
      */
     public RenderExtractFrameQueueSystem(DynamicEntityRenderState ecsState,
-                                         TiledMapRenderState tiledState,
+                                         TiledRenderState tiledState,
                                          VfxRenderState vfxState,
                                          LayerStateSOA layerState,
                                          com.badlogic.gdx.graphics.OrthographicCamera camera,
@@ -77,7 +77,7 @@ public final class RenderExtractFrameQueueSystem extends BaseSystem implements P
      * Extracts all render domains using the World's display-space authority.
      */
     public RenderExtractFrameQueueSystem(DynamicEntityRenderState ecsState,
-                                         TiledMapRenderState tiledState,
+                                         TiledRenderState tiledState,
                                          VfxRenderState vfxState,
                                          LayerDisplayOffsetResolver displayOffsetResolver,
                                          DrawList drawList,

@@ -2,7 +2,7 @@ package games.pixscape.runtime.render.lighting;
 
 import com.badlogic.gdx.utils.Array;
 import games.pixscape.runtime.spatial.SpatialBlockData;
-import games.pixscape.runtime.tiled.TiledMapLayerData;
+import games.pixscape.runtime.tiled.TiledLayerData;
 import games.pixscape.runtime.tiled.TiledProjection;
 
 /**
@@ -12,7 +12,7 @@ public final class RoundedWallPlacement {
     public final int xWall, yWall;
     public final float cx, cy, radius, thickness, base, height;
 
-    public RoundedWallPlacement(TiledMapLayerData map, int gx, int gy, RoundedWallDescription d, Array<SpatialBlockData> owners) {
+    public RoundedWallPlacement(TiledLayerData map, int gx, int gy, RoundedWallDescription d, Array<SpatialBlockData> owners) {
         d.validate();
         if (map.projection != TiledProjection.ISO || map.tileWidth != map.tileHeight * 2)
             throw new IllegalArgumentException("Corner profiles require a 2:1 ISO map");
