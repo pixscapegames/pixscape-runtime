@@ -6,6 +6,7 @@ import com.badlogic.gdx.math.MathUtils;
 import com.badlogic.gdx.physics.box2d.*;
 import games.pixscape.runtime.api.EntityRef;
 import games.pixscape.runtime.api.GameObjectInstance;
+import games.pixscape.runtime.api.GameObjectsAPI;
 import games.pixscape.runtime.component.physics.PhysicsJointComponent;
 import games.pixscape.runtime.component.physics.PhysicsRuntimeBodyComponent;
 import games.pixscape.runtime.gameobject.GameObjectAsset;
@@ -191,15 +192,23 @@ public class PixscapeEngineGameObjectSpawnTest {
             long thread = Thread.currentThread().threadId();
             org.junit.Assume.assumeTrue(allocations.isThreadAllocatedMemorySupported());
             allocations.getThreadAllocatedBytes(thread);
-            for (int i = 0; i < 5000; i++) {
-                api.place(roots, 0, 0, .01f, 0, 0, false);
+            // Warm the measured loop too: 5,000 calls can leave JIT compilation and its
+            // one-time VM string allocations inside the allocation measurement.
+            for (int batch = 0; batch < 50; batch++) {
+                placeRepeatedly(api, roots);
             }
-            long before = allocations.getThreadAllocatedBytes(thread);
-            for (int i = 0; i < 1000; i++) {
-                api.place(roots, 0, 0, .01f, 0, 0, false);
+            for (int batch = 0; batch < 5; batch++) {
+                long before = allocations.getThreadAllocatedBytes(thread);
+                placeRepeatedly(api, roots);
+                long allocated = allocations.getThreadAllocatedBytes(thread) - before;
+                assertEquals("Reserved public placement path must not allocate temporary Java state", 0L, allocated);
             }
-            long allocated = allocations.getThreadAllocatedBytes(thread) - before;
-            assertEquals("Reserved public placement path must not allocate temporary Java state", 0L, allocated);
+        }
+    }
+
+    private static void placeRepeatedly(GameObjectsAPI api, EntityRef[] roots) {
+        for (int i = 0; i < 1000; i++) {
+            api.place(roots, 0, 0, .01f, 0, 0, false);
         }
     }
 
