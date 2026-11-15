@@ -23,6 +23,15 @@ public final class GameObjectCompositionSystem extends BaseSystem {
     private ComponentMapper<VisibilityComponent> visibility;
     private ComponentMapper<AABBComponent> bounds;
     private ComponentMapper<TiledMapLayerComponent> tiledLayers;
+    private java.util.function.IntPredicate visibilityFilter;
+
+    /**
+     * Optional session-only restriction, evaluated in the existing composition traversal.
+     * It must be O(1) and cannot make authored-hidden content visible. Null removes it.
+     */
+    public void setVisibilityFilter(java.util.function.IntPredicate filter) {
+        visibilityFilter = filter;
+    }
 
     private int[] orderA = new int[16];
     private int[] orderB = new int[16];
@@ -105,10 +114,10 @@ public final class GameObjectCompositionSystem extends BaseSystem {
                 EntityIndexComponent rootIndex = entityIndices.getSafe(rootEntityId, null);
                 state.effectiveLayer[entityId] = rootIndex != null ? rootIndex.layerIndex : -1;
                 state.hierarchyVisible[entityId] = state.hierarchyVisible[parentEntityId]
-                        && authoredVisible(entityId);
+                        && authoredVisible(entityId) && sessionVisible(entityId);
             } else {
                 state.effectiveLayer[entityId] = ownIndex != null ? ownIndex.layerIndex : -1;
-                state.hierarchyVisible[entityId] = authoredVisible(entityId);
+                state.hierarchyVisible[entityId] = authoredVisible(entityId) && sessionVisible(entityId);
             }
 
             if (renderState != null) {
@@ -130,6 +139,10 @@ public final class GameObjectCompositionSystem extends BaseSystem {
                 }
             }
         }
+    }
+
+    private boolean sessionVisible(int entityId) {
+        return visibilityFilter == null || visibilityFilter.test(entityId);
     }
 
     // Observe direct authored mutations in the traversal already needed for frame composition.

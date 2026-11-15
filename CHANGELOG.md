@@ -7,6 +7,7 @@
 * Renamed tile-layer APIs: `TiledMapRef` becomes `TiledLayerRef`, `map()` becomes `layer()`, `TiledMapFacade` becomes `TiledLayerFacade`, and `TiledMapLayerData` becomes `TiledLayerData`.
 
 ### Added
+* Added a session-only composition visibility filter for editor integration, without changing authored visibility or physics.
 * Added prepared Game Object factories and explicit rigid placement of physics-backed compositions.
 * Added read-only tile custom properties and `findAllByTiledLayerName(...)` for Tiled-layer contents.
 * Added allocation-free `PhysicsAPI.pxToM(float)` and `mToPx(float)` conversions using the current effective pixels-per-meter scale for native Box2D coordinates.

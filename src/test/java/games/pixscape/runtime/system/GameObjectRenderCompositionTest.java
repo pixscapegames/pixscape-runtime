@@ -14,6 +14,47 @@ import org.junit.Test;
 public class GameObjectRenderCompositionTest {
 
     @Test
+    public void sessionVisibilityRestrictsCompositionWithoutChangingAuthoredFlags() {
+        Fixture f = new Fixture(32);
+        try {
+            int map = f.gameObject(10, -1, 1, 0);
+            int layer = f.gameObject(11, 10, 1, 0);
+            f.world.getMapper(VisibilityComponent.class).create(layer);
+            int child = f.member(12, 11, 1, 0);
+            int sibling = f.member(13, 10, 1, 1);
+            com.badlogic.gdx.utils.IntSet hidden = new com.badlogic.gdx.utils.IntSet();
+            int[] visits = {0};
+            f.composition.setVisibilityFilter(entity -> {
+                visits[0]++;
+                return !hidden.contains(entity);
+            });
+            f.process();
+            f.assertEcsOrder(child, sibling);
+            Assert.assertTrue(visits[0] <= 4);
+            hidden.add(layer);
+            f.process();
+            f.assertEcsOrder(sibling);
+            hidden.add(map);
+            f.process();
+            f.assertEcsOrder();
+            hidden.remove(map);
+            f.process();
+            f.assertEcsOrder(sibling);
+            Assert.assertTrue(f.world.getMapper(VisibilityComponent.class).get(layer).visible);
+            f.world.getMapper(VisibilityComponent.class).get(layer).visible = false;
+            hidden.clear();
+            f.process();
+            f.assertEcsOrder(sibling);
+            f.composition.setVisibilityFilter(null);
+            f.world.getMapper(VisibilityComponent.class).get(layer).visible = true;
+            f.process();
+            f.assertEcsOrder(child, sibling);
+        } finally {
+            f.world.dispose();
+        }
+    }
+
+    @Test
     public void tiledMapInterleavesLayerKindsAndReordersWithoutChangingReferences() {
         Fixture f = new Fixture(64);
         try {
