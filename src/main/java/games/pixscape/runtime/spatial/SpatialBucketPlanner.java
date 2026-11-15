@@ -13,8 +13,6 @@ public final class SpatialBucketPlanner {
     int[] actorOriginalBucket = new int[0];
     int[] actorLowerBound = new int[0];
     int[] actorUpperBound = new int[0];
-    private int[] splitLowerBound = new int[0];
-    private int[] splitUpperBound = new int[0];
     int[] finalActorDrawIndex = new int[0];
     int[] sortedActorIndex = new int[0];
     private int[] orderedActorIndex = new int[0];
@@ -80,8 +78,6 @@ public final class SpatialBucketPlanner {
             actorBucket[actor] = actorOriginalBucket[actor] = original;
             actorLowerBound[actor] = Integer.MIN_VALUE;
             actorUpperBound[actor] = Integer.MAX_VALUE;
-            splitLowerBound[actor] = 0;
-            splitUpperBound[actor] = bucketCount - 1;
             actorLowerSourceFaceIndex[actor] = actorUpperSourceFaceIndex[actor] = -1;
             actorLowerSourceStructureId[actor] = actorUpperSourceStructureId[actor] = 0;
             actorHasConstraint[actor] = false;
@@ -128,13 +124,6 @@ public final class SpatialBucketPlanner {
                     acceptedLocalMembershipCount++;
                     if (faces.anchorSplit[selectedAnchor]) {
                         int offset = faces.membershipPiece[relations.relationMembershipIndex[relation]];
-                        if (requested == FRONT) {
-                            splitLowerBound[actor] = Math.max(splitLowerBound[actor],
-                                    faces.anchorAfterBucket[selectedAnchor] + offset);
-                        } else {
-                            splitUpperBound[actor] = Math.min(splitUpperBound[actor],
-                                    faces.anchorBeforeBucket[selectedAnchor] + offset);
-                        }
                         constrain(faces, actor, selectedAnchor, face, relations.relationMembershipIndex[relation],
                                 requested, offset, mapEntity);
                         continue;
@@ -246,6 +235,7 @@ public final class SpatialBucketPlanner {
         return actorHasUnresolvedCorner[actor];
     }
 
+    /** Whether contradictory requests require the local occlusion-priority placement rule. */
     public boolean hasLocalFallback(int actor) {
         return hasContradictoryInterval(actor);
     }
@@ -267,8 +257,10 @@ public final class SpatialBucketPlanner {
     }
 
     public void finish(SpatialActorCollector actors) {
-        if (actors == null || actorCount == 0) return;
         unresolvedConstraintCount = 0;
+        if (actors == null || actorCount == 0) {
+            return;
+        }
         for (int actor = 0; actor < actorCount; actor++) {
             if (actorHasConstraint[actor] && actorLowerBound[actor] > actorUpperBound[actor]) {
                 unresolvedConstraintCount++;
@@ -279,6 +271,7 @@ public final class SpatialBucketPlanner {
         sortActorsWithinBuckets(actors);
     }
 
+    /** Raw contradictory intervals; occlusion priority resolves placement, not every front request. */
     public int unresolvedConstraintCount() {
         return unresolvedConstraintCount;
     }
@@ -295,14 +288,15 @@ public final class SpatialBucketPlanner {
         out.append("candidates=").append(candidates).append(" relations=").append(relations)
                 .append(" conflicts=").append(unresolvedConstraintCount)
                 .append(" globalFallbacks=").append(actorOrderingFallbackCount)
-                .append(" unresolvedCorners=").append(unresolvedLateralCornerCount);
+                .append(" unresolvedCorners=").append(unresolvedLateralCornerCount)
+                .append(" occlusionPriorityActors=").append(unresolvedConstraintCount);
         for (int actor = 0; actor < actorCount; actor++) {
             out.append("\nactor=").append(actor).append(" bucket=").append(actorBucket[actor])
                     .append(" original=").append(actorOriginalBucket[actor])
                     .append(" L=").append(actorLowerBound[actor])
                     .append(" U=").append(actorUpperBound[actor])
                     .append(" unresolvedCorner=").append(actorHasUnresolvedCorner[actor])
-                    .append(" localFallback=").append(hasContradictoryInterval(actor))
+                    .append(" occlusionPriority=").append(hasLocalFallback(actor))
                     .append(" conflictKind=").append(conflictKind(actor))
                     .append(" noRelation=").append(!actorHasConstraint[actor]);
             if (actorLowerSourceFaceIndex[actor] >= 0) {
@@ -524,21 +518,18 @@ public final class SpatialBucketPlanner {
         }
     }
 
-    // A neighbouring indivisible wall can give opposing relations while the footprint crosses
-    // its thickness. Preserve compatible evidence from the split tile in that fallback bucket.
-    private int localFallbackBucket(int actor) {
-        return splitLowerBound[actor] <= splitUpperBound[actor]
-                ? clampToInterval(actorOriginalBucket[actor], splitLowerBound[actor], splitUpperBound[actor])
-                : actorOriginalBucket[actor];
-    }
-
     private int resolvedLowerBound(int actor) {
-        if (hasContradictoryInterval(actor)) return localFallbackBucket(actor);
+        if (hasContradictoryInterval(actor)) {
+            // Keep the whole actor before every mandatory mask; retain raw bounds for diagnostics.
+            return actorUpperBound[actor];
+        }
         return actorLowerBound[actor] == Integer.MIN_VALUE ? 0 : actorLowerBound[actor];
     }
 
     private int resolvedUpperBound(int actor) {
-        if (hasContradictoryInterval(actor)) return localFallbackBucket(actor);
+        if (hasContradictoryInterval(actor)) {
+            return actorUpperBound[actor];
+        }
         return actorUpperBound[actor] == Integer.MAX_VALUE ? bucketCount - 1 : actorUpperBound[actor];
     }
 
@@ -671,8 +662,6 @@ public final class SpatialBucketPlanner {
         actorOriginalBucket = grow(actorOriginalBucket, n);
         actorLowerBound = grow(actorLowerBound, n);
         actorUpperBound = grow(actorUpperBound, n);
-        splitLowerBound = grow(splitLowerBound, n);
-        splitUpperBound = grow(splitUpperBound, n);
         actorLowerSourceAnchorGx = grow(actorLowerSourceAnchorGx, n);
         actorLowerSourceAnchorGy = grow(actorLowerSourceAnchorGy, n);
         actorLowerSourceFaceIndex = grow(actorLowerSourceFaceIndex, n);

@@ -25,6 +25,7 @@
 * Physics body synchronization now processes ECS membership changes and explicitly dirty bodies instead of scanning every authored and native body on every frame. Native body removal uses an ownership index instead of searching the Box2D world. Full reconciliation remains at initialization and physics reactivation.
 
 ### Fixed
+* Contradictory spatial actor constraints now prioritize occlusion, preserving compatible placements, tile order and corner geometry.
 * Removing physics bodies now cleans up their joints consistently.
 * Failed Game Object materialization now releases the attempt's bodies, fixtures and joints without affecting existing instances. Delayed ECS notifications preserve newly spawned native resources and velocities set immediately after spawning.
 * Removing and restoring physics before runtime-component subscription observation no longer leaves duplicate native bodies or orphan collisions after entity deletion. Body replacement retains indexed ownership across pooled-component resets and failed candidate creation.

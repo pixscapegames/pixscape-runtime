@@ -35,7 +35,9 @@ public final class SpatialLocalAnchorMembershipTest {
         SpatialBucketPlanner planner = plan(actor, fixture.faces, relations, 35, 65);
         // Both sides of this thick wall share an anchor; the query path must expose opposition.
         Assert.assertEquals(1, planner.unresolvedConstraintCount());
-        Assert.assertEquals(35, planner.actorBucket[0]);
+        Assert.assertEquals(21, planner.actorBucket[0]);
+        Assert.assertEquals(planner.actorUpperBound[0], planner.actorBucket[0]);
+        Assert.assertTrue(planner.hasLocalFallback(0));
         Assert.assertNotEquals(2, planner.lowerSourceAnchorGx(0));
         Assert.assertTrue(AUDITED_ACTOR_X >= planner.lowerSourceMinX(0));
         Assert.assertTrue(AUDITED_ACTOR_X < planner.lowerSourceMaxX(0));

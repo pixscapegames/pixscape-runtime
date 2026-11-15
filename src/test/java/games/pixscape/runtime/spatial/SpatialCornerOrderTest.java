@@ -10,7 +10,7 @@ import org.junit.Test;
  */
 public class SpatialCornerOrderTest {
     @Test
-    public void fourteenDeterminedCornersAndTwoUnresolvedSplitsPreserveEveryEntry() {
+    public void determinedCornersStayUnchangedAndContradictionsPrioritizeOcclusion() {
         for (int opening = 0; opening < 4; opening++)
             try (SpatialCornerFixture f = new SpatialCornerFixture(opening)) {
                 for (int sector = 0; sector < 4; sector++)
@@ -22,7 +22,7 @@ public class SpatialCornerOrderTest {
                         Assert.assertEquals(row, 0, r.fallbacks);
                         Assert.assertEquals(1, r.candidates);
                         Assert.assertEquals(2, f.composer.composedSize);
-                        int position = expected == 'X' ? original : expected == 'B' ? 0 : 1;
+                        int position = expected == 'X' ? r.upper : expected == 'B' ? 0 : 1;
                         Assert.assertEquals(row, RenderSourceDomain.SOURCE_ECS, f.composer.composedDomains[position]);
                         Assert.assertEquals(row, f.slot, f.composer.composedSlots[position]);
                         Assert.assertEquals(row, RenderSourceDomain.SOURCE_TILED, f.composer.composedDomains[1 - position]);
@@ -86,7 +86,10 @@ public class SpatialCornerOrderTest {
                     f.planner.actorLowerBound[0] = 2;
                     f.planner.actorUpperBound[0] = 0;
                     f.planner.finish(f.actors);
-                    Assert.assertEquals(buckets[i], f.planner.actorBucket[0]);
+                    Assert.assertEquals(0, f.planner.actorBucket[0]);
+                    Assert.assertEquals(2, f.planner.actorLowerBound[0]);
+                    Assert.assertEquals(0, f.planner.actorUpperBound[0]);
+                    Assert.assertTrue(f.planner.hasLocalFallback(0));
                 }
             }
     }

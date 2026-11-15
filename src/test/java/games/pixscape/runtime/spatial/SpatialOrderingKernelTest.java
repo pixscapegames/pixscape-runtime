@@ -7,7 +7,7 @@ import org.junit.Test;
 
 public class SpatialOrderingKernelTest {
     @Test
-    public void sameAnchorOppositionRemainsUnresolvedIndependentOfRelationOrder() {
+    public void sameAnchorOppositionPrioritizesOcclusionIndependentOfRelationOrder() {
         assertSameAnchorOpposition(new byte[]{SpatialFaceRelationSolver.ACTOR_IN_FRONT_OF_FACE,
                 SpatialFaceRelationSolver.ACTOR_BEHIND_FACE});
         assertSameAnchorOpposition(new byte[]{SpatialFaceRelationSolver.ACTOR_BEHIND_FACE,
@@ -40,7 +40,7 @@ public class SpatialOrderingKernelTest {
     }
 
     @Test
-    public void residualDistinctAnchorContradictionsUseOriginalBucketsWithoutThrowing() {
+    public void distinctAnchorContradictionsUseTheFirstMandatoryMask() {
         SpatialActorCollector actors = actors(2);
         SpatialProjectedFaceCache faces = faces(new int[][]{{0}, {1}});
         faces.anchorBeforeBucket[0] = 1;
@@ -59,11 +59,92 @@ public class SpatialOrderingKernelTest {
         planner.finish(actors);
 
         Assert.assertEquals(2, planner.unresolvedConstraintCount());
-        Assert.assertArrayEquals(new int[]{2, 3}, new int[]{planner.actorBucket[0], planner.actorBucket[1]});
+        Assert.assertArrayEquals(new int[]{1, 1}, new int[]{planner.actorBucket[0], planner.actorBucket[1]});
     }
 
     @Test
-    public void contradictoryActorFallsBackIndividuallyWithoutDisturbingValidActorsOrNonActors() {
+    public void firstMaskWinsEveryConstraintPermutationWithoutChangingTilesOrRawSources() {
+        SpatialActorCollector actors = actors(1);
+        SpatialProjectedFaceCache faces = faces(new int[][]{{0}, {1}, {2}, {3}});
+        for (int anchor = 0; anchor < 4; anchor++) {
+            faces.anchorBeforeBucket[anchor] = 1 + 2 * anchor;
+            faces.anchorAfterBucket[anchor] = 2 + 2 * anchor;
+        }
+        DrawList draw = new DrawList(10);
+        for (int tile = 0; tile < 9; tile++) {
+            draw.addTiledSlot(100 + tile);
+        }
+        draw.addEcsSlot(0);
+        SpatialFrameSnapshotBuilder snapshot = new SpatialFrameSnapshotBuilder();
+        snapshot.build(draw, 1, actors);
+        SpatialBucketPlanner planner = new SpatialBucketPlanner();
+        SpatialBucketDrawListComposer composer = new SpatialBucketDrawListComposer();
+        int permutations = 0;
+        for (int a = 0; a < 4; a++) {
+            for (int b = 0; b < 4; b++) {
+                for (int c = 0; c < 4; c++) {
+                    if (a == b || a == c || b == c) {
+                        continue;
+                    }
+                    int[] order = {a, b, c, 6 - a - b - c};
+                    byte[] types = new byte[4];
+                    for (int i = 0; i < order.length; i++) {
+                        types[i] = order[i] % 2 == 0 ? SpatialFaceRelationSolver.ACTOR_IN_FRONT_OF_FACE
+                                : SpatialFaceRelationSolver.ACTOR_BEHIND_FACE;
+                    }
+                    planner.begin(actors, snapshot.actorOriginalBucket, snapshot.bucketCount);
+                    planner.addRelations(actors, faces, relations(1, new int[][]{order}, new byte[][]{types}), 42);
+                    planner.finish(actors);
+                    composer.compose(draw, actors, planner, snapshot);
+                    Assert.assertEquals(6, planner.actorLowerBound[0]);
+                    Assert.assertEquals(3, planner.actorUpperBound[0]);
+                    Assert.assertEquals(3, planner.actorBucket[0]); // After the compatible front at 2, before both masks at 3 and 7.
+                    Assert.assertEquals(RenderSourceDomain.SOURCE_ECS, composer.composedDomains[3]);
+                    Assert.assertEquals(1, occurrences(composer.composedSlots, composer.composedSize, 0));
+                    Assert.assertArrayEquals(new int[]{100, 101, 102, 103, 104, 105, 106, 107, 108},
+                            nonActorSlots(composer.composedSlots, composer.composedDomains, composer.composedSize));
+                    String diagnostic = planner.diagnosticSummary(4, 4);
+                    Assert.assertTrue(diagnostic.contains("occlusionPriorityActors=1"));
+                    Assert.assertTrue(diagnostic.contains("L=6 U=3"));
+                    Assert.assertTrue(diagnostic.contains("lowerSource(map=42,structure=12,face=2,tile=2,0)"));
+                    Assert.assertTrue(diagnostic.contains("upperSource(map=42,structure=11,face=1,tile=1,0)"));
+                    permutations++;
+                }
+            }
+        }
+        Assert.assertEquals(24, permutations);
+    }
+
+    @Test
+    public void priorityDiagnosticsClearWhenThePlannerReturnsToCompatibleOrEmptyFrames() {
+        SpatialActorCollector actors = actors(1);
+        SpatialBucketPlanner planner = new SpatialBucketPlanner();
+        for (int cycle = 0; cycle < 2; cycle++) {
+            planner.begin(actors, new int[]{4}, 6);
+            setIntervals(planner, new int[]{3}, new int[]{1});
+            planner.finish(actors);
+            Assert.assertTrue(planner.hasLocalFallback(0));
+            Assert.assertEquals(1, planner.actorBucket[0]);
+
+            planner.begin(actors, new int[]{4}, 6);
+            setIntervals(planner, new int[]{1}, new int[]{3});
+            planner.finish(actors);
+            Assert.assertFalse(planner.hasLocalFallback(0));
+            Assert.assertEquals(3, planner.actorBucket[0]);
+            Assert.assertEquals(0, planner.unresolvedConstraintCount());
+            Assert.assertTrue(planner.diagnosticSummary(0, 0).contains("occlusionPriorityActors=0"));
+
+            SpatialActorCollector empty = actors(0);
+            planner.begin(empty, new int[0], 1);
+            planner.finish(empty);
+            Assert.assertEquals(0, planner.actorCount);
+            Assert.assertEquals(0, planner.unresolvedConstraintCount());
+            Assert.assertFalse(planner.diagnosticSummary(0, 0).contains("\nactor="));
+        }
+    }
+
+    @Test
+    public void contradictoryActorPrioritizesOcclusionWithoutDisturbingValidActorsOrNonActors() {
         SpatialActorCollector actors = actors(3);
         actors.actorCircleY[0] = 20f;
         actors.actorCircleY[1] = 40f;
@@ -89,7 +170,7 @@ public class SpatialOrderingKernelTest {
 
             Assert.assertEquals(1, planner.unresolvedConstraintCount());
             Assert.assertEquals(0, planner.actorOrderingFallbackCount());
-            Assert.assertEquals(1, planner.actorBucket[0]);
+            Assert.assertEquals(0, planner.actorBucket[0]);
             Assert.assertTrue(planner.actorBucket[1] >= 2 && planner.actorBucket[1] <= 3);
             Assert.assertTrue(planner.actorBucket[2] >= 0 && planner.actorBucket[2] <= 2);
             Assert.assertEquals(1, occurrences(composer.composedSlots, composer.composedSize, 0));
@@ -458,7 +539,7 @@ public class SpatialOrderingKernelTest {
         planner.begin(actors, new int[]{4}, 6);
         planner.addRelations(actors, faces, relations);
         planner.finish(actors);
-        Assert.assertEquals(4, planner.actorBucket[0]);
+        Assert.assertEquals(2, planner.actorBucket[0]);
         Assert.assertEquals(3, planner.actorLowerBound[0]);
         Assert.assertEquals(2, planner.actorUpperBound[0]);
         Assert.assertEquals(1, planner.unresolvedConstraintCount());
