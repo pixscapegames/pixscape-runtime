@@ -69,8 +69,20 @@ public final class TiledRenderState {
     private int[] visibleTileLayerRefCount;
     private TiledRenderOrder[] visibleTileLayerPreparedOrder;
     private int visibleTileLayerCount;
+    private final com.badlogic.gdx.utils.IntIntMap visibleLayerByEntity =
+            new com.badlogic.gdx.utils.IntIntMap();
+
+    /** O(1) lookup in this frame's published visible layers, including absence. */
+    public int visibleLayerForEntity(int entityId) {
+        return visibleLayerByEntity.get(entityId, -1);
+    }
 
     private int refCount;
+    private int[] refOwner;
+
+    public int entityForVisibleRef(int ref) {
+        return ref >= 0 && ref < refCount ? refOwner[ref] : -1;
+    }
 
     public int cullingChunksTested;
     public int cullingChunksOutside;
@@ -142,6 +154,7 @@ public final class TiledRenderState {
     }
 
     public void clearVisibleRefs() {
+        visibleLayerByEntity.clear();
         for (int i = 0; i < visibleTileLayerCount; i++) visibleTileLayerPreparedOrder[i] = null;
         visibleRefCount = 0;
         visibleTileLayerCount = 0;
@@ -194,6 +207,10 @@ public final class TiledRenderState {
             throw new IllegalArgumentException("Visible Tiled Map group must reference a valid non-empty ref range.");
         }
         ensureVisibleTileLayerCapacity(visibleTileLayerCount + 1);
+        visibleLayerByEntity.put(tileLayerEntityId, visibleTileLayerCount);
+        for (int i = visibleRefStart; i < visibleRefStart + visibleRefCount; i++) {
+            refOwner[visibleRefs[i]] = tileLayerEntityId;
+        }
         visibleTileLayerEntityId[visibleTileLayerCount] = tileLayerEntityId;
         visibleTileLayerLayerIndex[visibleTileLayerCount] = layerIndex;
         visibleTileLayerZIndex[visibleTileLayerCount] = zIndex;
@@ -350,6 +367,12 @@ public final class TiledRenderState {
     }
 
     private void allocate(int newCapacity, boolean copyExisting) {
+        int[] oldRefOwner = refOwner;
+        refOwner = new int[newCapacity];
+        java.util.Arrays.fill(refOwner, -1);
+        if (copyExisting && oldRefOwner != null) {
+            System.arraycopy(oldRefOwner, 0, refOwner, 0, Math.min(oldRefOwner.length, newCapacity));
+        }
         int[] oldOrderRank = preparedOrderRank;
         TiledRenderOrder[] oldOrderOwner = preparedOrderOwner;
         int[] oldVisibleRefs = visibleRefs;

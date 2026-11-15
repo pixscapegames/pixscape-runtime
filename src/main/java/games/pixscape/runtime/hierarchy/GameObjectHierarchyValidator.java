@@ -82,6 +82,17 @@ public final class GameObjectHierarchyValidator {
         for (int i = 0, n = entities.size(); i < n; i++) {
             int entityId = data[i];
             if (!world.getEntityManager().isActive(entityId)) continue;
+            TiledMapComponent map = world.getMapper(TiledMapComponent.class).getSafe(entityId, null);
+            if (map != null) {
+                map.validate();
+                if (!gameObjects.has(entityId) || members.has(entityId)) {
+                    throw failure(entityId, "Tiled map must be a top-level composition root");
+                }
+                TransformComponent pose = transforms.getSafe(entityId, null);
+                if (pose == null || pose.rotationRad != 0f || pose.scaleX != 1f || pose.scaleY != 1f) {
+                    throw failure(entityId, "Tiled map supports translation with unit scale and no rotation");
+                }
+            }
             if (gameObjects.has(entityId)) {
                 requireStableIdentity(entityId);
                 if (particles.has(entityId)) {
@@ -108,15 +119,29 @@ public final class GameObjectHierarchyValidator {
                 if (particles.has(entityId)) {
                     throw failure(entityId, "particles cannot be Game Object members");
                 }
-                if (tiledMaps.has(entityId)) {
+                boolean tiledLayer = world.getMapper(TiledMapLayerComponent.class).has(entityId);
+                if (tiledMaps.has(entityId) && !tiledLayer) {
                     throw failure(entityId, "Tiled Maps cannot be Game Object members");
                 }
-                if (spatialBlocks.has(entityId) || spatialShapes.has(entityId)) {
+                if (!tiledLayer && (spatialBlocks.has(entityId) || spatialShapes.has(entityId))) {
                     throw failure(entityId,
                             "Scene-local Spatial structures cannot be Game Object members");
                 }
                 requireEntityIndex(entityId, "Game Object member");
                 requireDirectParent(entityId);
+                if (tiledLayer && !world.getMapper(TiledMapComponent.class)
+                        .has(requireDirectParent(entityId))) {
+                    throw failure(entityId, "Tiled layer requires a Tiled map parent");
+                }
+                if (tiledLayer && tiledMaps.has(entityId)) {
+                    TiledMapComponent owner = world.getMapper(TiledMapComponent.class)
+                            .get(requireDirectParent(entityId));
+                    TiledLayerComponent tiles = tiledMaps.get(entityId);
+                    if (tiles.projection != owner.projection || tiles.tileWidth != owner.tileWidth
+                            || tiles.tileHeight != owner.tileHeight) {
+                        throw failure(entityId, "Tile grid configuration differs from its map");
+                    }
+                }
             }
         }
 

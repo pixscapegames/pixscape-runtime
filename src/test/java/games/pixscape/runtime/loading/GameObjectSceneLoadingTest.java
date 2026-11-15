@@ -81,8 +81,8 @@ public class GameObjectSceneLoadingTest {
     }
 
     @Test
-    public void sceneSchemaRemainsThree() {
-        Assert.assertEquals(3, SceneMetaRuntime.CURRENT_SCENE_SCHEMA_VERSION);
+    public void tiledMapContainerUsesSceneSchemaFour() {
+        Assert.assertEquals(4, SceneMetaRuntime.CURRENT_SCENE_SCHEMA_VERSION);
     }
 
     private static int entity(World world, int stableId) {

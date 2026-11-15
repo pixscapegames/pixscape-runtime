@@ -9,6 +9,7 @@ public final class GameObjectCompositionState {
     private static final int MIN_CAPACITY = 16;
 
     public int[] effectiveLayer;
+    public int[] tiledLayerOwner;
     public boolean[] hierarchyVisible;
     public int[] orderedFirstChildEntityId;
     public int[] orderedNextSiblingEntityId;
@@ -31,6 +32,8 @@ public final class GameObjectCompositionState {
         int next = old;
         while (next <= entityId) next <<= 1;
         effectiveLayer = Arrays.copyOf(effectiveLayer, next);
+        tiledLayerOwner = Arrays.copyOf(tiledLayerOwner, next);
+        Arrays.fill(tiledLayerOwner, old, next, -1);
         hierarchyVisible = Arrays.copyOf(hierarchyVisible, next);
         orderedFirstChildEntityId = Arrays.copyOf(orderedFirstChildEntityId, next);
         orderedNextSiblingEntityId = Arrays.copyOf(orderedNextSiblingEntityId, next);
@@ -52,6 +55,8 @@ public final class GameObjectCompositionState {
     private void setCapacity(int capacity) {
         entityCapacity = capacity;
         effectiveLayer = new int[capacity];
+        tiledLayerOwner = new int[capacity];
+        Arrays.fill(tiledLayerOwner, -1);
         hierarchyVisible = new boolean[capacity];
         orderedFirstChildEntityId = new int[capacity];
         orderedNextSiblingEntityId = new int[capacity];

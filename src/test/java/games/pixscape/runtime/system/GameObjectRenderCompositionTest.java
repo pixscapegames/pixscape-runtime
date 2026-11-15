@@ -14,6 +14,56 @@ import org.junit.Test;
 public class GameObjectRenderCompositionTest {
 
     @Test
+    public void tiledMapInterleavesLayerKindsAndReordersWithoutChangingReferences() {
+        Fixture f = new Fixture(64);
+        try {
+            int root = f.gameObject(10, -1, 1, 0);
+            TiledMapComponent map = f.world.getMapper(TiledMapComponent.class).create(root);
+            map.projection = games.pixscape.runtime.tiled.TiledProjection.ORTHO;
+            map.tileWidth = map.tileHeight = 16;
+            map.width = map.height = 2;
+            int bottom = f.baseEntity(11, 1, 0);
+            int top = f.baseEntity(14, 1, 3);
+            for (int entity : new int[] {bottom, top}) {
+                TiledLayerComponent tiles = f.world.getMapper(TiledLayerComponent.class).create(entity);
+                tiles.projection = map.projection;
+                tiles.tileWidth = tiles.tileHeight = 16;
+                tiles.mapWidthCells = tiles.mapHeightCells = tiles.chunkSize = 2;
+                tiles.data = tiles.createLayerData();
+                tiles.data.setTile(0, 0, entity + 1);
+                f.world.getMapper(TiledMapLayerComponent.class).create(entity);
+                f.world.getMapper(GameObjectMemberComponent.class).create(entity).parentStableId = 10;
+            }
+            int image = f.member(12, 10, 1, 1);
+            f.world.getMapper(TiledMapLayerComponent.class).create(f.entityForSlot(image)).kind =
+                    TiledMapLayerComponent.Kind.IMAGE;
+            int objects = f.gameObject(13, 10, 1, 2);
+            f.world.getMapper(TiledMapLayerComponent.class).create(objects).kind =
+                    TiledMapLayerComponent.Kind.OBJECT;
+            int object = f.member(15, 13, 1, 0);
+            int bottomRef = f.tiledMap(bottom, 1, 0, 10)[0];
+            int topRef = f.tiledMap(top, 1, 3, 10)[0];
+            f.process();
+            Assert.assertEquals(4, f.drawList.size);
+            f.assertEntry(0, RenderSourceDomain.SOURCE_TILED, bottomRef);
+            f.assertEntry(1, RenderSourceDomain.SOURCE_ECS, image);
+            f.assertEntry(2, RenderSourceDomain.SOURCE_ECS, object);
+            f.assertEntry(3, RenderSourceDomain.SOURCE_TILED, topRef);
+            f.indexForEntity(top).zIndex = -1;
+            f.process();
+            f.assertEntry(0, RenderSourceDomain.SOURCE_TILED, topRef);
+            f.assertEntry(1, RenderSourceDomain.SOURCE_TILED, bottomRef);
+            Assert.assertEquals(14, f.world.getMapper(PixscapeIdentityComponent.class).get(top).stableId);
+            Assert.assertEquals(1, f.drawList.composition().size);
+            f.world.getMapper(VisibilityComponent.class).create(root).visible = false;
+            f.process();
+            Assert.assertEquals(0, f.drawList.size);
+        } finally {
+            f.world.dispose();
+        }
+    }
+
+    @Test
     public void drawableParentRendersBeforeItsChildrenAndContributesItsOwnBounds() {
         Fixture fixture = new Fixture(32);
         try {

@@ -72,6 +72,30 @@ public class EntityLayerNameQueryApiTest {
     }
 
     @Test
+    public void tiledLayerNamesHaveSeparateMembershipAndTrackRenameRemovalAndMissingKeys() {
+        layer(0, "objects");
+        int sceneContent = point(0);
+        int tiledLayer = point(0);
+        world.getMapper(TiledMapLayerComponent.class).create(tiledLayer).kind = TiledMapLayerComponent.Kind.OBJECT;
+        int stable = engine.getIdentityRegistry().ensureStableId(tiledLayer);
+        engine.getIdentityRegistry().setName(tiledLayer, "objects");
+        int child = point(0);
+        world.getMapper(GameObjectMemberComponent.class).create(child).parentStableId = stable;
+        world.process();
+        assertIds(api.findAllByTiledLayerName("objects"), child);
+        assertIds(api.findAllByLayerName("objects"), sceneContent, tiledLayer);
+        for (int i = 0; i < 10; i++) {
+            assertIds(api.findAllByTiledLayerName("missing"));
+        }
+        engine.getIdentityRegistry().setName(tiledLayer, "renamed");
+        assertIds(api.findAllByTiledLayerName("objects"));
+        assertIds(api.findAllByTiledLayerName("renamed"), child);
+        world.delete(child);
+        world.process();
+        assertIds(api.findAllByTiledLayerName("renamed"));
+    }
+
+    @Test
     public void pointWithoutRenderingExposesRoleAndTransform() {
         layer(1, "spawn-points");
         int point = point(1);

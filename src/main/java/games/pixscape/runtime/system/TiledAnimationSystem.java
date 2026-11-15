@@ -61,6 +61,10 @@ public final class TiledAnimationSystem extends IteratingSystem implements Profi
         this.tileAnimationLookup = tileAnimationLookup != null ? tileAnimationLookup : assetId -> null;
     }
 
+    public void prepareLayer(TiledLayerComponent layer) {
+        TileAnimationStateSupport.syncLayer(layer, tileAnimationLookup);
+    }
+
     public void setAdvanceOnlyVisibleChunks(boolean advanceOnlyVisibleChunks) {
         this.advanceOnlyVisibleChunks = advanceOnlyVisibleChunks;
     }

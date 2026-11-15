@@ -20,6 +20,11 @@ public final class LayerParallaxDisplayOffsetResolver implements LayerDisplayOff
 
     @Override
     public void resolveLayer(int layerIndex, Vector2 out) {
+        resolveLocalParallax(layerIndex, 1f, 1f, out);
+    }
+
+    @Override
+    public void resolveLocalParallax(int layerIndex, float factorX, float factorY, Vector2 out) {
         out.set(0f, 0f);
         if (layerState == null || camera == null || layerState.enabled == null
                 || layerIndex < 0 || layerIndex >= layerState.enabled.length
@@ -30,8 +35,8 @@ public final class LayerParallaxDisplayOffsetResolver implements LayerDisplayOff
         ParallaxHelper.computeParallaxOffset(
                 camera.position.x,
                 camera.position.y,
-                safeParallax(layerState.parallaxX[layerIndex]),
-                safeParallax(layerState.parallaxY[layerIndex]),
+                safeParallax(layerState.parallaxX[layerIndex]) * safeParallax(factorX),
+                safeParallax(layerState.parallaxY[layerIndex]) * safeParallax(factorY),
                 out
         );
     }

@@ -23,6 +23,70 @@ import java.io.OutputStream;
 public class SceneLoaderTiledMapConfigurationTest {
 
     @Test
+    public void schemaThreeWrapsEachGridWithoutMovingCellsOrChangingExistingIdentity() throws Exception {
+        World source = world();
+        World target = world();
+        try {
+            source.getMapper(LayerComponent.class).create(source.create()).layerIndex = 0;
+            configuredMap(source, 0, 7, TiledProjection.ISO, 64, 32);
+            configuredMap(source, 0, 8, TiledProjection.ISO, 64, 32);
+            source.process();
+            int oldEntity = source.getAspectSubscriptionManager().get(Aspect.all(TiledLayerComponent.class)).getEntities().get(0);
+            varIdentity(source, oldEntity, 10);
+            TiledLayerComponent tiles = source.getMapper(TiledLayerComponent.class).get(oldEntity);
+            tiles.originX = 17f;
+            tiles.originY = -23f;
+            tiles.defaultTileAltitude = 48f;
+            tiles.tileXs.add(2);
+            tiles.tileYs.add(3);
+            tiles.tileAssetIds.add(9);
+            tiles.tileTransformFlags.add((byte) 1);
+            games.pixscape.runtime.spatial.SpatialBlockData block = new games.pixscape.runtime.spatial.SpatialBlockData();
+            block.id = block.structureId = 1;
+            block.width = block.depth = 1;
+            block.altitude = 48;
+            block.beginAuthoredLinkedTileRefs();
+            block.addLinkedTileRef(2, 3, 9);
+            varBlocks(source, oldEntity, block);
+            source.process();
+            SceneMetaRuntime metadata = new SceneMetaRuntime();
+            metadata.sceneSchemaVersion = 3;
+            metadata.nextEntityStableId = 20;
+            SceneLoader.loadScene(target, save(source), false, metadata);
+            target.process();
+            Assert.assertEquals(4, metadata.sceneSchemaVersion);
+            Assert.assertEquals(2, target.getAspectSubscriptionManager().get(
+                    Aspect.all(games.pixscape.runtime.component.TiledMapComponent.class)).getEntities().size());
+            int restored = target.getAspectSubscriptionManager().get(Aspect.all(TiledLayerComponent.class)).getEntities().get(0);
+            TiledLayerComponent loaded = target.getMapper(TiledLayerComponent.class).get(restored);
+            Assert.assertEquals(10, target.getMapper(games.pixscape.runtime.component.PixscapeIdentityComponent.class).get(restored).stableId);
+            Assert.assertEquals(17f, loaded.createLayerData().originX, 0f);
+            Assert.assertEquals(-23f, loaded.createLayerData().originY, 0f);
+            Assert.assertEquals(48f, loaded.defaultTileAltitude, 0f);
+            Assert.assertEquals(2, loaded.tileXs.get(0));
+            Assert.assertEquals(3, loaded.tileYs.get(0));
+            Assert.assertEquals(9, loaded.tileAssetIds.get(0));
+            Assert.assertEquals(1, target.getMapper(games.pixscape.runtime.component.spatial.SpatialBlocksComponent.class)
+                    .get(restored).blocks.first().linkedTileRefs.size);
+            Assert.assertTrue(metadata.nextEntityStableId > 20);
+        } finally {
+            source.dispose();
+            target.dispose();
+        }
+    }
+
+    private static void varIdentity(World world, int entity, int stableId) {
+        world.getMapper(games.pixscape.runtime.component.PixscapeIdentityComponent.class).create(entity).stableId = stableId;
+    }
+
+    private static void varBlocks(World world, int entity, games.pixscape.runtime.spatial.SpatialBlockData block) {
+        games.pixscape.runtime.component.spatial.SpatialBlocksComponent blocks =
+                world.getMapper(games.pixscape.runtime.component.spatial.SpatialBlocksComponent.class).create(entity);
+        blocks.blocks.add(block);
+        blocks.nextSpatialBlockId = 2;
+    }
+
+    @Test
     public void obsoleteIndependentLightingPlaneIsRejectedBeforeClearingWorld() throws Exception {
         FileHandle file = writeScene(true);
         String serialized = file.readString("UTF-8");

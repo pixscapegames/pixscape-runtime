@@ -64,7 +64,7 @@ public class RuntimeConfigTest {
                 () -> config.applyDefaultsAndValidate("project.json"));
 
         Assert.assertTrue(failure.getMessage(),
-                failure.getMessage().contains("sceneSchemaVersion 3"));
+                failure.getMessage().contains("sceneSchemaVersion " + SceneMetaRuntime.CURRENT_SCENE_SCHEMA_VERSION));
     }
 
     private static RuntimeConfig config() {

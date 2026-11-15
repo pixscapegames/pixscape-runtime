@@ -1370,6 +1370,27 @@ public final class PhysicsService {
                             + " has no SpatialBlocksComponent.");
         }
 
+        return prepareLinkedBodyCandidate(sources, candidateMap != null ? candidateMap : tiled.data,
+                spatial, transform, pixelsPerMeter, ownerEntityId);
+    }
+
+    /** Cold compilation of a detached tile-layer history/clipboard candidate. */
+    public static PreparedPhysicsBodyCandidate prepareBodyCandidate(Array<PhysicsShapeData> sources,
+            games.pixscape.runtime.tiled.TiledLayerData map, SpatialBlocksComponent spatial,
+            TransformComponent transform, float pixelsPerMeter) {
+        if (!containsLinkedShape(sources)) {
+            return prepareBodyCandidate(sources);
+        }
+        if (map == null || spatial == null || transform == null) {
+            throw new IllegalArgumentException("Linked physics candidate requires grid, blocks and transform.");
+        }
+        PhysicsSpatialFootprintValidator.validateCollection(sources);
+        return prepareLinkedBodyCandidate(sources, map, spatial, transform, pixelsPerMeter, -1);
+    }
+
+    private static PreparedPhysicsBodyCandidate prepareLinkedBodyCandidate(Array<PhysicsShapeData> sources,
+            games.pixscape.runtime.tiled.TiledLayerData map, SpatialBlocksComponent spatial,
+            TransformComponent transform, float pixelsPerMeter, int ownerEntityId) {
         int blockCount = spatial.blocks != null ? spatial.blocks.size : 0;
         IntMap<SpatialBlockData> blocksById =
                 new IntMap<>(Math.max(1, blockCount));
@@ -1402,11 +1423,14 @@ public final class PhysicsService {
             detached.add(copy);
             if (copy.spatialBlockId == 0) {
                 resolved.add(SHAPE_RESOLVER.resolve(copy));
+            } else if (ownerEntityId < 0) {
+                resolved.add(SHAPE_RESOLVER.resolveLinkedDetached(copy, blocksById.get(copy.spatialBlockId),
+                        map, transform.x, transform.y, transform.rotationRad, pixelsPerMeter));
             } else {
                 resolved.add(SHAPE_RESOLVER.resolveLinked(
                         copy,
                         blocksById.get(copy.spatialBlockId),
-                        candidateMap != null ? candidateMap : tiled.data,
+                        map,
                         transform.x,
                         transform.y,
                         transform.rotationRad,

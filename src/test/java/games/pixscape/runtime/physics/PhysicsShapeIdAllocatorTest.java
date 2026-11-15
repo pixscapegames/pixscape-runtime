@@ -82,7 +82,7 @@ public class PhysicsShapeIdAllocatorTest {
                 new JsonReader().parse(serialized), "fallback");
 
         Assert.assertTrue(serialized, serialized.contains("nextPhysicsShapeId:91"));
-        Assert.assertTrue(serialized, serialized.contains("sceneSchemaVersion:3"));
+        Assert.assertTrue(serialized, serialized.contains("sceneSchemaVersion:" + SceneMetaRuntime.CURRENT_SCENE_SCHEMA_VERSION));
         Assert.assertEquals(91, restored.nextPhysicsShapeId);
     }
 

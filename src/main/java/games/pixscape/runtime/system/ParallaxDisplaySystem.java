@@ -119,7 +119,7 @@ public final class ParallaxDisplaySystem extends BaseSystem implements ProfiledS
             if (physical) {
                 displayOffsetResolver.resolvePhysics(tmpOffset);
             } else {
-                displayOffsetResolver.resolveLayer(layerIdx, tmpOffset);
+                displayOffsetResolver.resolveEntity(world, entityId, layerIdx, tmpOffset);
             }
 
             renderState.offsetX[renderSlot] = tmpOffset.x;

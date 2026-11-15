@@ -22,6 +22,7 @@ public final class GameObjectCompositionSystem extends BaseSystem {
     private ComponentMapper<PixscapeIdentityComponent> identities;
     private ComponentMapper<VisibilityComponent> visibility;
     private ComponentMapper<AABBComponent> bounds;
+    private ComponentMapper<TiledMapLayerComponent> tiledLayers;
 
     private int[] orderA = new int[16];
     private int[] orderB = new int[16];
@@ -97,6 +98,8 @@ public final class GameObjectCompositionSystem extends BaseSystem {
              entityId = topology.nextTraversalEntityId[entityId]) {
             EntityIndexComponent ownIndex = entityIndices.getSafe(entityId, null);
             int parentEntityId = topology.parentEntityId[entityId];
+            state.tiledLayerOwner[entityId] = tiledLayers.has(entityId) ? entityId
+                    : parentEntityId >= 0 ? state.tiledLayerOwner[parentEntityId] : -1;
             if (parentEntityId >= 0) {
                 int rootEntityId = topology.rootEntityId[entityId];
                 EntityIndexComponent rootIndex = entityIndices.getSafe(rootEntityId, null);
@@ -112,6 +115,18 @@ public final class GameObjectCompositionSystem extends BaseSystem {
                 int slot = renderState.renderSlotForEntity(entityId);
                 if (slot != DynamicEntityRenderState.NO_SLOT) {
                     renderState.layerIndex[slot] = state.effectiveLayer[entityId];
+                }
+            }
+            if (tiledLayers.has(entityId) && ownIndex != null
+                    && ownIndex.layerIndex != state.effectiveLayer[entityId]) {
+                ownIndex.layerIndex = state.effectiveLayer[entityId];
+                DirtyTrackerSystem dirty = world.getSystem(DirtyTrackerSystem.class);
+                if (dirty != null) {
+                    dirty.layer(entityId);
+                }
+                TiledLayerComponent tiles = world.getMapper(TiledLayerComponent.class).getSafe(entityId, null);
+                if (tiles != null && tiles.data != null) {
+                    tiles.data.markAllChunksContentDirty();
                 }
             }
         }

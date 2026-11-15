@@ -249,7 +249,7 @@ public final class SpatialRenderOrderSystem extends BaseSystem implements Profil
             faceAnchorResolver.resolve(runtime.projected, tiledRefToDrawIndex,
                     snapshotBuilder.drawIndexToBucketBefore, snapshotBuilder.drawIndexToBucketAfter,
                     drawList.size, tiledState);
-            displayOffsetResolver.resolveLayer(index != null ? index.layerIndex : 0, mapDisplayOffset);
+            displayOffsetResolver.resolveEntity(world, owner, index != null ? index.layerIndex : 0, mapDisplayOffset);
             preparedMapOffsetX[preparedCount] = mapDisplayOffset.x;
             preparedMapOffsetY[preparedCount] = mapDisplayOffset.y;
             if (sharedAnchorSearch != null) {

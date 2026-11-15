@@ -125,7 +125,6 @@ public final class RenderSortSystem extends BaseSystem implements ProfiledSystem
 
     private void flattenComposition(RenderCompositionList composition) {
         drawList.clearEntries();
-        int[] visibleRefs = tiledState != null ? tiledState.getVisibleRefs() : null;
 
         for (int i = 0; i < composition.size; i++) {
             byte domain = composition.sourceDomain[i];
@@ -139,21 +138,29 @@ public final class RenderSortSystem extends BaseSystem implements ProfiledSystem
                 continue;
             }
 
-            if (tiledState == null || source < 0 || source >= tiledState.getVisibleTileLayerCount()) {
-                continue;
-            }
-            int start = tiledState.visibleTileLayerRefStart(source);
-            int refCount = tiledState.visibleTileLayerRefCount(source);
-            TiledRenderOrder prepared = tiledState.visibleTileLayerPreparedOrder(source);
-            if (prepared != null && prepared.isPrepared())
-                prepared.filterVisible(tiledState, visibleRefs, start, refCount);
-            else sortTiledRefSlice(visibleRefs, start, refCount);
-            for (int refOffset = 0; refOffset < refCount; refOffset++) {
-                int ref = visibleRefs[start + refOffset];
-                if (tiledState.isRenderableRef(ref)) {
-                    drawList.addTiledSlot(ref);
-                    if (tiledState.cornerSplits.containsKey(ref))
-                        drawList.add(RenderSourceDomain.SOURCE_TILED_FRONT, ref);
+            flattenTileLayer(source);
+        }
+    }
+
+    private void flattenTileLayer(int source) {
+        if (tiledState == null || source < 0 || source >= tiledState.getVisibleTileLayerCount()) {
+            return;
+        }
+        int[] visibleRefs = tiledState.getVisibleRefs();
+        int start = tiledState.visibleTileLayerRefStart(source);
+        int refCount = tiledState.visibleTileLayerRefCount(source);
+        TiledRenderOrder prepared = tiledState.visibleTileLayerPreparedOrder(source);
+        if (prepared != null && prepared.isPrepared()) {
+            prepared.filterVisible(tiledState, visibleRefs, start, refCount);
+        } else {
+            sortTiledRefSlice(visibleRefs, start, refCount);
+        }
+        for (int refOffset = 0; refOffset < refCount; refOffset++) {
+            int ref = visibleRefs[start + refOffset];
+            if (tiledState.isRenderableRef(ref)) {
+                drawList.addTiledSlot(ref);
+                if (tiledState.cornerSplits.containsKey(ref)) {
+                    drawList.add(RenderSourceDomain.SOURCE_TILED_FRONT, ref);
                 }
             }
         }
@@ -171,6 +178,9 @@ public final class RenderSortSystem extends BaseSystem implements ProfiledSystem
         while (hierarchyStack.size > 0) {
             int entityId = hierarchyStack.pop();
             if (!state.hierarchyVisible[entityId]) continue;
+            if (tiledState != null) {
+                flattenTileLayer(tiledState.visibleLayerForEntity(entityId));
+            }
             int slot = ecsState.renderSlotForEntity(entityId);
             if (slot != DynamicEntityRenderState.NO_SLOT
                     && slot < ecsState.activeCount

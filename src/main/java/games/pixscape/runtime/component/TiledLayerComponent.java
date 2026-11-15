@@ -16,6 +16,9 @@ public final class TiledLayerComponent extends PooledComponent {
 
     public String atlasTag = "main";
 
+    // Attached layers materialize these three values from TiledMapComponent.
+    // They are execution caches, omitted by Studio's normal scene save. The fields
+    // also receive schema-3 values before the explicit one-layer-map conversion.
     public TiledProjection projection;
     public int tileWidth;
     public int tileHeight;

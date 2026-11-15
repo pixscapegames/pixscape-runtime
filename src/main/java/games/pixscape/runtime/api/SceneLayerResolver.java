@@ -29,11 +29,14 @@ final class SceneLayerResolver {
     private int lastSpatialLookupVisitCount;
     private EntitySubscription members;
     private EntitySubscription namedLayers;
+    private EntitySubscription tiledLayers;
+    private EntitySubscription hierarchyMembers;
     private EntitySubscription.SubscriptionListener membershipListener;
     private DirtyTrackerSystem dirtyTracker;
     private long indexedLayerRevision;
     private boolean membersDirty = true;
     private final ObjectMap<String, IntArray> membersByName = new ObjectMap<String, IntArray>();
+    private final ObjectMap<String, IntArray> tiledMembersByName = new ObjectMap<String, IntArray>();
     private final IntArray empty = new IntArray(0);
     private int memberIndexBuildCount;
     private int memberIndexVisitCount;
@@ -45,6 +48,10 @@ final class SceneLayerResolver {
         }
         if (members != null) members.removeSubscriptionListener(membershipListener);
         if (namedLayers != null) namedLayers.removeSubscriptionListener(membershipListener);
+        if (tiledLayers != null) {
+            tiledLayers.removeSubscriptionListener(membershipListener);
+            hierarchyMembers.removeSubscriptionListener(membershipListener);
+        }
         this.world = world;
         layers = null;
         subscription = null;
@@ -53,9 +60,12 @@ final class SceneLayerResolver {
         layerEntityIds.clear();
         members = null;
         namedLayers = null;
+        tiledLayers = null;
+        hierarchyMembers = null;
         membershipListener = null;
         dirtyTracker = null;
         membersByName.clear();
+        tiledMembersByName.clear();
         membersDirty = true;
         if (world == null) return;
 
@@ -97,6 +107,12 @@ final class SceneLayerResolver {
         };
         members.addSubscriptionListener(membershipListener);
         namedLayers.addSubscriptionListener(membershipListener);
+        tiledLayers = world.getAspectSubscriptionManager().get(Aspect.all(
+                games.pixscape.runtime.component.TiledMapLayerComponent.class,
+                games.pixscape.runtime.component.PixscapeIdentityComponent.class));
+        hierarchyMembers = world.getAspectSubscriptionManager().get(Aspect.all(GameObjectMemberComponent.class));
+        tiledLayers.addSubscriptionListener(membershipListener);
+        hierarchyMembers.addSubscriptionListener(membershipListener);
         rebuild();
     }
 
@@ -192,9 +208,53 @@ final class SceneLayerResolver {
         return result != null ? result : empty;
     }
 
+    IntArray tiledMembersByName(String name) {
+        if (world == null || name == null) {
+            return empty;
+        }
+        membersByName(name); // Shared publication boundary and invalidation revision.
+        IntArray result = tiledMembersByName.get(name);
+        return result != null ? result : empty;
+    }
+
     private void rebuildMembersByName() {
         memberIndexBuildCount++;
         membersByName.clear();
+        tiledMembersByName.clear();
+        IntMap<IntArray> contentsByStableId = new IntMap<IntArray>();
+        ComponentMapper<games.pixscape.runtime.component.PixscapeIdentityComponent> identities =
+                world.getMapper(games.pixscape.runtime.component.PixscapeIdentityComponent.class);
+        ComponentMapper<games.pixscape.runtime.component.TiledMapLayerComponent> tiled =
+                world.getMapper(games.pixscape.runtime.component.TiledMapLayerComponent.class);
+        IntBag tiledIds = tiledLayers.getEntities();
+        for (int i = 0; i < tiledIds.size(); i++) {
+            memberIndexVisitCount++;
+            int entity = tiledIds.get(i);
+            games.pixscape.runtime.component.PixscapeIdentityComponent identity = identities.get(entity);
+            if (identity.name == null) {
+                continue;
+            }
+            IntArray contents = tiledMembersByName.get(identity.name);
+            if (contents == null) {
+                contents = new IntArray(false, 0);
+                tiledMembersByName.put(identity.name, contents);
+            }
+            if (tiled.get(entity).kind == games.pixscape.runtime.component.TiledMapLayerComponent.Kind.OBJECT) {
+                contentsByStableId.put(identity.stableId, contents);
+            } else {
+                contents.add(entity);
+            }
+        }
+        ComponentMapper<GameObjectMemberComponent> parents = world.getMapper(GameObjectMemberComponent.class);
+        IntBag childIds = hierarchyMembers.getEntities();
+        for (int i = 0; i < childIds.size(); i++) {
+            memberIndexVisitCount++;
+            int entity = childIds.get(i);
+            IntArray contents = contentsByStableId.get(parents.get(entity).parentStableId);
+            if (contents != null) {
+                contents.add(entity);
+            }
+        }
         // Cold rebuild only. One content pass includes objects without rendering state.
         IntMap<ObjectSet<String>> namesByIndex = new IntMap<ObjectSet<String>>();
         ComponentMapper<LayerNameComponent> names = world.getMapper(LayerNameComponent.class);

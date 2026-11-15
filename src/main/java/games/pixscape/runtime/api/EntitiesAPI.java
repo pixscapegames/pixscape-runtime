@@ -87,6 +87,14 @@ public interface EntitiesAPI {
     EntityRef[] findAllByLayerName(String layerName);
 
     /**
+     * Snapshot of a Tiled layer's contents, separate from Pixscape scene-layer names.
+     * Object layers yield their direct children; tile/image layers yield their
+     * existing content entity. Duplicate names combine their contents. Publication,
+     * invalidation and allocation costs match {@link #findAllByLayerName(String)}.
+     */
+    EntityRef[] findAllByTiledLayerName(String layerName);
+
+    /**
      * Strictly resolves the entity currently indexed by {@code name}.
      * The returned reference can later become stale and inert.
      */

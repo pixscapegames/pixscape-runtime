@@ -748,6 +748,17 @@ public final class PixscapeApiImpl implements PixscapeAPI {
         }
 
         @Override
+        public EntityRef[] findAllByTiledLayerName(String layerName) {
+            sceneLayers.bind(engine.getWorld());
+            IntArray entityIds = sceneLayers.tiledMembersByName(layerName);
+            EntityRef[] refs = new EntityRef[entityIds.size];
+            for (int i = 0; i < entityIds.size; i++) {
+                refs[i] = ofEntityId(entityIds.get(i));
+            }
+            return refs;
+        }
+
+        @Override
         public EntityRef requireName(String name) {
             int entityId = engine.firstEntityByName(name);
             if (entityId < 0) {
@@ -3704,6 +3715,10 @@ public final class PixscapeApiImpl implements PixscapeAPI {
         public TiledLayerFacade setVisible(boolean visible) {
             TiledLayerData d = data();
             if (d != null) d.visible = visible;
+            World world = handle.world();
+            if (d != null && world.getMapper(TiledMapLayerComponent.class).has(handle.entityId)) {
+                world.getMapper(VisibilityComponent.class).create(handle.entityId).visible = visible;
+            }
             return this;
         }
 
@@ -3741,6 +3756,20 @@ public final class PixscapeApiImpl implements PixscapeAPI {
             if (c != null) {
                 c.originX = x;
                 c.originY = y;
+                World world = handle.world();
+                if (world.getMapper(TiledMapLayerComponent.class).has(handle.entityId)) {
+                    GameObjectMemberComponent member = world.getMapper(GameObjectMemberComponent.class).get(handle.entityId);
+                    int parent = IdentityRegistry.boundTo(world).findByStableId(member.parentStableId);
+                    TransformComponent root = world.getMapper(TransformComponent.class).get(parent);
+                    TransformComponent local = world.getMapper(TransformComponent.class).get(handle.entityId);
+                    c.originX = local.x = x - root.x;
+                    c.originY = local.y = y - root.y;
+                    local.refreshCaches();
+                    DirtyTrackerSystem dirty = world.getSystem(DirtyTrackerSystem.class);
+                    if (dirty != null) {
+                        dirty.geometry(handle.entityId, GeometryDirty.POSITION);
+                    }
+                }
             }
             return this;
         }

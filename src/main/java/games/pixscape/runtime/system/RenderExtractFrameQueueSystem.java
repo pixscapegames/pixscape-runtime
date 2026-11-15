@@ -187,7 +187,8 @@ public final class RenderExtractFrameQueueSystem extends BaseSystem implements P
             return;
         }
 
-        resolveLayerDisplayOffset(tiledState.layerIndex[tiledRenderRef]);
+        displayOffsetResolver.resolveEntity(world, tiledState.entityForVisibleRef(tiledRenderRef),
+                tiledState.layerIndex[tiledRenderRef], displayOffset);
         frameQueue.addQuad(
                 tiledState.textureHandle[tiledRenderRef],
                 tiledState.shader[tiledRenderRef],

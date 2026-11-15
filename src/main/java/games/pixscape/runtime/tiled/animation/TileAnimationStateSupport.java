@@ -7,6 +7,23 @@ public final class TileAnimationStateSupport {
     private TileAnimationStateSupport() {
     }
 
+    /** Cold materialization of existing authored cells after loading or restoration. */
+    public static void syncLayer(games.pixscape.runtime.component.TiledLayerComponent layer,
+                                  TileAnimationLookup lookup) {
+        if (layer == null || layer.data == null || lookup == null) {
+            return;
+        }
+        layer.ensureSparseTileStorageConsistency();
+        for (int i = 0; i < layer.tileAssetIds.size; i++) {
+            int x = layer.tileXs.get(i), y = layer.tileYs.get(i);
+            int cx = x / layer.data.chunkSize, cy = y / layer.data.chunkSize;
+            TileChunk chunk = layer.data.getChunk(cx, cy);
+            if (chunk != null) {
+                syncWorldCell(chunk, x - cx * layer.data.chunkSize, y - cy * layer.data.chunkSize, lookup);
+            }
+        }
+    }
+
     /**
      * Synchronizes the per-cell animation state with the logical asset stored in the map.
      * <p>

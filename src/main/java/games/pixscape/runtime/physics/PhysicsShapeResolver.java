@@ -30,6 +30,24 @@ public final class PhysicsShapeResolver {
             float bodyRotationRad,
             float pixelsPerMeter,
             int ownerEntityId) {
+        if (ownerEntityId < 0) {
+            throw invalidLinked(source, ownerEntityId, "ownerEntityId must be non-negative.");
+        }
+        return resolveLinkedGeometry(source, block, map, bodyWorldX, bodyWorldY,
+                bodyRotationRad, pixelsPerMeter, ownerEntityId);
+    }
+
+    /** Detached cold preparation: no entity identity exists yet. */
+    public ResolvedPhysicsShape resolveLinkedDetached(PhysicsShapeData source, SpatialBlockData block,
+            TiledLayerData map, float bodyWorldX, float bodyWorldY, float bodyRotationRad,
+            float pixelsPerMeter) {
+        return resolveLinkedGeometry(source, block, map, bodyWorldX, bodyWorldY,
+                bodyRotationRad, pixelsPerMeter, -1);
+    }
+
+    private ResolvedPhysicsShape resolveLinkedGeometry(PhysicsShapeData source, SpatialBlockData block,
+            TiledLayerData map, float bodyWorldX, float bodyWorldY, float bodyRotationRad,
+            float pixelsPerMeter, int ownerEntityId) {
         if (source == null) {
             throw invalidLinked(0, 0, ownerEntityId,
                     "source must not be null.");
@@ -84,10 +102,6 @@ public final class PhysicsShapeResolver {
         requireFinite(source, ownerEntityId, bodyRotationRad, "bodyRotationRad");
         requirePositiveFinite(source, ownerEntityId, pixelsPerMeter,
                 "pixelsPerMeter");
-        if (ownerEntityId < 0) {
-            throw invalidLinked(source, ownerEntityId,
-                    "ownerEntityId must be non-negative.");
-        }
 
         float x1 = block.x + block.width;
         float y1 = block.y + block.depth;

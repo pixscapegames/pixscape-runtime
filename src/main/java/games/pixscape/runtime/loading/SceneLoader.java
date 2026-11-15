@@ -50,7 +50,8 @@ public final class SceneLoader {
                 sceneMeta != null ? sceneMeta.sceneSchemaVersion : -1,
                 sceneMeta != null ? sceneMeta.name : inFile.path());
         validateMapLightingConvention(serialized, inFile.path());
-        validateSerializedScene(serialized, sceneMeta, inFile);
+        SceneMetaRuntime candidateMeta = new SceneMetaRuntime(sceneMeta);
+        serialized = validateSerializedScene(serialized, candidateMeta, inFile);
 
         if (clearContentFirst) {
             clearWorldContent(world);
@@ -67,6 +68,8 @@ public final class SceneLoader {
             SaveFileFormat format = wsm.load(in, SaveFileFormat.class);
             compactCustomProperties(format, world);
             refreshTransformCaches(format, world);
+            sceneMeta.sceneSchemaVersion = candidateMeta.sceneSchemaVersion;
+            sceneMeta.nextEntityStableId = candidateMeta.nextEntityStableId;
             return format;
 
         } catch (Exception e) {
@@ -91,7 +94,7 @@ public final class SceneLoader {
         }
     }
 
-    private static void validateSerializedScene(String serialized, SceneMetaRuntime sceneMeta,
+    private static String validateSerializedScene(String serialized, SceneMetaRuntime sceneMeta,
                                                 FileHandle sceneFile) {
         World validationWorld = new World(new WorldConfiguration()
                 .setSystem(new WorldSerializationManager()));
@@ -105,6 +108,15 @@ public final class SceneLoader {
                          new ByteArrayInputStream(serialized.getBytes("UTF-8"))) {
                 SaveFileFormat format =
                         validationSerialization.load(in, SaveFileFormat.class);
+                com.badlogic.gdx.utils.IntMap<String> authoredNames = new com.badlogic.gdx.utils.IntMap<String>();
+                for (int i = 0; i < format.entities.size(); i++) {
+                    int entity = format.entities.get(i);
+                    PixscapeIdentityComponent identity = validationWorld.getMapper(PixscapeIdentityComponent.class)
+                            .getSafe(entity, null);
+                    if (identity != null) {
+                        authoredNames.put(entity, identity.name);
+                    }
+                }
                 // This world contains only the candidate scene. Check the effective
                 // components after archetypes have been materialized, before touching
                 // the caller's world (which may contain other scenes or temporary entities).
@@ -113,12 +125,25 @@ public final class SceneLoader {
                 validateCustomProperties(format, validationWorld, sceneFile);
                 validatePersistentIdentities(
                         format, validationWorld, sceneMeta, sceneFile);
+                if (sceneMeta.sceneSchemaVersion == 3) {
+                    validateTiledMapConfigurations(format, validationWorld, sceneFile);
+                }
+                TiledMapSceneUpgrade.convert(validationWorld, format, sceneMeta);
+                TiledMapSceneUpgrade.bindConfigurations(validationWorld, format, sceneMeta);
                 validateGameObjectHierarchy(
                         format, validationWorld, sceneMeta, sceneFile);
                 validatePhysicsSchema(
                         format, validationWorld, sceneMeta, sceneFile);
                 validateTiledMapConfigurations(format, validationWorld, sceneFile);
                 validateActorSpatialRectangles(format, validationWorld);
+                // Identity indexes normalize lookup keys. Candidate validation must
+                // not rewrite authored labels while preparing the converted document.
+                for (com.badlogic.gdx.utils.IntMap.Entry<String> entry : authoredNames.entries()) {
+                    validationWorld.getMapper(PixscapeIdentityComponent.class).get(entry.key).name = entry.value;
+                }
+                java.io.ByteArrayOutputStream output = new java.io.ByteArrayOutputStream();
+                validationSerialization.save(output, format);
+                return output.toString("UTF-8");
             }
         } catch (Exception e) {
             String detail = e.getMessage();

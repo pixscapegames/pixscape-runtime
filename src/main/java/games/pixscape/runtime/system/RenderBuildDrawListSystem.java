@@ -137,7 +137,6 @@ public final class RenderBuildDrawListSystem extends BaseSystem implements Profi
                 extractedQuads++;
             }
         }
-        emitGameObjectBlocks(composition);
         stats.buildDrawListScannedEcsSlots = activeEcsSlots;
         if (ecsState != null) {
             stats.ecsActiveRenderSlots = ecsState.activeCount;
@@ -149,6 +148,15 @@ public final class RenderBuildDrawListSystem extends BaseSystem implements Profi
         int visibleTileLayerCount = tiledState.getVisibleTileLayerCount();
         for (int group = 0; group < visibleTileLayerCount; group++) {
             if (!isRenderableTiledGroup(group)) continue;
+            int entityId = tiledState.visibleTileLayerEntityId(group);
+            if (hierarchySystem != null && allEntities.getActiveEntityIds().get(entityId)
+                    && mGameObjectMember.has(entityId)) {
+                int root = hierarchySystem.topology().rootEntityId[entityId];
+                ensureRootCapacity(root);
+                rootsWithRenderWork[root] = true;
+                extractedQuads += tiledState.visibleTileLayerRefCount(group);
+                continue;
+            }
             composition.add(
                     RenderSourceDomain.SOURCE_TILED,
                     group,
@@ -156,6 +164,7 @@ public final class RenderBuildDrawListSystem extends BaseSystem implements Profi
             );
             extractedQuads += tiledState.visibleTileLayerRefCount(group);
         }
+        emitGameObjectBlocks(composition);
 
         if (vfxState != null && vfxStartInclusive >= 0 && vfxEndExclusive > vfxStartInclusive) {
             int count = Math.min(vfxState.activeCount, vfxEndExclusive - vfxStartInclusive);

@@ -524,6 +524,13 @@ public final class IdentityRegistry {
 
         nameByEntity.put(eid, newName);
         indexName(newName, eid);
+        if (world != null && world.getMapper(games.pixscape.runtime.component.TiledMapLayerComponent.class).has(eid)) {
+            games.pixscape.runtime.system.DirtyTrackerSystem dirty =
+                    world.getSystem(games.pixscape.runtime.system.DirtyTrackerSystem.class);
+            if (dirty != null) {
+                dirty.layer(eid);
+            }
+        }
     }
 
     private void indexName(String name, int eid) {

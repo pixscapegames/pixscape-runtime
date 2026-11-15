@@ -38,6 +38,8 @@ public final class GameObjectHierarchySystem extends BaseSystem {
     private final IntArray subtreeQueryStack = new IntArray(false, 16);
 
     private ComponentMapper<TransformComponent> transforms;
+    private ComponentMapper<games.pixscape.runtime.component.TiledLayerComponent> tileLayers;
+    private ComponentMapper<games.pixscape.runtime.component.TiledMapLayerComponent> tiledMembers;
     private ComponentMapper<GameObjectComponent> gameObjects;
     @SkipWire
     private GameObjectPlacement placementBuffer;
@@ -591,6 +593,19 @@ public final class GameObjectHierarchySystem extends BaseSystem {
         worldTransforms.setResolvedFrame(
                 entityId, x, y, rotation, scaleX, scaleY,
                 worldM00, worldM01, worldM02, worldM10, worldM11, worldM12);
+        if (tiledMembers.has(entityId) && tileLayers.has(entityId)) {
+            games.pixscape.runtime.component.TiledLayerComponent tiled = tileLayers.get(entityId);
+            tiled.originX = authored.x;
+            tiled.originY = authored.y;
+            if (tiled.data != null && (tiled.data.originX != x || tiled.data.originY != y)) {
+                tiled.data.originX = x;
+                tiled.data.originY = y;
+                for (games.pixscape.runtime.tiled.TileChunk chunk : tiled.data.getChunks()) {
+                    tiled.data.updateChunkBounds(chunk);
+                }
+                tiled.data.markAllChunksContentDirty();
+            }
+        }
         if (changed && publishGeometryDirty && dirty != null) {
             dirty.geometry(entityId, geometryMask);
         }

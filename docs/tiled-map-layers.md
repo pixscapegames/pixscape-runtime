@@ -1,53 +1,86 @@
-# Tiled maps and tile layers
+# Tiled maps and their layers
 
-The migration starts by naming the existing single-layer execution structures
-according to their actual responsibility. This first step does not change the
-serialized scene format or introduce a multi-layer map container.
+## Ownership and identity
 
-| Previous name | Current name | Responsibility |
-| --- | --- | --- |
-| `TiledMapLayerData` | `TiledLayerData` | One layer's cells, chunks, animation state and render references |
-| `TiledMapRef` | `TiledLayerRef` | Incarnation-safe handle to one tile-layer entity |
-| `TiledMapFacade` / `ref.map()` | `TiledLayerFacade` / `ref.layer()` | Operations on that layer's existing grid |
-| `TiledMapRenderState` | `TiledRenderState` | Shared render storage for all tile layers in the World |
-| `prepareOrderForMap`, `orderForMap`, `removeOrderForMap` | `prepareOrderForLayer`, `orderForLayer`, `removeOrderForLayer` | Prepared order indexed by tile-layer entity |
-| `visibleMap*`, `addVisibleMap`, `addPreparedVisibleMap` | `visibleTileLayer*`, `addVisibleTileLayer`, `addPreparedVisibleTileLayer` | Visible slices belonging to individual tile layers |
-| `MapLightingGeometry` | `TiledLayerLightingGeometry` | Prepared lighting receivers and casters for one layer |
-| `RoundedMapSupport` | `RoundedLayerSupport` | Prepared rounded-wall support for one layer |
-| `TiledLayerComponent.createMapData()` | `createLayerData()` | Materialization of one layer's existing dense grid |
-| `TiledLayerComponent.validateMapConfiguration()` | `validateGridConfiguration()` | Validation of grid dimensions and projection |
+`TiledMapComponent` is the document container. It owns projection, tile size and
+map extent. Its `TransformComponent` is the map origin and its `EntityIndexComponent`
+places the whole map in a Pixscape scene layer. Maps currently support translation,
+not rotation or scaling.
 
-`TiledLayerComponent` already names a tile layer and keeps its name. Normal maps,
-collection maps, TMX map documents, and the Studio's existing map authoring
-workflow have distinct responsibilities and are not renamed by a blanket
-replacement of the word "map".
+A map reuses the existing composition hierarchy capability (`GameObjectComponent`).
+Its direct children carry `TiledMapLayerComponent` (`TILE`, `IMAGE`, or `OBJECT`).
+`GameObjectMemberComponent.parentStableId` is the single authored ownership relation;
+`EntityIndexComponent.zIndex` is the local composition order. Runtime publishes the
+ordered children through the existing hierarchy/composition systems. Stable IDs come
+from `IdentityRegistry`, use the scene high-water mark, and never encode order.
 
-The Java API rename is intentional: callers use `TiledLayerRef.layer()`.
-`TiledAPI.ofEntityId` and `ofStableId` currently resolve an individual tile layer.
-They do not resolve an aggregate map or choose a layer by collection position.
-Existing stale-handle, collision, painting and animation behavior is retained.
+Tile layers keep their `TiledLayerComponent`, `TiledLayerData`, chunks and render
+references. Their grid bounds and chunk size are local storage configuration. The
+map extent describes the document; a layer's existing finite grid bounds remain
+independent so importing or converting a grid cannot shift its projection. Projection
+and tile-size fields on the tile component are materialized execution values, not
+separate authored settings. Studio omits them from attached layers when saving and
+loading derives them from the map. The layer transform owns its local offset; its
+`originX/Y` component fields are a materialized local cache, while `data.originX/Y`
+contains the resolved world origin. Normal Studio saves omit these offset caches too.
 
-## Model integration still required
+An image layer uses its existing sprite entity. An object layer is a composition
+node containing the existing object entities. Names use `PixscapeIdentityComponent`;
+custom properties stay on their existing component. Visibility inherits through the
+map and layer; local parallax uses `LayerParallaxComponent` on the Tiled layer, combined
+with scene-layer parallax for display and culling. It does not change physical poses.
 
-The aggregate model must distinguish three independent concepts:
+Tiled layers, Pixscape scene layers and physical altitude are separate domains.
+Reordering changes only local order. Cell references remain qualified by the owning
+layer's stable identity and grid coordinates; equal coordinates in two layers have
+independent cells and render refs. Spatial blocks, lighting and physics remain on
+their tile-layer owner. This does not introduce the spatial-single-map prototype or
+cross-layer spatial volumes.
 
-- A Pixscape scene layer owns scene composition and parallax.
-- A Tiled map owns common grid configuration and an ordered collection of tile
-  layers. Each tile layer keeps a stable identity, name, properties and cells.
-- Physical altitude describes spatial geometry. It is never inferred from a
-  tile layer's position in the graphical order.
+## Composition and persistence
 
-The existing chunks and buffers remain the only cell representation. Persistent
-cell references must qualify coordinates with stable layer identity, rather than
-an index into the ordered layer collection. Reordering must retain identity and
-must not move cells between grids.
+The map contributes one scene composition block. Its ordered children expand into
+existing sprite/object output or a tile layer's prepared order. The normal spatial
+pass still runs after expansion. Visible tile slices have a frame-local entity index;
+it is cleared at the existing visible-output boundary. No cell grids are copied or
+sorted per frame. Changed local orders use the existing hierarchy order invalidation.
 
-Map aggregation, TMX grouping, common-configuration ownership, explicit one-map-
-per-existing-grid conversion, aggregate persistence and authoring commands are
-not implemented by the naming step. Existing independent maps must never be
-combined by matching dimensions, coordinates, names or altitude.
+Scene schema 4 records the map and layer marker components, stable parent relations
+and local order through the regular Artemis serializer. Schema 3 is converted in the
+isolated load candidate before the live World is cleared: each independent tile grid
+gets its own new map, with no grouping heuristics. Existing layer identities, sparse
+cells, local origins, custom properties, volumes and links stay on the original entity.
+Only new map identities are allocated. The updated schema and high-water mark are
+published after successful loading. Subsequent saves use the current model.
 
-The agreed aggregate includes tile, image and object layers in the TMX order.
-Image and object layers retain their current components and tools. They may
-occur between tile layers, so they must participate in the same ordered map
-composition. They must not be extracted outside a contiguous tile-only group.
+The first-stage vocabulary remains: `TiledLayerData`, `TiledLayerRef.layer()`,
+`TiledLayerFacade`, `TiledRenderState`, `TiledLayerLightingGeometry`,
+`RoundedLayerSupport`, and render-order/visibility methods named for tile layers.
+`TiledAPI.ofEntityId/ofStableId` still resolve an individual tile layer.
+`EntitiesAPI.findAllByTiledLayerName` returns direct contents of matching Tiled
+layers; `findAllByLayerName` retains its separate Pixscape scene-layer meaning.
+Name queries use the existing cold index rebuild and invalidation boundary. Runtime
+name edits through `IdentityRegistry` invalidate Tiled-name membership; expert raw
+name or membership edits must signal `DirtyTrackerSystem.layer(entityId)`.
+
+## Current authoring boundary
+
+Projection and cell size are selected when the map is created/imported. There is no
+new map reconfiguration or layer-management UI in this tranche. Layer grid resizing
+remains the existing layer operation. Full management of layer insertion, conversion,
+reparenting and map-wide grid reconfiguration requires dedicated atomic commands.
+
+## Validation
+
+The final Runtime JVM suite passed all 1,660 tests. Coverage includes mixed
+composition, stable identity across local reordering, schema-3 conversion retaining
+origins and spatial links, and positive/negative/invalidation checks of layer-name
+queries. Existing culling, animation, physics, lighting and Spatial suites remain
+in the full run. An earlier allocation-budget assertion reported 208 transient
+bytes; its isolated class and the subsequent complete suite both passed without
+changing that test or its placement implementation.
+
+The current Runtime compiled in the Studio GWT module and rendered the tiny
+mixed-layer export in actual Chrome WebGL2 and Desktop Preview. See the Studio
+[validation and fixture instructions](../../pixscape-studio-free/docs/tiled-map-layers.md)
+for authoring checks and the generated HTML template refresh boundary.

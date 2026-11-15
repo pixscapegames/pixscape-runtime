@@ -2,11 +2,19 @@
 
 ## [0.2.5-SNAPSHOT]
 
+### Breaking changes
+* Scenes now use schema 4 for Tiled maps and their ordered tile, image and object layers. Supported schema 3 scenes are converted on load, with one map per existing tile grid.
+* Renamed tile-layer APIs: `TiledMapRef` becomes `TiledLayerRef`, `map()` becomes `layer()`, `TiledMapFacade` becomes `TiledLayerFacade`, and `TiledMapLayerData` becomes `TiledLayerData`.
+
 ### Added
+* Added prepared Game Object factories and explicit rigid placement of physics-backed compositions.
+* Added read-only tile custom properties and `findAllByTiledLayerName(...)` for Tiled-layer contents.
 * Added allocation-free `PhysicsAPI.pxToM(float)` and `mToPx(float)` conversions using the current effective pixels-per-meter scale for native Box2D coordinates.
 * Added `gameObjects().spawnDeferred(...)` for contact callbacks and other explicitly deferred spawns. Success receives a complete instance at the start of a subsequent render; failures and scene-retirement cancellations have a separate callback.
 
 ### Changed
+* Game Object roots can render their own visuals. Physics-backed entities support visual scaling without resizing their collision shapes.
+* Compatible spatial contexts share anchor searches; isolated and incompatible contexts retain individual searches.
 * Game Object composition retains unchanged sibling order and sorts only affected parent groups, while continuing to resolve frame-dependent visibility and bounds.
 * Tiled animation visits the map's indexed animated chunks instead of searching every chunk; animation mutations and grid replacement maintain membership.
 * Physics-to-Spatial synchronization checks compiled caches and orphan footprints in one grouped pass. Tiled synchronization avoids repeated chunk-reference checks within the same pass, retaining off-screen references and direct mutation detection.
@@ -16,6 +24,7 @@
 * Physics body synchronization now processes ECS membership changes and explicitly dirty bodies instead of scanning every authored and native body on every frame. Native body removal uses an ownership index instead of searching the Box2D world. Full reconciliation remains at initialization and physics reactivation.
 
 ### Fixed
+* Removing physics bodies now cleans up their joints consistently.
 * Failed Game Object materialization now releases the attempt's bodies, fixtures and joints without affecting existing instances. Delayed ECS notifications preserve newly spawned native resources and velocities set immediately after spawning.
 * Removing and restoring physics before runtime-component subscription observation no longer leaves duplicate native bodies or orphan collisions after entity deletion. Body replacement retains indexed ownership across pooled-component resets and failed candidate creation.
 
@@ -91,7 +100,7 @@
 ### Breaking changes
 * Removed the legacy Layer type system. `LayerComponent` now represents a universal Layer with only its composition index and optional Spatial Actor capability.
 * Removed dedicated Light, Physics and Tiled Layer semantics. Lights, physical entities and Tiled Maps now belong to ordinary Layers.
-* Replaced Tiled layer identity with Tiled Map identity. `TiledLayerRef` is now `TiledLayerRef`, and layer-index based Tiled API lookup has been removed in favor of explicit Map entity IDs and stable IDs.
+* Replaced Tiled layer identity with Tiled Map identity. `TiledLayerRef` is now `TiledMapRef`, and layer-index based Tiled API lookup has been removed in favor of explicit Map entity IDs and stable IDs.
 * Tiled Map configuration is no longer stored as scene-global metadata. Projection, tile size, map dimensions, chunk size and origin are now owned by each Tiled Map.
 * Schema 3 scenes using the obsolete `LayerComponent.type` representation are rejected and must be re-exported with a compatible Studio version.
 

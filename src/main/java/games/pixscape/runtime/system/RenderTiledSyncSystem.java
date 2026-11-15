@@ -579,7 +579,7 @@ public final class RenderTiledSyncSystem extends IteratingSystem implements Prof
     }
 
     private void computeMapViewBounds(int layerIndex) {
-        displayOffsetResolver.resolveLayer(layerIndex, mapDisplayOffset);
+        displayOffsetResolver.resolveEntity(world, currentMapEntity, layerIndex, mapDisplayOffset);
         // Tile refs remain in authored map space until frame extraction shifts
         // the atomic Map group into display space. Invert that one group offset
         // once to query authored chunks against the display camera viewport.
