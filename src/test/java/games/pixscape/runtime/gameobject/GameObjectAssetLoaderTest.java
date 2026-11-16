@@ -17,7 +17,7 @@ public class GameObjectAssetLoaderTest {
 
     @Test
     public void literalJsonCollectionsPreserveOrderAndIdentities() {
-        String json = "{schemaVersion:3,rootSourceEntityId:9,entities:["
+        String json = "{schemaVersion:4,rootSourceEntityId:9,entities:["
                 + "{sourceEntityId:9,transform:{scaleX:1,scaleY:1},gameObject:{},physicsBody:{}},"
                 + "{sourceEntityId:2,parentSourceEntityId:9,transform:{scaleX:1,scaleY:1},"
                 + "tags:{values:[enemy,boss]},physicsBody:{},physicsShapes:["
@@ -248,29 +248,31 @@ public class GameObjectAssetLoaderTest {
         physical.physicsBody = body();
         GameObjectAsset.PhysicsShapeData footprint = shape(1, circle());
         footprint.enabled = true;
-        footprint.spatialFootprint = true;
+        footprint.useSpatialFootprint = true;
+        footprint.geometry = null;
         physical.physicsShapes.add(footprint);
-        physical.spatialHeight = new GameObjectAsset.SpatialHeightData();
-        physical.spatialHeight.rectangles = new games.pixscape.runtime.spatial.ActorSpatialRectangles();
-        physical.spatialHeight.rectangles.staticRectangle = new games.pixscape.runtime.spatial.ActorSpatialRectangleData();
-        physical.spatialHeight.altitude = 2.5f;
-        physical.spatialHeight.rectangles = games.pixscape.runtime.spatial.SpatialRectangleTestData.rectangles(7.5f);
+        physical.spatialRepresentation = new GameObjectAsset.SpatialRepresentationData();
+        physical.spatialRepresentation.rectangles = new games.pixscape.runtime.spatial.ActorSpatialRectangles();
+        physical.spatialRepresentation.rectangles.staticRectangle = new games.pixscape.runtime.spatial.ActorSpatialRectangleData();
+        physical.spatialFootprint = new games.pixscape.runtime.component.spatial.SpatialFootprintComponent();
+        physical.spatialFootprint.altitude = 2.5f;
+        physical.spatialRepresentation.rectangles = games.pixscape.runtime.spatial.SpatialRectangleTestData.rectangles(7.5f);
 
         GameObjectAsset restored = loader.fromJson(loader.toJson(asset));
 
-        Assert.assertEquals(3, restored.schemaVersion);
-        Assert.assertTrue(restored.entities.get(2).physicsShapes.get(0).spatialFootprint);
-        Assert.assertEquals(2.5f, restored.entities.get(2).spatialHeight.altitude, 0f);
-        Assert.assertEquals(7.5f, restored.entities.get(2).spatialHeight.rectangles.staticRectangle.height, 0f);
+        Assert.assertEquals(4, restored.schemaVersion);
+        Assert.assertTrue(restored.entities.get(2).physicsShapes.get(0).useSpatialFootprint);
+        Assert.assertEquals(2.5f, restored.entities.get(2).spatialFootprint.altitude, 0f);
+        Assert.assertEquals(7.5f, restored.entities.get(2).spatialRepresentation.rectangles.staticRectangle.height, 0f);
     }
 
     @Test
     public void negativeSpatialRectangleHeightIsRejected() {
         GameObjectAsset asset = validNestedAsset();
-        asset.entities.get(2).spatialHeight = new GameObjectAsset.SpatialHeightData();
-        asset.entities.get(2).spatialHeight.rectangles = new games.pixscape.runtime.spatial.ActorSpatialRectangles();
-        asset.entities.get(2).spatialHeight.rectangles.staticRectangle = new games.pixscape.runtime.spatial.ActorSpatialRectangleData();
-        asset.entities.get(2).spatialHeight.rectangles.staticRectangle.height = -1f;
+        asset.entities.get(2).spatialRepresentation = new GameObjectAsset.SpatialRepresentationData();
+        asset.entities.get(2).spatialRepresentation.rectangles = new games.pixscape.runtime.spatial.ActorSpatialRectangles();
+        asset.entities.get(2).spatialRepresentation.rectangles.staticRectangle = new games.pixscape.runtime.spatial.ActorSpatialRectangleData();
+        asset.entities.get(2).spatialRepresentation.rectangles.staticRectangle.height = -1f;
         rejected(asset, "positive finite dimensions");
     }
 
@@ -318,7 +320,7 @@ public class GameObjectAssetLoaderTest {
 
         GameObjectAsset restored = loader.fromJson(loader.toJson(asset));
 
-        Assert.assertEquals(3, restored.schemaVersion);
+        Assert.assertEquals(4, restored.schemaVersion);
         Assert.assertEquals(1, restored.joints.size);
         GameObjectAsset.GameObjectJointData restoredJoint = restored.joints.get(0);
         Assert.assertEquals(7, restoredJoint.jointLocalId);
@@ -341,7 +343,7 @@ public class GameObjectAssetLoaderTest {
     public void v2AssetsAreRejectedRatherThanSilentlyMigrated() {
         GameObjectAsset asset = validNestedAsset();
         asset.schemaVersion = 2;
-        rejected(asset, "schemaVersion must be 3");
+        rejected(asset, "schemaVersion must be 4");
     }
 
     private void rejected(GameObjectAsset asset, String diagnostic) {

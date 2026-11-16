@@ -8,7 +8,7 @@ import com.artemis.managers.WorldSerializationManager;
 import games.pixscape.runtime.component.physics.PhysicsCompiledFixturesComponent;
 import games.pixscape.runtime.component.physics.PhysicsRuntimeBodyComponent;
 import games.pixscape.runtime.component.physics.PhysicsRuntimeJointComponent;
-import games.pixscape.runtime.component.spatial.SpatialPhysicsFootprintComponent;
+import games.pixscape.runtime.component.spatial.SpatialFootprintComponent;
 import org.junit.Test;
 
 import java.io.ByteArrayInputStream;
@@ -80,7 +80,7 @@ public class AuthoredGeometryComponentTest {
             assertNotNull(world.getMapper(PhysicsRuntimeBodyComponent.class).create(entity));
             assertNotNull(world.getMapper(PhysicsRuntimeJointComponent.class).create(entity));
             assertNotNull(world.getMapper(PhysicsCompiledFixturesComponent.class).create(entity));
-            assertNotNull(world.getMapper(SpatialPhysicsFootprintComponent.class).create(entity));
+            assertNotNull(world.getMapper(SpatialFootprintComponent.class).create(entity));
         } finally {
             world.dispose();
         }

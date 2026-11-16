@@ -8,7 +8,7 @@ import com.artemis.managers.WorldSerializationManager;
 import com.badlogic.gdx.utils.GdxNativesLoader;
 import games.pixscape.runtime.component.TiledLayerComponent;
 import games.pixscape.runtime.component.TransformComponent;
-import games.pixscape.runtime.component.spatial.SpatialHeightComponent;
+import games.pixscape.runtime.component.spatial.SpatialRepresentationComponent;
 import games.pixscape.runtime.component.spatial.SpatialShapesComponent;
 import games.pixscape.runtime.system.DirtyTrackerSystem;
 import games.pixscape.runtime.tiled.TileChunk;
@@ -47,17 +47,17 @@ public class SpatialHeightPhase1SerializationTest {
         Assert.assertEquals(1, loaded.entities.size());
         int loadedEntity = loaded.entities.get(0);
         Assert.assertTrue(loadedWorld.getMapper(TransformComponent.class).has(loadedEntity));
-        Assert.assertFalse(loadedWorld.getMapper(SpatialHeightComponent.class).has(loadedEntity));
+        Assert.assertFalse(loadedWorld.getMapper(SpatialRepresentationComponent.class).has(loadedEntity));
         Assert.assertFalse(loadedWorld.getMapper(SpatialShapesComponent.class).has(loadedEntity));
     }
 
     @Test
-    public void spatialHeightComponentSerializesAndDeserializes() {
+    public void spatialRepresentationComponentSerializesAndDeserializes() {
         World world = serializationWorld();
 
         int entity = world.create();
-        SpatialHeightComponent spatial = world.getMapper(SpatialHeightComponent.class).create(entity);
-        spatial.altitude = 8.5f;
+        SpatialRepresentationComponent spatial = world.getMapper(SpatialRepresentationComponent.class).create(entity);
+        world.getMapper(games.pixscape.runtime.component.spatial.SpatialFootprintComponent.class).create(entity).altitude = 8.5f;
         games.pixscape.runtime.spatial.SpatialRectangleTestData.setHeight(spatial, 24.25f);
         world.process();
 
@@ -65,9 +65,9 @@ public class SpatialHeightPhase1SerializationTest {
         SaveFileFormat loaded = load(loadedWorld, saveEntity(world, entity));
         int loadedEntity = loaded.entities.get(0);
 
-        SpatialHeightComponent loadedSpatial =
-                loadedWorld.getMapper(SpatialHeightComponent.class).get(loadedEntity);
-        Assert.assertEquals(8.5f, loadedSpatial.altitude, 0.0001f);
+        SpatialRepresentationComponent loadedSpatial =
+                loadedWorld.getMapper(SpatialRepresentationComponent.class).get(loadedEntity);
+        Assert.assertEquals(8.5f, loadedWorld.getMapper(games.pixscape.runtime.component.spatial.SpatialFootprintComponent.class).get(loadedEntity).altitude, 0.0001f);
         Assert.assertEquals(24.25f, loadedSpatial.rectangles.staticRectangle.height, 0.0001f);
     }
 

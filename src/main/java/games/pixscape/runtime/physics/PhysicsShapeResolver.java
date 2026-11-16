@@ -13,12 +13,38 @@ public final class PhysicsShapeResolver {
             throw new IllegalArgumentException("PhysicsShapeData cannot be null.");
         }
         source.validateStructure();
-        if (source.spatialBlockId > 0) {
+        if (source.spatialBlockId > 0 || source.useSpatialFootprint) {
             throw new IllegalArgumentException(
                     "Linked physics shape resolution is not available before "
                             + "the Spatial resolver slice.");
         }
         return ResolvedPhysicsShape.fromGeometry(source);
+    }
+
+    public ResolvedPhysicsShape resolveFootprint(PhysicsShapeData source,
+            games.pixscape.runtime.component.spatial.SpatialFootprintComponent footprint, float ppm) {
+        source.validateStructure();
+        if (!source.useSpatialFootprint || footprint == null)
+            throw new IllegalArgumentException("Footprint-derived collision requires an authored footprint.");
+        footprint.validate();
+        if (!Float.isFinite(ppm) || ppm <= 0f)
+            throw new IllegalArgumentException("Footprint-derived collision requires positive pixelsPerMeter.");
+        ResolvedPhysicsShape out = new ResolvedPhysicsShape();
+        out.physicsShapeId = source.physicsShapeId;
+        out.shapeType = PhysicsGeometryData.SHAPE_CIRCLE;
+        out.offsetX = footprint.localOffsetXPx / ppm;
+        out.offsetY = footprint.localOffsetYPx / ppm;
+        out.radius = footprint.radiusPx / ppm;
+        out.density = source.density;
+        out.friction = source.friction;
+        out.restitution = source.restitution;
+        out.sensor = source.sensor;
+        out.categoryBits = source.categoryBits;
+        out.maskBits = source.maskBits;
+        out.groupIndex = source.groupIndex;
+        out.enabled = source.enabled;
+        out.diagnosticSource = "spatial footprint";
+        return out;
     }
 
     public ResolvedPhysicsShape resolveLinked(
@@ -125,7 +151,6 @@ public final class PhysicsShapeResolver {
 
         ResolvedPhysicsShape resolved = new ResolvedPhysicsShape();
         resolved.physicsShapeId = source.physicsShapeId;
-        resolved.spatialFootprint = source.spatialFootprint;
         resolved.shapeType = PhysicsGeometryData.SHAPE_POLYGON;
         resolved.polygonVertices = vertices;
         resolved.polygonVertexCount = 4;

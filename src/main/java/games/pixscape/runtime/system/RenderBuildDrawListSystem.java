@@ -8,7 +8,7 @@ import com.artemis.annotations.SkipWire;
 import games.pixscape.runtime.component.*;
 import games.pixscape.runtime.component.physics.PhysicsBodyComponent;
 import games.pixscape.runtime.component.physics.PhysicsShapesComponent;
-import games.pixscape.runtime.component.spatial.SpatialHeightComponent;
+import games.pixscape.runtime.component.spatial.SpatialRepresentationComponent;
 import games.pixscape.runtime.hierarchy.GameObjectCompositionState;
 import games.pixscape.runtime.hierarchy.GameObjectTopologyState;
 import games.pixscape.runtime.profiling.ProfiledSystem;
@@ -38,7 +38,7 @@ public final class RenderBuildDrawListSystem extends BaseSystem implements Profi
     private ComponentMapper<VisibilityComponent> mVisibility;
     private ComponentMapper<PhysicsBodyComponent> mBody;
     private ComponentMapper<PhysicsShapesComponent> mShapes;
-    private ComponentMapper<SpatialHeightComponent> mSpatialHeight;
+    private ComponentMapper<SpatialRepresentationComponent> mSpatialRepresentation;
     private EntitySubscription allEntities;
     private ComponentMapper<GameObjectComponent> mGameObject;
     private ComponentMapper<GameObjectMemberComponent> mGameObjectMember;
@@ -245,7 +245,9 @@ public final class RenderBuildDrawListSystem extends BaseSystem implements Profi
             if (mVisibility.has(entity)) flags |= RenderStats.ECS_COMPONENT_VISIBILITY;
             if (mBody.has(entity)) flags |= RenderStats.ECS_COMPONENT_BODY;
             if (mShapes.has(entity)) flags |= RenderStats.ECS_COMPONENT_FIXTURES;
-            if (mSpatialHeight.has(entity)) flags |= RenderStats.ECS_COMPONENT_SPATIAL_HEIGHT;
+            if (mSpatialRepresentation.has(entity)) {
+                flags |= RenderStats.ECS_COMPONENT_SPATIAL_HEIGHT;
+            }
         }
 
         stats.ecsFirstSkippedReason = reason;

@@ -215,7 +215,9 @@ public class SceneLoaderPhysicsSchemaTest {
                 shape.geometry = new PhysicsGeometryData();
                 shape.geometry.shapeType = PhysicsGeometryData.SHAPE_CIRCLE;
                 shape.geometry.radius = 1f;
-                shape.spatialFootprint = true;
+                shape.useSpatialFootprint = true;
+                shape.geometry = null;
+                world.getMapper(games.pixscape.runtime.component.spatial.SpatialFootprintComponent.class).create(entityId);
                 shapes.shapes.add(shape);
             }
         });
@@ -231,9 +233,68 @@ public class SceneLoaderPhysicsSchemaTest {
                     .get(Aspect.all(PhysicsShapesComponent.class))
                     .getEntities().get(0);
             Assert.assertTrue(target.getMapper(PhysicsShapesComponent.class)
-                    .get(entityId).shapes.first().spatialFootprint);
+                    .get(entityId).shapes.first().useSpatialFootprint);
         } finally {
             target.dispose();
+        }
+    }
+
+    @Test
+    public void physicsDisabledLoadsAutonomousActorAndRoundTripsFootprint() throws Exception {
+        FileHandle file = writeScene(new WorldSetup() {
+            @Override public void apply(World world) {
+                int actor = world.create();
+                world.getMapper(games.pixscape.runtime.component.TransformComponent.class).create(actor);
+                games.pixscape.runtime.component.spatial.SpatialFootprintComponent footprint = world.getMapper(
+                        games.pixscape.runtime.component.spatial.SpatialFootprintComponent.class).create(actor);
+                footprint.radiusPx = 19;
+                footprint.altitude = 7;
+                footprint.localOffsetXPx = -4;
+                world.getMapper(games.pixscape.runtime.component.spatial.SpatialRepresentationComponent.class)
+                        .create(actor).rectangles = games.pixscape.runtime.spatial.SpatialRectangleTestData.rectangles(80);
+            }
+        });
+        World target = world();
+        try {
+            SceneMetaRuntime meta = new SceneMetaRuntime();
+            meta.physicsEnabled = false;
+            SaveFileFormat loaded = SceneLoader.loadScene(target, file, false, meta);
+            int actor = loaded.entities.get(0);
+            games.pixscape.runtime.component.spatial.SpatialFootprintComponent footprint = target.getMapper(
+                    games.pixscape.runtime.component.spatial.SpatialFootprintComponent.class).get(actor);
+            Assert.assertEquals(19, footprint.radiusPx, 0);
+            Assert.assertEquals(7, footprint.altitude, 0);
+            Assert.assertEquals(-4, footprint.localOffsetXPx, 0);
+            Assert.assertFalse(target.getMapper(PhysicsBodyComponent.class).has(actor));
+            Assert.assertFalse(target.getMapper(PhysicsShapesComponent.class).has(actor));
+        } finally {
+            target.dispose();
+            file.delete();
+        }
+    }
+
+    @Test
+    public void obsoleteFootprintIsRejectedBeforeReplacingTheCurrentScene() throws Exception {
+        FileHandle file = writeScene(new WorldSetup() {
+            @Override public void apply(World world) {
+                int actor = world.create();
+                world.getMapper(games.pixscape.runtime.component.spatial.SpatialFootprintComponent.class).create(actor);
+            }
+        });
+        file.writeString(file.readString("UTF-8").replace("SpatialFootprintComponent", "SpatialPhysicsFootprintComponent"), false, "UTF-8");
+        World target = world();
+        try {
+            int existing = target.create();
+            target.process();
+            SceneMetaRuntime meta = new SceneMetaRuntime();
+            meta.physicsEnabled = false;
+            IllegalArgumentException failure = Assert.assertThrows(IllegalArgumentException.class,
+                    () -> SceneLoader.loadScene(target, file, true, meta));
+            Assert.assertTrue(failure.getMessage().contains("Obsolete physics-owned Spatial footprint"));
+            Assert.assertTrue(target.getEntityManager().isActive(existing));
+        } finally {
+            target.dispose();
+            file.delete();
         }
     }
 

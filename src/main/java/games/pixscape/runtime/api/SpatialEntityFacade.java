@@ -5,17 +5,25 @@ package games.pixscape.runtime.api;
  */
 public interface SpatialEntityFacade {
     /**
-     * Returns whether the entity has a spatial height component.
+     * Returns whether the entity has a autonomous footprint and representation.
      */
     boolean enabled();
 
+    float footprintRadius();
+    float footprintOffsetX();
+    float footprintOffsetY();
+
+    /** Cold geometric edit in pixels; prepares any explicitly linked collision before publication. */
+    SpatialEntityFacade setFootprint(float offsetX, float offsetY, float radius);
+
+
     /**
-     * Ensures the entity has a spatial height component.
+     * Ensures the entity has a autonomous footprint and representation.
      */
     SpatialEntityFacade enable();
 
     /**
-     * Removes the entity spatial height component when present.
+     * Removes the entity autonomous footprint and representation when present.
      */
     SpatialEntityFacade disable();
 

@@ -35,15 +35,6 @@ public final class LightingGeometrySystem extends BaseSystem {
         shadowPreparation = preparation;
     }
 
-    private boolean editingActorFootprints;
-
-    /**
-     * Studio can temporarily remove an actor's physics body while editing its scene.
-     */
-    public void allowIncompleteAuthoringFootprints() {
-        editingActorFootprints = true;
-    }
-
     private final DynamicEntityRenderState dynamic;
     private final TiledRenderState tiled;
     private LightingFrame frame;
@@ -58,9 +49,10 @@ public final class LightingGeometrySystem extends BaseSystem {
     private ComponentMapper<games.pixscape.runtime.component.ShaderParamsComponent> materialParameters;
     private ComponentMapper<games.pixscape.runtime.component.TiledAnimationComponent> animations;
     private ComponentMapper<games.pixscape.runtime.component.AnimationComponent> actorAnimations;
-    private ComponentMapper<games.pixscape.runtime.component.spatial.SpatialHeightComponent> heights;
-    private ComponentMapper<games.pixscape.runtime.component.spatial.SpatialPhysicsFootprintComponent> footprints;
+    private ComponentMapper<games.pixscape.runtime.component.spatial.SpatialRepresentationComponent> heights;
+    private ComponentMapper<games.pixscape.runtime.component.spatial.SpatialFootprintComponent> footprints;
     private ComponentMapper<games.pixscape.runtime.component.TransformComponent> transforms;
+    private final games.pixscape.runtime.spatial.SpatialActorGeometry.Footprint actorPose = new games.pixscape.runtime.spatial.SpatialActorGeometry.Footprint();
     private final float[] rectangleAnchor = new float[3], rectangleUV = new float[2];
     @com.artemis.annotations.SkipWire
     private games.pixscape.runtime.service.AtlasRuntimeService atlasService;
@@ -161,7 +153,7 @@ public final class LightingGeometrySystem extends BaseSystem {
             int e = dynamic.renderSlotToEntityId[slot];
             if (e < 0 || dynamic.light[slot] != 0) continue;
             SurfaceLightingComponent a = surfaces.getSafe(e, null);
-            games.pixscape.runtime.component.spatial.SpatialHeightComponent h = heights.getSafe(e, null);
+            games.pixscape.runtime.component.spatial.SpatialRepresentationComponent h = heights.getSafe(e, null);
             if (h != null) {
                 if (h.rectangles == null)
                     throw new LightingAdmissionException("Spatial actor " + e + " has no rectangles");
@@ -386,29 +378,24 @@ public final class LightingGeometrySystem extends BaseSystem {
     private void publishActorShadowRectangle(int e, LightingSurface surface, AssetRefComponent ref) {
         surface.shadowVertices = null;
         surface.shadowVertexCount = 0;
-        games.pixscape.runtime.component.spatial.SpatialHeightComponent h = heights.getSafe(e, null);
+        games.pixscape.runtime.component.spatial.SpatialRepresentationComponent h = heights.getSafe(e, null);
         if (h == null) return; // Non-spatial sprites keep their native surface, not a legacy actor profile.
         games.pixscape.runtime.component.AnimationComponent animation = actorAnimations.getSafe(e, null);
         games.pixscape.runtime.spatial.ActorSpatialRectangleData rectangle = h.rectangles == null ? null : h.rectangles.get(
                 ref == null ? 0 : ref.assetId, animation == null ? null : animation.currentClip);
         if (rectangle == null)
             throw new LightingAdmissionException("Spatial actor " + e + " has no rectangle for its active representation");
-        games.pixscape.runtime.component.spatial.SpatialPhysicsFootprintComponent foot = footprints.getSafe(e, null);
+        games.pixscape.runtime.component.spatial.SpatialFootprintComponent foot = footprints.getSafe(e, null);
         games.pixscape.runtime.component.TransformComponent t = transforms.getSafe(e, null);
         if (t == null)
             throw new LightingAdmissionException("Spatial actor " + e + " has no transform for its footprint anchor");
-        if (foot == null || !foot.valid) {
-            if (editingActorFootprints && (foot == null || !foot.invalidSpatialFootprint)) {
-                surface.shadowCaster = false;
-                return;
-            }
-            throw new LightingAdmissionException("Spatial actor " + e + " has no valid footprint anchor");
-        }
         GameObjectHierarchySystem hierarchy = world.getSystem(GameObjectHierarchySystem.class);
         games.pixscape.runtime.hierarchy.WorldTransformState state = hierarchy == null ? null : hierarchy.worldTransforms();
-        boolean resolved = state != null && state.isResolved(e);
-        games.pixscape.runtime.spatial.ActorSpatialRectanglePlacement.anchor(resolved ? state.x[e] : t.x, resolved ? state.y[e] : t.y,
-                resolved ? state.rotationRad[e] : t.rotationRad, foot.localOffsetXPx, foot.localOffsetYPx, h.altitude, rectangleAnchor);
+        if (!games.pixscape.runtime.service.SpatialActorPose.resolve(e, t, foot, state, actorPose)) {
+            throw new LightingAdmissionException("Spatial actor " + e + " has no valid authored footprint");
+        }
+        games.pixscape.runtime.spatial.ActorSpatialRectanglePlacement.anchor(actorPose.footX, actorPose.footY,
+                0f, 0f, 0f, actorPose.bottom, rectangleAnchor);
         if (surface.actorShadowRectangle == null) surface.actorShadowRectangle = new ActorShadowRectangleCaster();
         surface.actorShadowRectangle.update(rectangle, rectangleAnchor[0], rectangleAnchor[1], rectangleAnchor[2], corners);
         surface.shadowVertices = surface.actorShadowRectangle.vertices;

@@ -7,9 +7,9 @@ public final class PhysicsShapeData {
     public int physicsShapeId = 0;
     public int spatialBlockId = 0;
     /**
-     * Explicit owner of this entity's Spatial rendering footprint.
+     * Uses the same owner's authored Spatial footprint as collision geometry.
      */
-    public boolean spatialFootprint = false;
+    public boolean useSpatialFootprint = false;
     public PhysicsGeometryData geometry;
 
     public float density = 1f;
@@ -27,7 +27,7 @@ public final class PhysicsShapeData {
         PhysicsShapeData copy = new PhysicsShapeData();
         copy.physicsShapeId = physicsShapeId;
         copy.spatialBlockId = spatialBlockId;
-        copy.spatialFootprint = spatialFootprint;
+        copy.useSpatialFootprint = useSpatialFootprint;
         copy.geometry = geometry != null ? geometry.copy() : null;
         copy.density = density;
         copy.friction = friction;
@@ -48,16 +48,17 @@ public final class PhysicsShapeData {
         if (spatialBlockId < 0) {
             throw invalid("spatialBlockId must be non-negative.");
         }
-        if (spatialBlockId == 0) {
+        if (useSpatialFootprint) {
+            if (spatialBlockId != 0 || geometry != null) {
+                throw invalid("footprint-derived collision requires spatialBlockId=0 and no copied geometry.");
+            }
+        } else if (spatialBlockId == 0) {
             if (geometry == null) {
                 throw invalid("manual shape geometry is required.");
             }
             geometry.validate(physicsShapeId);
         } else if (geometry != null) {
             throw invalid("linked shape geometry must be null.");
-        }
-        if (spatialFootprint) {
-            validateSpatialFootprint();
         }
         validateFinite(density, "density");
         validateFinite(friction, "friction");
@@ -77,7 +78,7 @@ public final class PhysicsShapeData {
         return other != null
                 && physicsShapeId == other.physicsShapeId
                 && spatialBlockId == other.spatialBlockId
-                && spatialFootprint == other.spatialFootprint
+                && useSpatialFootprint == other.useSpatialFootprint
                 && (geometry == null
                 ? other.geometry == null
                 : geometry.contentEquals(other.geometry))
@@ -89,25 +90,6 @@ public final class PhysicsShapeData {
                 && maskBits == other.maskBits
                 && groupIndex == other.groupIndex
                 && enabled == other.enabled;
-    }
-
-    private void validateSpatialFootprint() {
-        if (spatialBlockId != 0) {
-            throw invalid("spatial footprint must be a manual shape.");
-        }
-        if (geometry == null) {
-            throw invalid("spatial footprint geometry is required.");
-        }
-        if (geometry.shapeType != PhysicsGeometryData.SHAPE_CIRCLE) {
-            throw invalid("spatial footprint must use circle geometry.");
-        }
-        if (!enabled) {
-            throw invalid("spatial footprint must be enabled.");
-        }
-        validateFinite(geometry.radius, "spatial footprint radius");
-        if (geometry.radius <= 0f) {
-            throw invalid("spatial footprint radius must be strictly positive.");
-        }
     }
 
     private void validateFinite(float value, String field) {

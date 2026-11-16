@@ -11,8 +11,8 @@ import games.pixscape.runtime.component.TransformComponent;
 import games.pixscape.runtime.component.physics.PhysicsBodyComponent;
 import games.pixscape.runtime.component.physics.PhysicsCompiledFixturesComponent;
 import games.pixscape.runtime.component.physics.PhysicsShapesComponent;
-import games.pixscape.runtime.component.spatial.SpatialHeightComponent;
-import games.pixscape.runtime.component.spatial.SpatialPhysicsFootprintComponent;
+import games.pixscape.runtime.component.spatial.SpatialRepresentationComponent;
+import games.pixscape.runtime.component.spatial.SpatialFootprintComponent;
 import games.pixscape.runtime.physics.CompiledFixtureData;
 import games.pixscape.runtime.physics.PhysicsGeometryData;
 import games.pixscape.runtime.physics.PhysicsShapeData;
@@ -36,7 +36,7 @@ public class PhysicsStableFrameTest {
         Counters counters = new Counters();
         sync.setTestObserver(counters);
         World world = new World(new WorldConfigurationBuilder()
-                .with(dirty, sync, new PhysicsSpatialFootprintSyncSystem(100f))
+                .with(dirty, sync)
                 .build());
 
         int actor = world.create();
@@ -45,8 +45,8 @@ public class PhysicsStableFrameTest {
         EntityIndexComponent index =
                 world.getMapper(EntityIndexComponent.class).create(actor);
         index.layerIndex = 0;
-        SpatialHeightComponent height =
-                world.getMapper(SpatialHeightComponent.class).create(actor);
+        SpatialRepresentationComponent height =
+                world.getMapper(SpatialRepresentationComponent.class).create(actor);
         games.pixscape.runtime.spatial.SpatialRectangleTestData.setHeight(height, 2f);
         PhysicsShapesComponent sources =
                 world.getMapper(PhysicsShapesComponent.class).create(actor);
@@ -55,8 +55,12 @@ public class PhysicsStableFrameTest {
         circle.physicsShapeId = 1;
         circle.geometry.shapeType = PhysicsGeometryData.SHAPE_CIRCLE;
         circle.geometry.radius = 0.25f;
-        circle.spatialFootprint = true;
+        circle.useSpatialFootprint = false;
         sources.shapes.add(circle);
+        games.pixscape.runtime.component.spatial.SpatialFootprintComponent authoredFootprint = world.getMapper(games.pixscape.runtime.component.spatial.SpatialFootprintComponent.class).create(actor);
+        authoredFootprint.radiusPx = circle.geometry.radius * 100f;
+        authoredFootprint.localOffsetXPx = circle.geometry.offsetX * 100f;
+        authoredFootprint.localOffsetYPx = circle.geometry.offsetY * 100f;
         PhysicsShapeData polygon = new PhysicsShapeData();
         polygon.geometry = new PhysicsGeometryData();
         polygon.physicsShapeId = 2;
@@ -86,12 +90,11 @@ public class PhysicsStableFrameTest {
         world.process();
         PhysicsCompiledFixturesComponent compiled =
                 world.getMapper(PhysicsCompiledFixturesComponent.class).get(actor);
-        SpatialPhysicsFootprintComponent footprint =
-                world.getMapper(SpatialPhysicsFootprintComponent.class).get(actor);
+        SpatialFootprintComponent footprint =
+                world.getMapper(SpatialFootprintComponent.class).get(actor);
         Assert.assertTrue(compiled.valid);
-        Assert.assertTrue(footprint.valid);
+        Assert.assertTrue(footprint.radiusPx > 0f);
         Assert.assertEquals(circle.geometry.radius * 100f, footprint.radiusPx, 0f);
-        Assert.assertEquals(compiled.generation, footprint.physicsGeneration);
         Assert.assertEquals(0, counters.bodyCompiles);
         Assert.assertEquals(0, counters.shapeCompiles);
         Assert.assertEquals(0, counters.polygonDecompositions);
@@ -101,10 +104,10 @@ public class PhysicsStableFrameTest {
                 world.getMapper(EntityIndexComponent.class);
         ComponentMapper<TransformComponent> transforms =
                 world.getMapper(TransformComponent.class);
-        ComponentMapper<SpatialHeightComponent> heights =
-                world.getMapper(SpatialHeightComponent.class);
-        ComponentMapper<SpatialPhysicsFootprintComponent> spatialFootprints =
-                world.getMapper(SpatialPhysicsFootprintComponent.class);
+        ComponentMapper<SpatialRepresentationComponent> heights =
+                world.getMapper(SpatialRepresentationComponent.class);
+        ComponentMapper<SpatialFootprintComponent> spatialFootprints =
+                world.getMapper(SpatialFootprintComponent.class);
         for (int frame = 0; frame < 1000; frame++) {
             world.process();
             collector.collect(
@@ -138,8 +141,7 @@ public class PhysicsStableFrameTest {
         dirty.physics(actor, PhysicsDirtyBits.ALL);
         world.process();
         Assert.assertEquals(generationBeforeMutation + 1, compiled.generation);
-        Assert.assertEquals(liveCircle.geometry.radius * 100f, footprint.radiusPx, 0f);
-        Assert.assertEquals(compiled.generation, footprint.physicsGeneration);
+        Assert.assertEquals(25f, footprint.radiusPx, 0f);
 
         Body nativeBody = world.getMapper(
                         games.pixscape.runtime.component.physics.PhysicsRuntimeBodyComponent.class)
@@ -149,8 +151,7 @@ public class PhysicsStableFrameTest {
         dirty.physics(actor, PhysicsDirtyBits.ALL);
         world.process();
         Assert.assertTrue(compiled.valid);
-        Assert.assertTrue(footprint.valid);
-        Assert.assertEquals(compiled.generation, footprint.physicsGeneration);
+        Assert.assertTrue(footprint.radiusPx > 0f);
         world.dispose();
         box2d.dispose();
     }

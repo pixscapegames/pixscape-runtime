@@ -20,7 +20,7 @@ import games.pixscape.runtime.component.physics.PhysicsCompiledFixturesComponent
 import games.pixscape.runtime.component.physics.PhysicsRuntimeBodyComponent;
 import games.pixscape.runtime.component.physics.PhysicsShapesComponent;
 import games.pixscape.runtime.component.spatial.SpatialBlocksComponent;
-import games.pixscape.runtime.component.spatial.SpatialHeightComponent;
+import games.pixscape.runtime.component.spatial.SpatialRepresentationComponent;
 import games.pixscape.runtime.engine.PixscapeEngine;
 import games.pixscape.runtime.loading.SceneMetaRuntime;
 import games.pixscape.runtime.particle.ParticleEffectPath;
@@ -917,7 +917,9 @@ public final class PixscapeApiImpl implements PixscapeAPI {
 
         @Override
         public SpatialEntityFacade spatial() {
-            if (spatial == null) spatial = new SpatialEntityFacadeImpl(sceneLayers, handle);
+            if (spatial == null) {
+                spatial = new SpatialEntityFacadeImpl(engine, sceneLayers, handle);
+            }
             return spatial;
         }
 
@@ -1461,21 +1463,27 @@ public final class PixscapeApiImpl implements PixscapeAPI {
     }
 
     static final class SpatialEntityFacadeImpl implements SpatialEntityFacade {
+        private final PixscapeEngine engine;
         private final SceneLayerResolver sceneLayers;
         private final EntityHandle handle;
 
-        SpatialEntityFacadeImpl(SceneLayerResolver sceneLayers, EntityHandle handle) {
+        SpatialEntityFacadeImpl(PixscapeEngine engine, SceneLayerResolver sceneLayers, EntityHandle handle) {
+            this.engine = engine;
             this.sceneLayers = sceneLayers;
             this.handle = handle;
         }
 
         @Override
         public boolean enabled() {
-            return comp(false) != null;
+            return comp(false) != null && footprint(false) != null;
         }
 
         @Override
         public SpatialEntityFacade enable() {
+            if (handle.world() == null) {
+                return this;
+            }
+            footprint(true);
             activeRectangle(comp(true), true);
             return this;
         }
@@ -1484,20 +1492,21 @@ public final class PixscapeApiImpl implements PixscapeAPI {
         public SpatialEntityFacade disable() {
             World world = handle.world();
             if (world == null) return this;
-            ComponentMapper<SpatialHeightComponent> mapper = world.getMapper(SpatialHeightComponent.class);
+            PhysicsService.removeSpatialFootprint(world, handle.entityId);
+            ComponentMapper<SpatialRepresentationComponent> mapper = world.getMapper(SpatialRepresentationComponent.class);
             if (mapper.has(handle.entityId)) mapper.remove(handle.entityId);
             return this;
         }
 
         @Override
         public float altitude() {
-            SpatialHeightComponent c = comp(false);
+            games.pixscape.runtime.component.spatial.SpatialFootprintComponent c = footprint(false);
             return c != null ? c.altitude : 0f;
         }
 
         @Override
         public float height() {
-            SpatialHeightComponent c = comp(false);
+            SpatialRepresentationComponent c = comp(false);
             games.pixscape.runtime.spatial.ActorSpatialRectangleData rectangle = activeRectangle(c, false);
             return rectangle == null ? 0f : rectangle.height;
         }
@@ -1506,8 +1515,7 @@ public final class PixscapeApiImpl implements PixscapeAPI {
         public SpatialEntityFacade setAltitude(float altitude) {
             if (handle.world() == null) return this;
             requireFinite("Spatial altitude", altitude);
-            SpatialHeightComponent c = comp(true);
-            if (c != null) c.altitude = altitude;
+            footprint(true).altitude = altitude;
             return this;
         }
 
@@ -1516,7 +1524,7 @@ public final class PixscapeApiImpl implements PixscapeAPI {
             if (handle.world() == null) return this;
             requireFinite("Spatial height", height);
             if (height <= 0f) throw new IllegalArgumentException("Spatial rectangle height must be positive");
-            SpatialHeightComponent c = comp(true);
+            SpatialRepresentationComponent c = comp(true);
             if (c != null) activeRectangle(c, true).height = height;
             return this;
         }
@@ -1526,9 +1534,9 @@ public final class PixscapeApiImpl implements PixscapeAPI {
             if (handle.world() == null) return this;
             requireFinite("Spatial volume", altitude, height);
             if (height <= 0f) throw new IllegalArgumentException("Spatial rectangle height must be positive");
-            SpatialHeightComponent c = comp(true);
+            SpatialRepresentationComponent c = comp(true);
             if (c != null) {
-                c.altitude = altitude;
+                footprint(true).altitude = altitude;
                 activeRectangle(c, true).height = height;
             }
             return this;
@@ -1613,7 +1621,7 @@ public final class PixscapeApiImpl implements PixscapeAPI {
             return this;
         }
 
-        private games.pixscape.runtime.spatial.ActorSpatialRectangleData activeRectangle(SpatialHeightComponent c, boolean create) {
+        private games.pixscape.runtime.spatial.ActorSpatialRectangleData activeRectangle(SpatialRepresentationComponent c, boolean create) {
             if (c == null) return null;
             World world = handle.world();
             AnimationComponent animation = world.getMapper(AnimationComponent.class).getSafe(handle.entityId, null);
@@ -1630,10 +1638,55 @@ public final class PixscapeApiImpl implements PixscapeAPI {
             return rectangle;
         }
 
-        private SpatialHeightComponent comp(boolean create) {
+        private games.pixscape.runtime.component.spatial.SpatialFootprintComponent footprint(boolean create) {
             World world = handle.world();
-            if (world == null) return null;
-            ComponentMapper<SpatialHeightComponent> mapper = world.getMapper(SpatialHeightComponent.class);
+            if (world == null) {
+                return null;
+            }
+            ComponentMapper<games.pixscape.runtime.component.spatial.SpatialFootprintComponent> mapper =
+                    world.getMapper(games.pixscape.runtime.component.spatial.SpatialFootprintComponent.class);
+            return create ? mapper.create(handle.entityId) : mapper.getSafe(handle.entityId, null);
+        }
+
+        @Override
+
+        public float footprintRadius() {
+
+            games.pixscape.runtime.component.spatial.SpatialFootprintComponent value = footprint(false);
+            return value == null ? 0f : value.radiusPx;
+
+        }
+        @Override
+        public float footprintOffsetX() {
+            games.pixscape.runtime.component.spatial.SpatialFootprintComponent value = footprint(false);
+            return value == null ? 0f : value.localOffsetXPx;
+        }
+        @Override
+        public float footprintOffsetY() {
+            games.pixscape.runtime.component.spatial.SpatialFootprintComponent value = footprint(false);
+            return value == null ? 0f : value.localOffsetYPx;
+        }
+
+        @Override public SpatialEntityFacade setFootprint(float offsetX, float offsetY, float radius) {
+            if (handle.world() == null) {
+                return this;
+            }
+            games.pixscape.runtime.component.spatial.SpatialFootprintComponent candidate = footprint(false) == null
+                    ? new games.pixscape.runtime.component.spatial.SpatialFootprintComponent() : footprint(false).copy();
+            candidate.localOffsetXPx = offsetX;
+            candidate.localOffsetYPx = offsetY;
+            candidate.radiusPx = radius;
+            SceneMetaRuntime meta = engine.getActiveSceneMeta();
+            PhysicsService.setSpatialFootprint(handle.world(), handle.entityId, candidate, meta == null ? 0f : meta.pixelsPerMeter);
+            return this;
+        }
+
+        private SpatialRepresentationComponent comp(boolean create) {
+            World world = handle.world();
+            if (world == null) {
+                return null;
+            }
+            ComponentMapper<SpatialRepresentationComponent> mapper = world.getMapper(SpatialRepresentationComponent.class);
             return create
                     ? (mapper.has(handle.entityId)
                     ? mapper.get(handle.entityId) : mapper.create(handle.entityId))

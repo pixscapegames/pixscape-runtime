@@ -11,7 +11,7 @@ import com.badlogic.gdx.physics.box2d.joints.DistanceJoint;
 import com.badlogic.gdx.utils.GdxNativesLoader;
 import games.pixscape.runtime.component.*;
 import games.pixscape.runtime.component.physics.*;
-import games.pixscape.runtime.component.spatial.SpatialPhysicsFootprintComponent;
+import games.pixscape.runtime.component.spatial.SpatialFootprintComponent;
 import games.pixscape.runtime.engine.PixscapeEngine;
 import games.pixscape.runtime.loading.SceneMetaRuntime;
 import games.pixscape.runtime.physics.PhysicsGeometryData;
@@ -83,9 +83,8 @@ public class VisualScalePhysicsIntegrationTest {
                 Vector2 circleOffset = circle.getPosition().cpy();
                 float circleRadius = circle.getRadius();
                 float mass = body.getMass();
-                SpatialPhysicsFootprintComponent footprint = h.world.getMapper(SpatialPhysicsFootprintComponent.class)
+                SpatialFootprintComponent footprint = h.world.getMapper(SpatialFootprintComponent.class)
                         .get(sprite);
-                int footprintGeneration = footprint.physicsGeneration;
                 float footprintRadius = footprint.radiusPx;
                 float footprintX = footprint.localOffsetXPx;
                 float footprintY = footprint.localOffsetYPx;
@@ -118,7 +117,6 @@ public class VisualScalePhysicsIntegrationTest {
                     Assert.assertEquals(circleOffset, circle.getPosition());
                     Assert.assertEquals(circleRadius, circle.getRadius(), 0f);
                     Assert.assertEquals(mass, body.getMass(), 0f);
-                    Assert.assertEquals(footprintGeneration, footprint.physicsGeneration);
                     Assert.assertEquals(footprintRadius, footprint.radiusPx, 0f);
                     Assert.assertEquals(footprintX, footprint.localOffsetXPx, 0f);
                     Assert.assertEquals(footprintY, footprint.localOffsetYPx, 0f);
@@ -180,7 +178,7 @@ public class VisualScalePhysicsIntegrationTest {
         final Box2dSyncSystem sync = new Box2dSyncSystem(box2d);
         final World world = new World(new WorldConfigurationBuilder()
                 .with(new DirtyTrackerSystem(32), authority, new GameObjectHierarchySystem(32), sync,
-                        new GameObjectPhysicsWritebackSystem(), new PhysicsSpatialFootprintSyncSystem(100f),
+                        new GameObjectPhysicsWritebackSystem(),
                         new UpdateWorldGeometrySystem()).build());
         final PixscapeEngine engine = new PixscapeEngine();
 
@@ -213,13 +211,17 @@ public class VisualScalePhysicsIntegrationTest {
             shapes.shapes.add(polygon);
             PhysicsShapeData circle = new PhysicsShapeData();
             circle.physicsShapeId = shapeIds.allocateNewPhysicsShapeId();
-            circle.spatialFootprint = true;
+            circle.useSpatialFootprint = false;
             circle.geometry = new PhysicsGeometryData();
             circle.geometry.shapeType = PhysicsGeometryData.SHAPE_CIRCLE;
             circle.geometry.offsetX = 0.35f;
             circle.geometry.offsetY = -0.15f;
             circle.geometry.radius = 0.2f;
             shapes.shapes.add(circle);
+        games.pixscape.runtime.component.spatial.SpatialFootprintComponent authoredFootprint = world.getMapper(games.pixscape.runtime.component.spatial.SpatialFootprintComponent.class).create(entity);
+        authoredFootprint.radiusPx = circle.geometry.radius * 100f;
+        authoredFootprint.localOffsetXPx = circle.geometry.offsetX * 100f;
+        authoredFootprint.localOffsetYPx = circle.geometry.offsetY * 100f;
             PhysicsService.publishPreparedCandidate(shapes,
                     world.getMapper(PhysicsCompiledFixturesComponent.class).create(entity),
                     PhysicsService.prepareBodyCandidate(shapes.shapes));

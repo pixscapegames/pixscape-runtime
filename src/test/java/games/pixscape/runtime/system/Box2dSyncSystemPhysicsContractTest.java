@@ -8,7 +8,7 @@ import com.badlogic.gdx.utils.GdxNativesLoader;
 import games.pixscape.runtime.component.PixscapeIdentityComponent;
 import games.pixscape.runtime.component.TransformComponent;
 import games.pixscape.runtime.component.physics.*;
-import games.pixscape.runtime.component.spatial.SpatialPhysicsFootprintComponent;
+import games.pixscape.runtime.component.spatial.SpatialFootprintComponent;
 import games.pixscape.runtime.physics.CompiledFixtureData;
 import games.pixscape.runtime.physics.PhysicsFixtureProvenance;
 import games.pixscape.runtime.physics.PhysicsGeometryData;
@@ -70,7 +70,11 @@ public class Box2dSyncSystemPhysicsContractTest {
         Harness harness = new Harness();
         harness.source.geometry.shapeType = PhysicsGeometryData.SHAPE_CIRCLE;
         harness.source.geometry.radius = 0.5f;
-        harness.source.spatialFootprint = true;
+        games.pixscape.runtime.component.spatial.SpatialFootprintComponent authoredFootprint = harness.world.getMapper(games.pixscape.runtime.component.spatial.SpatialFootprintComponent.class).create(harness.entityId);
+        authoredFootprint.radiusPx = 50f;
+        authoredFootprint.localOffsetXPx = harness.source.geometry.offsetX * 100f;
+        harness.source.useSpatialFootprint = true;
+        harness.source.geometry = null;
         harness.source.sensor = true;
 
         harness.prepareAndProcess();
@@ -78,10 +82,9 @@ public class Box2dSyncSystemPhysicsContractTest {
         PhysicsRuntimeBodyComponent runtime = harness.world.getMapper(
                 PhysicsRuntimeBodyComponent.class).get(harness.entityId);
         Assert.assertTrue(runtime.body.getFixtureList().first().isSensor());
-        SpatialPhysicsFootprintComponent footprint = harness.world.getMapper(
-                SpatialPhysicsFootprintComponent.class).get(harness.entityId);
-        Assert.assertTrue(footprint.valid);
-        Assert.assertEquals(harness.source.physicsShapeId, footprint.sourcePhysicsShapeId);
+        SpatialFootprintComponent footprint = harness.world.getMapper(
+                SpatialFootprintComponent.class).get(harness.entityId);
+        Assert.assertTrue(footprint.radiusPx > 0f);
     }
 
     @Test
@@ -90,18 +93,19 @@ public class Box2dSyncSystemPhysicsContractTest {
         harness.source.geometry.shapeType = PhysicsGeometryData.SHAPE_CIRCLE;
         harness.source.geometry.radius = 0.5f;
         harness.source.geometry.offsetX = 0.25f;
-        harness.source.spatialFootprint = true;
+        games.pixscape.runtime.component.spatial.SpatialFootprintComponent authoredFootprint = harness.world.getMapper(games.pixscape.runtime.component.spatial.SpatialFootprintComponent.class).create(harness.entityId);
+        authoredFootprint.radiusPx = 50f;
+        authoredFootprint.localOffsetXPx = harness.source.geometry.offsetX * 100f;
         harness.prepareAndProcess();
 
         PhysicsRuntimeBodyComponent runtime =
                 harness.world.getMapper(PhysicsRuntimeBodyComponent.class).get(harness.entityId);
         PhysicsCompiledFixturesComponent compiled =
                 harness.world.getMapper(PhysicsCompiledFixturesComponent.class).get(harness.entityId);
-        SpatialPhysicsFootprintComponent footprint =
-                harness.world.getMapper(SpatialPhysicsFootprintComponent.class).get(harness.entityId);
+        SpatialFootprintComponent footprint =
+                harness.world.getMapper(SpatialFootprintComponent.class).get(harness.entityId);
         Body originalBody = runtime.body;
         int originalGeneration = compiled.generation;
-        int originalFootprintGeneration = footprint.physicsGeneration;
 
         harness.source.geometry.shapeType = PhysicsGeometryData.SHAPE_POLYGON;
         harness.source.geometry.polygonVertices = new float[]{0f, 0f, 1f, 0f};
@@ -120,10 +124,9 @@ public class Box2dSyncSystemPhysicsContractTest {
         Assert.assertEquals(1, runtime.body.getFixtureList().size);
         Assert.assertEquals(originalGeneration, compiled.generation);
         Assert.assertTrue(compiled.valid);
-        Assert.assertTrue(footprint.valid);
+        Assert.assertTrue(footprint.radiusPx > 0f);
         Assert.assertEquals(50f, footprint.radiusPx, 0f);
         Assert.assertEquals(25f, footprint.localOffsetXPx, 0f);
-        Assert.assertEquals(originalFootprintGeneration, footprint.physicsGeneration);
     }
 
     @Test
@@ -273,7 +276,7 @@ public class Box2dSyncSystemPhysicsContractTest {
             dirty = new DirtyTrackerSystem(16);
             sync = new Box2dSyncSystem(box2d);
             world = new World(new WorldConfigurationBuilder()
-                    .with(dirty, sync, new PhysicsSpatialFootprintSyncSystem(100f))
+                    .with(dirty, sync)
                     .build());
             entityId = world.create();
             world.getMapper(TransformComponent.class).create(entityId);
@@ -315,7 +318,7 @@ public class Box2dSyncSystemPhysicsContractTest {
             PhysicsService.publishPreparedCandidate(
                     sourceShapes,
                     world.getMapper(PhysicsCompiledFixturesComponent.class).create(entity),
-                    PhysicsService.prepareBodyCandidate(sourceShapes.shapes));
+                    PhysicsService.prepareBodyCandidate(world, entity, sourceShapes.shapes, 100));
         }
     }
 

@@ -40,7 +40,7 @@ public final class PhysicsShapeIdentityValidator {
                     "PhysicsShapesComponent on ownerEntityId " + ownerEntityId
                             + " has a null shapes collection.");
             try {
-                PhysicsSpatialFootprintValidator.validateCollection(component.shapes);
+                PhysicsShapeCollectionValidator.validateCollection(component.shapes);
             } catch (IllegalArgumentException invalidFootprint) {
                 throw new IllegalArgumentException(
                         "Invalid Spatial footprint ownership on ownerEntityId "

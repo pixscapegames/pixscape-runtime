@@ -2,8 +2,7 @@ package games.pixscape.runtime.component.spatial;
 
 import com.artemis.PooledComponent;
 
-public final class SpatialHeightComponent extends PooledComponent {
-    public float altitude = 0f;
+public final class SpatialRepresentationComponent extends PooledComponent {
     /**
      * Authored per-representation rectangle shared by sorting and shadow casting.
      */
@@ -11,7 +10,6 @@ public final class SpatialHeightComponent extends PooledComponent {
 
     @Override
     protected void reset() {
-        altitude = 0f;
         rectangles = null;
     }
 }

@@ -74,10 +74,10 @@ function atlasPages(path) {
   return ids;
 }
 function validateScene(scene, path) {
-  check('scene/3.schema.json', scene, path);
+  check('scene/5.schema.json', scene, path);
   const dependencies = { assetIds: new Set(), effects: new Set() };
   if (!scene?.componentIdentifiers || !scene?.archetypes || !scene?.entities) return dependencies;
-  const componentTypes = schemas.get('components/3.schema.json');
+  const componentTypes = schemas.get('components/5.schema.json');
   const byAlias = new Map();
   for (const [fqcn, alias] of Object.entries(scene.componentIdentifiers)) {
     if (byAlias.has(alias)) error(path, `duplicate Artemis alias ${alias}`);
@@ -105,7 +105,7 @@ function validateScene(scene, path) {
       names.add(name);
       if (Object.hasOwn(entity.components || {}, alias)) {
         const value = entity.components[alias];
-        check('components/3.schema.json#/$defs/' + name, value, `${where} ${fqcn}`);
+        check('components/5.schema.json#/$defs/' + name, value, `${where} ${fqcn}`);
         if (name === 'AssetRefComponent' && value?.assetId > 0) dependencies.assetIds.add(value.assetId);
         if (name === 'TiledLayerComponent') {
           const tiles = value?.tileAssetIds;
@@ -123,7 +123,7 @@ function validateScene(scene, path) {
   return dependencies;
 }
 function validateGameObject(asset, path) {
-  check('game-object/3.schema.json', asset, path);
+  check('game-object/4.schema.json', asset, path);
   if (!Array.isArray(asset?.entities)) return;
   const ids = new Set();
   let roots = 0;
@@ -231,13 +231,13 @@ function invalidSelfTest() {
   }
   mustReject('wrong project version', () => check('project/1.schema.json',
     { projectFileName: 'x', version: '2', scenes: {} }, 'invalid project'));
-  mustReject('obsolete Layer.type', () => check('components/3.schema.json#/$defs/LayerComponent',
+  mustReject('obsolete Layer.type', () => check('components/5.schema.json#/$defs/LayerComponent',
     { type: 0 }, 'invalid Layer'));
-  mustReject('null primitive transform scale', () => check('components/3.schema.json#/$defs/TransformComponent',
+  mustReject('null primitive transform scale', () => check('components/5.schema.json#/$defs/TransformComponent',
     { scaleX: null }, 'invalid transform'));
-  mustReject('NaN outside physics parallax', () => check('components/3.schema.json#/$defs/TransformComponent',
+  mustReject('NaN outside physics parallax', () => check('components/5.schema.json#/$defs/TransformComponent',
     { x: 'NaN' }, 'invalid transform'));
-  mustReject('IntArray encoded as a plain array', () => check('components/3.schema.json#/$defs/AnimationComponent',
+  mustReject('IntArray encoded as a plain array', () => check('components/5.schema.json#/$defs/AnimationComponent',
     { animationAssetIds: [1] }, 'invalid animation'));
   mustReject('unresolved alias', () => validateScene({ metadata: { version: 1 },
     componentIdentifiers: {}, archetypes: { 1: ['missing'] },
@@ -250,7 +250,7 @@ function invalidSelfTest() {
     metadata: { version: 1 }, componentIdentifiers: identifiers,
     archetypes: { 1: ['layer', 'index'] }, entities: { 0: { archetype: 1, components: {} } },
   }, 'invalid scene'));
-  mustReject('Game Object root placement', () => validateGameObject({ schemaVersion: 3,
+  mustReject('Game Object root placement', () => validateGameObject({ schemaVersion: 4,
     rootSourceEntityId: 1, entities: [{ sourceEntityId: 1, parentSourceEntityId: -1,
       transform: { x: 5, y: 0, scaleX: 1, scaleY: 1 }, entityIndex: { zIndex: 0 },
       gameObject: {} }] }, 'invalid Game Object'));

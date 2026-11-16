@@ -19,8 +19,8 @@ import games.pixscape.runtime.animation.AnimationDefData;
 import games.pixscape.runtime.component.*;
 import games.pixscape.runtime.component.light.ConeLightComponent;
 import games.pixscape.runtime.component.light.PointLightComponent;
-import games.pixscape.runtime.component.spatial.SpatialHeightComponent;
-import games.pixscape.runtime.component.spatial.SpatialPhysicsFootprintComponent;
+import games.pixscape.runtime.component.spatial.SpatialRepresentationComponent;
+import games.pixscape.runtime.component.spatial.SpatialFootprintComponent;
 import games.pixscape.runtime.engine.PixscapeEngine;
 import games.pixscape.runtime.loading.SceneMetaRuntime;
 import games.pixscape.runtime.particle.ParticleEffect;
@@ -99,8 +99,8 @@ public class PixscapeApiV1Test {
         Assert.assertFalse(ref.spatial().participatesInRenderOrder());
         Assert.assertEquals(3f, ref.spatial().altitude(), 0.0001f);
         Assert.assertEquals(7f, ref.spatial().height(), 0.0001f);
-        Assert.assertEquals(3f, world.getMapper(SpatialHeightComponent.class).get(e).altitude, 0.0001f);
-        Assert.assertEquals(7f, world.getMapper(SpatialHeightComponent.class).get(e).rectangles.staticRectangle.height, 0.0001f);
+        Assert.assertEquals(3f, world.getMapper(games.pixscape.runtime.component.spatial.SpatialFootprintComponent.class).get(e).altitude, 0.0001f);
+        Assert.assertEquals(7f, world.getMapper(SpatialRepresentationComponent.class).get(e).rectangles.staticRectangle.height, 0.0001f);
 
         Assert.assertThrows(IllegalArgumentException.class, () -> ref.spatial().setHeight(-10f));
         Assert.assertEquals(7f, ref.spatial().height(), 0.0001f);
@@ -108,7 +108,7 @@ public class PixscapeApiV1Test {
 
         ref.spatial().disable();
         Assert.assertFalse(ref.spatial().enabled());
-        Assert.assertFalse(world.getMapper(SpatialHeightComponent.class).has(e));
+        Assert.assertFalse(world.getMapper(SpatialRepresentationComponent.class).has(e));
     }
 
     @Test
@@ -128,7 +128,7 @@ public class PixscapeApiV1Test {
         int actor = world.create();
         world.getMapper(TransformComponent.class).create(actor);
         world.getMapper(EntityIndexComponent.class).create(actor).layerIndex = 4;
-        games.pixscape.runtime.spatial.SpatialRectangleTestData.setHeight(world.getMapper(SpatialHeightComponent.class).create(actor), 2f);
+        games.pixscape.runtime.spatial.SpatialRectangleTestData.setHeight(world.getMapper(SpatialRepresentationComponent.class).create(actor), 2f);
         int slot = state.acquireSlotForEntity(actor);
         state.kind[slot] = RenderKind.SPRITE;
         state.enabled[slot] = true;
@@ -141,9 +141,9 @@ public class PixscapeApiV1Test {
         Assert.assertFalse("Positive height without a footprint is ineligible",
                 facade.participatesInRenderOrder());
 
-        SpatialPhysicsFootprintComponent footprint =
-                world.getMapper(SpatialPhysicsFootprintComponent.class).create(actor);
-        footprint.valid = true;
+        SpatialFootprintComponent footprint =
+                world.getMapper(SpatialFootprintComponent.class).create(actor);
+        footprint.radiusPx = 8f;
         footprint.radiusPx = 3f;
         layer.spatialEnabled = false;
         Assert.assertFalse("A valid footprint on a non-Spatial layer is ineligible",
@@ -158,16 +158,16 @@ public class PixscapeApiV1Test {
                 facade.participatesInRenderOrder());
         state.visible[slot] = true;
 
-        footprint.valid = false;
+        footprint.radiusPx = 0f;
         Assert.assertFalse("Invalidating the footprint takes effect immediately",
                 facade.participatesInRenderOrder());
-        footprint.valid = true;
+        footprint.radiusPx = 8f;
         Assert.assertTrue("Restoring the footprint takes effect immediately",
                 facade.participatesInRenderOrder());
 
         facade.disable();
         Assert.assertFalse("Zero height is ineligible", facade.participatesInRenderOrder());
-        facade.setHeight(2f);
+        facade.enable().setHeight(2f);
         Assert.assertTrue("Restoring positive height takes effect immediately",
                 facade.participatesInRenderOrder());
 
@@ -178,10 +178,10 @@ public class PixscapeApiV1Test {
         Assert.assertEquals("The regression must exercise Artemis ID reuse", actor, replacement);
         world.getMapper(TransformComponent.class).create(replacement);
         world.getMapper(EntityIndexComponent.class).create(replacement).layerIndex = 4;
-        games.pixscape.runtime.spatial.SpatialRectangleTestData.setHeight(world.getMapper(SpatialHeightComponent.class).create(replacement), 2f);
-        SpatialPhysicsFootprintComponent replacementFootprint =
-                world.getMapper(SpatialPhysicsFootprintComponent.class).create(replacement);
-        replacementFootprint.valid = true;
+        games.pixscape.runtime.spatial.SpatialRectangleTestData.setHeight(world.getMapper(SpatialRepresentationComponent.class).create(replacement), 2f);
+        SpatialFootprintComponent replacementFootprint =
+                world.getMapper(SpatialFootprintComponent.class).create(replacement);
+        replacementFootprint.radiusPx = 8f;
         replacementFootprint.radiusPx = 3f;
         int replacementSlot = state.acquireSlotForEntity(replacement);
         state.kind[replacementSlot] = RenderKind.SPRITE;
@@ -692,8 +692,8 @@ public class PixscapeApiV1Test {
         PixscapeEngine engine = setupEngineWithWorld();
         World world = engine.getWorld();
         int entity = world.create();
-        SpatialHeightComponent spatial = world.edit(entity).create(SpatialHeightComponent.class);
-        spatial.altitude = 2f;
+        SpatialRepresentationComponent spatial = world.edit(entity).create(SpatialRepresentationComponent.class);
+        world.getMapper(games.pixscape.runtime.component.spatial.SpatialFootprintComponent.class).create(entity).altitude = 2f;
         games.pixscape.runtime.spatial.SpatialRectangleTestData.setHeight(spatial, 5f);
         world.process();
         SpatialEntityFacade facade = engine.api().entities().ofEntityId(entity).spatial();
@@ -725,7 +725,7 @@ public class PixscapeApiV1Test {
             }
         });
 
-        Assert.assertEquals(2f, spatial.altitude, 0f);
+        Assert.assertEquals(2f, world.getMapper(games.pixscape.runtime.component.spatial.SpatialFootprintComponent.class).get(entity).altitude, 0f);
         Assert.assertEquals(5f, spatial.rectangles.staticRectangle.height, 0f);
         Assert.assertFalse(dirty.isDirty(entity,
                 games.pixscape.runtime.render.DirtyBits.COARSE_MASK));
@@ -1720,11 +1720,11 @@ public class PixscapeApiV1Test {
 
         TransformComponent transform =
                 world.getMapper(TransformComponent.class).get(transformEntity);
-        SpatialHeightComponent spatial =
-                world.getMapper(SpatialHeightComponent.class).get(spatialEntity);
+        SpatialRepresentationComponent spatial =
+                world.getMapper(SpatialRepresentationComponent.class).get(spatialEntity);
         Assert.assertEquals(3f, transform.x, 0f);
         Assert.assertEquals(4f, transform.y, 0f);
-        Assert.assertEquals(2f, spatial.altitude, 0f);
+        Assert.assertEquals(2f, world.getMapper(games.pixscape.runtime.component.spatial.SpatialFootprintComponent.class).get(spatialEntity).altitude, 0f);
         Assert.assertEquals(5f, spatial.rectangles.staticRectangle.height, 0f);
     }
 

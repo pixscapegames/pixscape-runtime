@@ -2,7 +2,7 @@ package games.pixscape.runtime.spatial;
 
 import com.badlogic.gdx.utils.IntArray;
 import games.pixscape.runtime.component.TransformComponent;
-import games.pixscape.runtime.component.spatial.SpatialHeightComponent;
+import games.pixscape.runtime.component.spatial.SpatialRepresentationComponent;
 import games.pixscape.runtime.component.spatial.SpatialShapesComponent;
 import games.pixscape.runtime.tiled.TiledLayerData;
 import org.junit.Assert;
@@ -80,8 +80,8 @@ public class SpatialQueryServiceTest {
         transform.x = 10f;
         transform.y = 20f;
 
-        SpatialHeightComponent height = new SpatialHeightComponent();
-        height.altitude = 1f;
+        SpatialRepresentationComponent height = new SpatialRepresentationComponent();
+        float altitude = 1f;
         games.pixscape.runtime.spatial.SpatialRectangleTestData.setHeight(height, 5f);
 
         SpatialShapesComponent shapes = new SpatialShapesComponent();
@@ -91,7 +91,7 @@ public class SpatialQueryServiceTest {
         shape.halfH = 3f;
         shapes.shapes.add(shape);
 
-        SpatialVolume volume = service.buildEntityVolume(transform, height.altitude, height.rectangles.staticRectangle, shapes);
+        SpatialVolume volume = service.buildEntityVolume(transform, altitude, height.rectangles.staticRectangle, shapes);
 
         Assert.assertEquals(1f, volume.altitude, 0.0001f);
         Assert.assertEquals(5f, volume.height, 0.0001f);

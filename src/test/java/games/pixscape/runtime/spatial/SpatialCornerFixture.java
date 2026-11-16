@@ -5,8 +5,8 @@ import com.badlogic.gdx.utils.IntMap;
 import games.pixscape.runtime.component.EntityIndexComponent;
 import games.pixscape.runtime.component.TransformComponent;
 import games.pixscape.runtime.component.spatial.SpatialBlocksComponent;
-import games.pixscape.runtime.component.spatial.SpatialHeightComponent;
-import games.pixscape.runtime.component.spatial.SpatialPhysicsFootprintComponent;
+import games.pixscape.runtime.component.spatial.SpatialRepresentationComponent;
+import games.pixscape.runtime.component.spatial.SpatialFootprintComponent;
 import games.pixscape.runtime.render.*;
 import games.pixscape.runtime.tiled.TileChunk;
 import games.pixscape.runtime.tiled.TiledLayerData;
@@ -72,10 +72,10 @@ final class SpatialCornerFixture implements AutoCloseable {
         actor = world.create();
         world.getMapper(TransformComponent.class).create(actor);
         world.getMapper(EntityIndexComponent.class).create(actor);
-        SpatialHeightComponent h = world.getMapper(SpatialHeightComponent.class).create(actor);
+        SpatialRepresentationComponent h = world.getMapper(SpatialRepresentationComponent.class).create(actor);
         games.pixscape.runtime.spatial.SpatialRectangleTestData.setHeight(h, 40f);
-        SpatialPhysicsFootprintComponent footprint = world.getMapper(SpatialPhysicsFootprintComponent.class).create(actor);
-        footprint.valid = true;
+        SpatialFootprintComponent footprint = world.getMapper(SpatialFootprintComponent.class).create(actor);
+        footprint.radiusPx = 8f;
         footprint.radiusPx = .5f;
         world.process();
         slot = ecs.acquireSlotForEntity(actor);
@@ -109,7 +109,7 @@ final class SpatialCornerFixture implements AutoCloseable {
         TransformComponent t = world.getMapper(TransformComponent.class).get(actor);
         t.x = vx + dx;
         t.y = vy + dy;
-        world.getMapper(SpatialPhysicsFootprintComponent.class).get(actor).radiusPx = radius;
+        world.getMapper(SpatialFootprintComponent.class).get(actor).radiusPx = radius;
         ecs.x1[slot] = ecs.x4[slot] = t.x - visualRadius;
         ecs.x2[slot] = ecs.x3[slot] = t.x + visualRadius;
         ecs.y1[slot] = ecs.y2[slot] = t.y - visualRadius;
@@ -121,7 +121,7 @@ final class SpatialCornerFixture implements AutoCloseable {
         if (original == 1) draw.addEcsSlot(slot);
         actors.collect(draw, ecs, new boolean[]{true}, world.getEntityManager(),
                 world.getMapper(EntityIndexComponent.class), world.getMapper(TransformComponent.class),
-                world.getMapper(SpatialHeightComponent.class), world.getMapper(SpatialPhysicsFootprintComponent.class));
+                world.getMapper(SpatialRepresentationComponent.class), world.getMapper(SpatialFootprintComponent.class));
         snapshot.build(draw, ecs.getRenderCapacity(), actors);
         int[] index = new int[tiled.getCapacity()];
         Arrays.fill(index, -1);

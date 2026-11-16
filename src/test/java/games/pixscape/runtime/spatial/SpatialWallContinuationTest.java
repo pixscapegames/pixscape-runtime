@@ -9,8 +9,8 @@ import games.pixscape.runtime.component.LayerComponent;
 import games.pixscape.runtime.component.TiledLayerComponent;
 import games.pixscape.runtime.component.TransformComponent;
 import games.pixscape.runtime.component.spatial.SpatialBlocksComponent;
-import games.pixscape.runtime.component.spatial.SpatialHeightComponent;
-import games.pixscape.runtime.component.spatial.SpatialPhysicsFootprintComponent;
+import games.pixscape.runtime.component.spatial.SpatialRepresentationComponent;
+import games.pixscape.runtime.component.spatial.SpatialFootprintComponent;
 import games.pixscape.runtime.render.*;
 import games.pixscape.runtime.render.batch.performance.RenderStats;
 import games.pixscape.runtime.system.RenderExtractFrameQueueSystem;
@@ -447,7 +447,7 @@ public class SpatialWallContinuationTest {
         final int actor, slot;
         final boolean large;
         final TransformComponent transform;
-        final SpatialHeightComponent height;
+        final SpatialRepresentationComponent height;
         final SpatialBlockData upperBlock;
         final SpatialBlocksComponent upperBlocks;
 
@@ -462,9 +462,9 @@ public class SpatialWallContinuationTest {
             actor = world.create();
             transform = world.getMapper(TransformComponent.class).create(actor);
             world.getMapper(EntityIndexComponent.class).create(actor).layerIndex = 0;
-            height = world.getMapper(SpatialHeightComponent.class).create(actor);
-            SpatialPhysicsFootprintComponent footprint = world.getMapper(SpatialPhysicsFootprintComponent.class).create(actor);
-            footprint.valid = true;
+            height = world.getMapper(SpatialRepresentationComponent.class).create(actor);
+            SpatialFootprintComponent footprint = world.getMapper(SpatialFootprintComponent.class).create(actor);
+            footprint.radiusPx = 8f;
             footprint.radiusPx = 8;
             slot = ecs.acquireSlotForEntity(actor);
             ecs.enabled[slot] = ecs.visible[slot] = true;
@@ -515,7 +515,7 @@ public class SpatialWallContinuationTest {
         void pose(boolean behind, float altitude, float authoredHeight) {
             transform.x = 240;
             transform.y = (behind ? 624 : 544) + altitude;
-            height.altitude = altitude;
+            world.getMapper(games.pixscape.runtime.component.spatial.SpatialFootprintComponent.class).get(actor).altitude = altitude;
             games.pixscape.runtime.spatial.SpatialRectangleTestData.setHeight(height, authoredHeight);
             quad();
         }

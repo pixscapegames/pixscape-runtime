@@ -3,10 +3,10 @@ package games.pixscape.runtime.physics;
 import com.badlogic.gdx.utils.Array;
 
 /**
- * Validates explicit Spatial footprint ownership within one physics body.
+ * Validates physics shape sources within one physics body.
  */
-public final class PhysicsSpatialFootprintValidator {
-    private PhysicsSpatialFootprintValidator() {
+public final class PhysicsShapeCollectionValidator {
+    private PhysicsShapeCollectionValidator() {
     }
 
     public static void validateCollection(Array<PhysicsShapeData> shapes) {
@@ -22,12 +22,14 @@ public final class PhysicsSpatialFootprintValidator {
                         "Physics shape collection contains a null shape at index " + i + ".");
             }
             shape.validateStructure();
-            if (!shape.spatialFootprint) continue;
+            if (!shape.useSpatialFootprint) {
+                continue;
+            }
 
             footprintCount++;
             if (footprintCount > 1) {
                 throw new IllegalArgumentException(
-                        "Physics body has more than one explicit spatial footprint.");
+                        "Physics body has more than one footprint-derived collision.");
             }
         }
     }

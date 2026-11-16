@@ -1,7 +1,7 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "$id": "https://pixscape.games/schemas/pixscape/components/3.schema.json",
-  "title": "Pixscape scene component payloads (scene schema 3)",
+  "$id": "https://pixscape.games/schemas/pixscape/components/5.schema.json",
+  "title": "Pixscape scene component payloads (scene schema 5)",
   "description": "Resolve each document's componentIdentifiers first; these definitions are selected by fully qualified type ID, never by a globally fixed alias.",
   "x-pixscape-components": {
     "games.pixscape.runtime.component.PixscapeIdentityComponent": "PixscapeIdentityComponent",
@@ -30,7 +30,10 @@
     "games.pixscape.runtime.component.PixscapeTagComponent": "PixscapeTagComponent",
     "games.pixscape.runtime.component.CustomPropertiesComponent": "CustomPropertiesComponent",
     "games.pixscape.runtime.component.TiledLayerComponent": "TiledLayerComponent",
-    "games.pixscape.runtime.component.spatial.SpatialHeightComponent": "SpatialHeightComponent",
+    "games.pixscape.runtime.component.spatial.SpatialFootprintComponent": "SpatialFootprintComponent",
+    "games.pixscape.runtime.component.spatial.SpatialRepresentationComponent": "SpatialRepresentationComponent",
+    "games.pixscape.runtime.component.TiledMapComponent": "TiledMapComponent",
+    "games.pixscape.runtime.component.TiledMapLayerComponent": "TiledMapLayerComponent",
     "games.pixscape.runtime.component.spatial.SpatialShapesComponent": "SpatialShapesComponent",
     "games.pixscape.runtime.component.spatial.SpatialBlocksComponent": "SpatialBlocksComponent",
     "games.pixscape.runtime.component.light.PointLightComponent": "PointLightComponent",
@@ -616,16 +619,74 @@
         }
       }
     },
-    "SpatialHeightComponent": {
+    "SpatialFootprintComponent": {
       "type": "object",
       "properties": {
         "altitude": {
           "type": "number",
           "default": 0
         },
-        "height": {
+        "localOffsetXPx": {
           "type": "number",
           "default": 0
+        },
+        "localOffsetYPx": {
+          "type": "number",
+          "default": 0
+        },
+        "radiusPx": {
+          "type": "number",
+          "exclusiveMinimum": 0,
+          "default": 8
+        }
+      }
+    },
+    "SpatialRepresentationComponent": {
+      "type": "object",
+      "properties": {
+        "rectangles": {
+          "$ref": "https://pixscape.games/schemas/pixscape/common/1.schema.json#/$defs/actorRectangles"
+        }
+      }
+    },
+    "TiledMapComponent": {
+      "type": "object",
+      "properties": {
+        "tileWidth": {
+          "type": "integer",
+          "default": 0
+        },
+        "tileHeight": {
+          "type": "integer",
+          "default": 0
+        },
+        "width": {
+          "type": "integer",
+          "default": 0
+        },
+        "height": {
+          "type": "integer",
+          "default": 0
+        },
+        "projection": {
+          "enum": [
+            "ORTHO",
+            "ISO",
+            null
+          ]
+        }
+      }
+    },
+    "TiledMapLayerComponent": {
+      "type": "object",
+      "properties": {
+        "kind": {
+          "enum": [
+            "TILE",
+            "OBJECT",
+            "IMAGE"
+          ],
+          "default": "TILE"
         }
       }
     },

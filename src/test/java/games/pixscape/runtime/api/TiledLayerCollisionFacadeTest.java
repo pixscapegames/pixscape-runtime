@@ -20,7 +20,6 @@ import games.pixscape.runtime.spatial.SpatialLayerFaceRuntime;
 import games.pixscape.runtime.spatial.SpatialLayerRuntimeRegistry;
 import games.pixscape.runtime.system.Box2dSyncSystem;
 import games.pixscape.runtime.system.DirtyTrackerSystem;
-import games.pixscape.runtime.system.PhysicsSpatialFootprintSyncSystem;
 import games.pixscape.runtime.tiled.TiledProjection;
 import org.junit.Assert;
 import org.junit.Test;
@@ -296,7 +295,7 @@ public class TiledLayerCollisionFacadeTest {
             sync.setSceneMeta(scene);
             sync.setStepEnabled(false);
             world = new World(new WorldConfigurationBuilder()
-                    .with(dirty, sync, new PhysicsSpatialFootprintSyncSystem(100f))
+                    .with(dirty, sync)
                     .build());
             engine = new PixscapeEngine();
             setField(engine, "world", world);

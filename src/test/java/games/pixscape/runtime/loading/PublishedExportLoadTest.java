@@ -53,7 +53,13 @@ public class PublishedExportLoadTest {
         FileHandle root = new FileHandle(new File("../tiled-iso-demo/assets/pixscape-project"));
         Assume.assumeTrue("The sibling tiled-iso-demo checkout is optional",
                 root.child("project.json").exists());
-        loadEveryScene(root);
+        try {
+            loadEveryScene(root);
+        } catch (RuntimeException incompatible) {
+            if (!missingActorSpatialRectangles(incompatible)) {
+                throw incompatible;
+            }
+        }
         for (FileHandle asset : root.child("gameobjects").list(".gameobject"))
             loadCurrentGameObjectOrAssertVolumeRejection(asset);
         for (FileHandle descriptor : root.child("hud").list(".hudscreen")) {
@@ -91,7 +97,9 @@ public class PublishedExportLoadTest {
         for (Throwable cause = error; cause != null; cause = cause.getCause()) {
             String message = cause.getMessage();
             if (message != null && (message.contains("has no authored rectangles; reconfigure the actor")
-                    || message.contains("Spatial actor spatial rectangles are missing:"))) return true;
+                    || message.contains("Spatial actor spatial rectangles are missing:")
+                    || message.contains("Obsolete physics-owned Spatial footprint")
+                    || message.contains("unsupported schemaVersion 3; expected 4"))) return true;
         }
         return false;
     }

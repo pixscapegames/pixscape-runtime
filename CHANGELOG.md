@@ -3,10 +3,12 @@
 ## [0.2.5-SNAPSHOT]
 
 ### Breaking changes
+* Spatial actors now use authored `SpatialFootprintComponent` and `SpatialRepresentationComponent`, independent of physics. New scenes use schema 5 and Game Objects/fragments schema 4; obsolete actor footprints are rejected without migration.
 * Scenes now use schema 4 for Tiled maps and their ordered tile, image and object layers. Supported schema 3 scenes are converted on load, with one map per existing tile grid.
 * Renamed tile-layer APIs: `TiledMapRef` becomes `TiledLayerRef`, `map()` becomes `layer()`, `TiledMapFacade` becomes `TiledLayerFacade`, and `TiledMapLayerData` becomes `TiledLayerData`.
 
 ### Added
+* Added footprint radius/offset APIs and optional footprint-derived collision geometry with prepared atomic publication. See [the spatial/physics contract](docs/spatial-physics-decoupling.txt).
 * Added a session-only composition visibility filter for editor integration, without changing authored visibility or physics.
 * Added prepared Game Object factories and explicit rigid placement of physics-backed compositions.
 * Added read-only tile custom properties and `findAllByTiledLayerName(...)` for Tiled-layer contents.
@@ -18,7 +20,7 @@
 * Compatible spatial contexts share anchor searches; isolated and incompatible contexts retain individual searches.
 * Game Object composition retains unchanged sibling order and sorts only affected parent groups, while continuing to resolve frame-dependent visibility and bounds.
 * Tiled animation visits the map's indexed animated chunks instead of searching every chunk; animation mutations and grid replacement maintain membership.
-* Physics-to-Spatial synchronization checks compiled caches and orphan footprints in one grouped pass. Tiled synchronization avoids repeated chunk-reference checks within the same pass, retaining off-screen references and direct mutation detection.
+* Spatial sorting and shadows read the same autonomous owner pose; the physics-to-spatial projection pass is removed. Tiled synchronization retains off-screen references and direct mutation detection.
 * Asset lookups by logical name now use the atlas publication index, including misses, while preserving case-insensitive aliases and first-group resolution of homonyms.
 * Particle synchronization skips layer visibility scans when there are no emitters, while still clearing frame output and releasing removed effects.
 * `gameObjects().spawn(...)` now returns with composed transforms, materializable bodies and all authored joints ready, without advancing simulation or processing the World. Native creation while Box2D is locked is rejected before mutation; assets without native physics remain permitted.

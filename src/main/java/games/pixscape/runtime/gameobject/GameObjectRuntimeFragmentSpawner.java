@@ -12,7 +12,7 @@ import games.pixscape.runtime.component.*;
 import games.pixscape.runtime.component.light.ConeLightComponent;
 import games.pixscape.runtime.component.light.PointLightComponent;
 import games.pixscape.runtime.component.physics.*;
-import games.pixscape.runtime.component.spatial.SpatialHeightComponent;
+import games.pixscape.runtime.component.spatial.SpatialRepresentationComponent;
 import games.pixscape.runtime.loading.SceneMetaRuntime;
 import games.pixscape.runtime.physics.CompiledFixtureData;
 import games.pixscape.runtime.physics.PhysicsShapeData;
@@ -379,11 +379,12 @@ public final class GameObjectRuntimeFragmentSpawner {
                 shape.maskBits = source.maskBits;
                 shape.groupIndex = source.groupIndex;
                 shape.enabled = source.enabled;
-                shape.spatialFootprint = source.spatialFootprint;
+                shape.useSpatialFootprint = source.useSpatialFootprint;
                 shapes.add(shape);
             }
             result.put(data.sourceEntityId, new PreparedPhysics(
-                    copyBody(data.physicsBody), PhysicsService.prepareBodyCandidate(shapes)));
+                    copyBody(data.physicsBody), PhysicsService.prepareBodyCandidate(shapes, data.spatialFootprint,
+                            sceneMeta != null ? sceneMeta.pixelsPerMeter : 100f)));
         }
         return result;
     }
@@ -557,10 +558,13 @@ public final class GameObjectRuntimeFragmentSpawner {
             light.shadowQuality = data.coneLight.shadowQuality;
             light.shadowResolution = data.coneLight.shadowResolution;
         }
-        if (data.spatialHeight != null) {
-            SpatialHeightComponent height = world.getMapper(SpatialHeightComponent.class).create(entityId);
-            height.altitude = data.spatialHeight.altitude;
-            height.rectangles = data.spatialHeight.rectangles == null ? null : data.spatialHeight.rectangles.copy();
+        if (data.spatialFootprint != null) {
+            world.getMapper(games.pixscape.runtime.component.spatial.SpatialFootprintComponent.class)
+                    .create(entityId).set(data.spatialFootprint);
+        }
+        if (data.spatialRepresentation != null) {
+            SpatialRepresentationComponent height = world.getMapper(SpatialRepresentationComponent.class).create(entityId);
+            height.rectangles = data.spatialRepresentation.rectangles == null ? null : data.spatialRepresentation.rectangles.copy();
         }
         if (preparedPhysics != null) {
             PhysicsBodyComponent body = world.getMapper(PhysicsBodyComponent.class).create(entityId);

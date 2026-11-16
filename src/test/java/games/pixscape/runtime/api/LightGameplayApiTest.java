@@ -157,9 +157,9 @@ public class LightGameplayApiTest {
     public void activeSpatialRectangleAndPivotReusePreparedState() {
         int e = world.create();
         world.getMapper(TransformComponent.class).create(e);
-        games.pixscape.runtime.component.spatial.SpatialPhysicsFootprintComponent foot = world.getMapper(games.pixscape.runtime.component.spatial.SpatialPhysicsFootprintComponent.class).create(e);
-        foot.valid = true;
-        games.pixscape.runtime.component.spatial.SpatialHeightComponent height = world.getMapper(games.pixscape.runtime.component.spatial.SpatialHeightComponent.class).create(e);
+        games.pixscape.runtime.component.spatial.SpatialFootprintComponent foot = world.getMapper(games.pixscape.runtime.component.spatial.SpatialFootprintComponent.class).create(e);
+        foot.radiusPx = 8f;
+        games.pixscape.runtime.component.spatial.SpatialRepresentationComponent height = world.getMapper(games.pixscape.runtime.component.spatial.SpatialRepresentationComponent.class).create(e);
         games.pixscape.runtime.spatial.ActorSpatialRectangleData rectangle = new games.pixscape.runtime.spatial.ActorSpatialRectangleData();
         height.rectangles = new games.pixscape.runtime.spatial.ActorSpatialRectangles();
         height.rectangles.staticRectangle = rectangle;

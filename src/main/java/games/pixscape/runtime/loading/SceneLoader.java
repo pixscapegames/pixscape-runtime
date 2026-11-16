@@ -49,6 +49,7 @@ public final class SceneLoader {
         SceneMetaRuntime.validateSceneSchemaVersion(
                 sceneMeta != null ? sceneMeta.sceneSchemaVersion : -1,
                 sceneMeta != null ? sceneMeta.name : inFile.path());
+        rejectLegacySpatial(new JsonReader().parse(serialized));
         validateMapLightingConvention(serialized, inFile.path());
         SceneMetaRuntime candidateMeta = new SceneMetaRuntime(sceneMeta);
         serialized = validateSerializedScene(serialized, candidateMeta, inFile);
@@ -79,6 +80,22 @@ public final class SceneLoader {
                     "Error while loading scene: " + inFile.path()
                             + (detail != null && !detail.isEmpty() ? ": " + detail : ""),
                     e);
+        }
+    }
+
+    private static void rejectLegacySpatial(JsonValue value) {
+        if (value == null) {
+            return;
+        }
+        if (value.name != null && (value.name.endsWith(".SpatialHeightComponent")
+                || value.name.endsWith(".SpatialPhysicsFootprintComponent"))
+                || value.isString() && (value.asString().endsWith(".SpatialHeightComponent")
+                || value.asString().endsWith(".SpatialPhysicsFootprintComponent"))
+                || "spatialFootprint".equals(value.name) && value.isBoolean()) {
+            throw new IllegalArgumentException("Obsolete physics-owned Spatial footprint; reconfigure the actor with SpatialFootprintComponent and SpatialRepresentationComponent.");
+        }
+        for (JsonValue child = value.child; child != null; child = child.next) {
+            rejectLegacySpatial(child);
         }
     }
 
@@ -136,6 +153,7 @@ public final class SceneLoader {
                         format, validationWorld, sceneMeta, sceneFile);
                 validateTiledMapConfigurations(format, validationWorld, sceneFile);
                 validateActorSpatialRectangles(format, validationWorld);
+                sceneMeta.sceneSchemaVersion = SceneMetaRuntime.CURRENT_SCENE_SCHEMA_VERSION;
                 // Identity indexes normalize lookup keys. Candidate validation must
                 // not rewrite authored labels while preparing the converted document.
                 for (com.badlogic.gdx.utils.IntMap.Entry<String> entry : authoredNames.entries()) {
@@ -161,9 +179,22 @@ public final class SceneLoader {
     private static void validateActorSpatialRectangles(SaveFileFormat format, World world) {
         for (int i = 0; i < format.entities.size(); i++) {
             int e = format.entities.get(i);
-            games.pixscape.runtime.component.spatial.SpatialHeightComponent h = world.getMapper(
-                    games.pixscape.runtime.component.spatial.SpatialHeightComponent.class).getSafe(e, null);
+            games.pixscape.runtime.component.spatial.SpatialRepresentationComponent h = world.getMapper(
+                    games.pixscape.runtime.component.spatial.SpatialRepresentationComponent.class).getSafe(e, null);
+            games.pixscape.runtime.component.spatial.SpatialFootprintComponent footprint = world.getMapper(
+                    games.pixscape.runtime.component.spatial.SpatialFootprintComponent.class).getSafe(e, null);
+            if (footprint != null) {
+                footprint.validate();
+            }
+            games.pixscape.runtime.component.physics.PhysicsShapesComponent collisions = world.getMapper(
+                    games.pixscape.runtime.component.physics.PhysicsShapesComponent.class).getSafe(e, null);
+            if (footprint == null && collisions != null && PhysicsService.containsFootprintShape(collisions.shapes)) {
+                throw new IllegalArgumentException("Footprint-derived collision on entity " + e + " requires a same-owner footprint.");
+            }
             if (h == null) continue;
+            if (footprint == null) {
+                throw new IllegalArgumentException("Spatial actor " + e + " requires an autonomous footprint; reconfigure the actor");
+            }
             if (h.rectangles == null)
                 throw new IllegalArgumentException("Spatial actor " + e + " has no authored rectangles; reconfigure the actor");
             h.rectangles.validate();

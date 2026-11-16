@@ -6,8 +6,8 @@ import com.badlogic.gdx.utils.*;
 import games.pixscape.runtime.component.EntityIndexComponent;
 import games.pixscape.runtime.component.TransformComponent;
 import games.pixscape.runtime.component.spatial.SpatialBlocksComponent;
-import games.pixscape.runtime.component.spatial.SpatialHeightComponent;
-import games.pixscape.runtime.component.spatial.SpatialPhysicsFootprintComponent;
+import games.pixscape.runtime.component.spatial.SpatialRepresentationComponent;
+import games.pixscape.runtime.component.spatial.SpatialFootprintComponent;
 import games.pixscape.runtime.render.*;
 import games.pixscape.runtime.render.batch.performance.RenderStats;
 import games.pixscape.runtime.system.RenderExtractFrameQueueSystem;
@@ -160,7 +160,7 @@ public class SpatialJunctionLocalityTest {
     @Test
     public void wideSpriteWithSmallFootprintKeepsLateralFrontOnStraightWall() {
         try (Fixture f = new Fixture(605, true, 1, 0, 1)) {
-            f.world.getMapper(SpatialPhysicsFootprintComponent.class).get(f.actor).radiusPx = .5f;
+            f.world.getMapper(SpatialFootprintComponent.class).get(f.actor).radiusPx = .5f;
             f.run();
             Assert.assertTrue(f.hasRelation(30, 24, SpatialFaceRelationSolver.ACTOR_IN_FRONT_OF_FACE));
             Assert.assertEquals(0, f.solver.rejectedCount);
@@ -355,14 +355,14 @@ public class SpatialJunctionLocalityTest {
             slot = ecs.acquireSlotForEntity(actor);
             world.getMapper(EntityIndexComponent.class).create(actor);
             TransformComponent transform = world.getMapper(TransformComponent.class).create(actor);
-            SpatialPhysicsFootprintComponent foot = world.getMapper(SpatialPhysicsFootprintComponent.class).create(actor);
-            SpatialHeightComponent height = world.getMapper(SpatialHeightComponent.class).create(actor);
+            SpatialFootprintComponent foot = world.getMapper(SpatialFootprintComponent.class).create(actor);
+            SpatialRepresentationComponent height = world.getMapper(SpatialRepresentationComponent.class).create(actor);
             JsonValue pose = data.get("actors").child;
             while (pose.getInt("id") != id) pose = pose.next;
             transform.x = pose.getFloat("x");
             transform.y = pose.getFloat("y");
-            height.altitude = plane;
-            foot.valid = true;
+            foot.altitude = plane;
+            foot.radiusPx = 8f;
             foot.radiusPx = pose.getFloat("radius");
             games.pixscape.runtime.spatial.SpatialRectangleTestData.setHeight(height, pose.getFloat("height"));
             float[] q = pose.get("quad").asFloatArray();
@@ -409,7 +409,7 @@ public class SpatialJunctionLocalityTest {
             if (original == 0) draw.addEcsSlot(slot);
             for (int i = 0; i < refs.size; i++) draw.addTiledSlot(refs.get(i));
             if (original == 1) draw.addEcsSlot(slot);
-            actors.collect(draw, ecs, new boolean[]{true}, world.getEntityManager(), world.getMapper(EntityIndexComponent.class), world.getMapper(TransformComponent.class), world.getMapper(SpatialHeightComponent.class), world.getMapper(SpatialPhysicsFootprintComponent.class));
+            actors.collect(draw, ecs, new boolean[]{true}, world.getEntityManager(), world.getMapper(EntityIndexComponent.class), world.getMapper(TransformComponent.class), world.getMapper(SpatialRepresentationComponent.class), world.getMapper(SpatialFootprintComponent.class));
             snapshot.build(draw, ecs.getRenderCapacity(), actors);
             int[] indices = new int[tiled.getCapacity()];
             Arrays.fill(indices, -1);

@@ -95,7 +95,7 @@
         "type": "object",
         "properties": {
           "sceneSchemaVersion": {
-            "const": 3
+            "const": 5
           },
           "name": {
             "type": [

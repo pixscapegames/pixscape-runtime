@@ -1,11 +1,11 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "$id": "https://pixscape.games/schemas/pixscape/game-object/3.schema.json",
-  "title": "Pixscape Game Object definition 3",
+  "$id": "https://pixscape.games/schemas/pixscape/game-object/4.schema.json",
+  "title": "Pixscape Game Object definition 4",
   "type": "object",
   "properties": {
     "schemaVersion": {
-      "const": 3
+      "const": 4
     },
     "rootSourceEntityId": {
       "type": "integer",
@@ -86,7 +86,14 @@
                   "minimum": 1
                 },
                 "geometry": {
-                  "$ref": "https://pixscape.games/schemas/pixscape/common/1.schema.json#/$defs/physicsGeometry"
+                  "anyOf": [
+                    {
+                      "$ref": "https://pixscape.games/schemas/pixscape/common/1.schema.json#/$defs/physicsGeometry"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
                 },
                 "density": {
                   "type": "number"
@@ -112,7 +119,7 @@
                 "enabled": {
                   "type": "boolean"
                 },
-                "spatialFootprint": {
+                "useSpatialFootprint": {
                   "type": "boolean"
                 }
               }
@@ -620,7 +627,7 @@
             ],
             "default": null
           },
-          "spatialHeight": {
+          "spatialFootprint": {
             "anyOf": [
               {
                 "type": "object",
@@ -629,9 +636,34 @@
                     "type": "number",
                     "default": 0
                   },
-                  "height": {
+                  "localOffsetXPx": {
                     "type": "number",
                     "default": 0
+                  },
+                  "localOffsetYPx": {
+                    "type": "number",
+                    "default": 0
+                  },
+                  "radiusPx": {
+                    "type": "number",
+                    "exclusiveMinimum": 0,
+                    "default": 8
+                  }
+                }
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null
+          },
+          "spatialRepresentation": {
+            "anyOf": [
+              {
+                "type": "object",
+                "properties": {
+                  "rectangles": {
+                    "$ref": "https://pixscape.games/schemas/pixscape/common/1.schema.json#/$defs/actorRectangles"
                   }
                 }
               },

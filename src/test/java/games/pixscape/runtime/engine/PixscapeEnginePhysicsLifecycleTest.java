@@ -169,8 +169,7 @@ public class PixscapeEnginePhysicsLifecycleTest {
                 100f, new Vector2(0f, -9.8f), true);
         Box2dSyncSystem sync = new Box2dSyncSystem(initial);
         World world = new World(new WorldConfigurationBuilder()
-                .with(new DirtyTrackerSystem(16), sync,
-                        new PhysicsSpatialFootprintSyncSystem(100f))
+                .with(new DirtyTrackerSystem(16), sync)
                 .build());
         PixscapeEngine engine = new PixscapeEngine();
         set(engine, "world", world);

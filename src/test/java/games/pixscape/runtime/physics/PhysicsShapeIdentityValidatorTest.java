@@ -105,7 +105,7 @@ public class PhysicsShapeIdentityValidatorTest {
         fixture.spatialCircle(owner, 21);
         fixture.spatialCircle(owner, 22);
 
-        fixture.assertRejected("more than one explicit spatial footprint");
+        fixture.assertRejected("more than one footprint-derived collision");
     }
 
     @Test
@@ -217,7 +217,8 @@ public class PhysicsShapeIdentityValidatorTest {
             PhysicsShapeData shape = manual(owner, physicsShapeId);
             shape.geometry.shapeType = PhysicsGeometryData.SHAPE_CIRCLE;
             shape.geometry.radius = 1f;
-            shape.spatialFootprint = true;
+            shape.useSpatialFootprint = true;
+            shape.geometry = null;
             return shape;
         }
 

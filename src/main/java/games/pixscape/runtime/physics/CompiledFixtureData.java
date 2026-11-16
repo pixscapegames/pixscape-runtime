@@ -35,7 +35,6 @@ public final class CompiledFixtureData {
     /**
      * Explicit Spatial footprint ownership propagated from the authored shape.
      */
-    public boolean spatialFootprint;
     /**
      * Transient index within one compilation result.
      */
@@ -61,7 +60,6 @@ public final class CompiledFixtureData {
         copy.maskBits = maskBits;
         copy.groupIndex = groupIndex;
         copy.physicsShapeId = physicsShapeId;
-        copy.spatialFootprint = spatialFootprint;
         copy.partIndex = partIndex;
         return copy;
     }
@@ -104,9 +102,6 @@ public final class CompiledFixtureData {
                 break;
             default:
                 throw invalid("unsupported shapeType " + shapeType + ".");
-        }
-        if (spatialFootprint && shapeType != PhysicsGeometryData.SHAPE_CIRCLE) {
-            throw invalid("spatial footprint must be a circle.");
         }
     }
 

@@ -10,8 +10,8 @@ import games.pixscape.runtime.component.LayerComponent;
 import games.pixscape.runtime.component.TiledLayerComponent;
 import games.pixscape.runtime.component.TransformComponent;
 import games.pixscape.runtime.component.spatial.SpatialBlocksComponent;
-import games.pixscape.runtime.component.spatial.SpatialHeightComponent;
-import games.pixscape.runtime.component.spatial.SpatialPhysicsFootprintComponent;
+import games.pixscape.runtime.component.spatial.SpatialRepresentationComponent;
+import games.pixscape.runtime.component.spatial.SpatialFootprintComponent;
 import games.pixscape.runtime.render.*;
 import games.pixscape.runtime.render.batch.performance.RenderStats;
 import games.pixscape.runtime.service.AtlasAssetBinding;
@@ -90,11 +90,11 @@ final class SpatialSharedSearchFixture implements AutoCloseable {
             actors[a] = actor;
             world.getMapper(TransformComponent.class).create(actor);
             world.getMapper(EntityIndexComponent.class).create(actor).layerIndex = count;
-            SpatialHeightComponent height = world.getMapper(SpatialHeightComponent.class).create(actor);
+            SpatialRepresentationComponent height = world.getMapper(SpatialRepresentationComponent.class).create(actor);
             SpatialRectangleTestData.setHeight(height, 64);
-            height.altitude = 32 * (a % count);
-            SpatialPhysicsFootprintComponent footprint = world.getMapper(SpatialPhysicsFootprintComponent.class).create(actor);
-            footprint.valid = true;
+
+            SpatialFootprintComponent footprint = world.getMapper(SpatialFootprintComponent.class).create(actor);
+            footprint.altitude = 32 * (a % count);
             footprint.radiusPx = 2;
             int slot = ecs.acquireSlotForEntity(actor);
             ecs.kind[slot] = RenderKind.SPRITE;

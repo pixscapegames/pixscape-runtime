@@ -14,8 +14,8 @@ import games.pixscape.runtime.component.AssetRefComponent;
 import games.pixscape.runtime.component.SurfaceLightingComponent;
 import games.pixscape.runtime.component.TransformComponent;
 import games.pixscape.runtime.component.light.PointLightComponent;
-import games.pixscape.runtime.component.spatial.SpatialHeightComponent;
-import games.pixscape.runtime.component.spatial.SpatialPhysicsFootprintComponent;
+import games.pixscape.runtime.component.spatial.SpatialRepresentationComponent;
+import games.pixscape.runtime.component.spatial.SpatialFootprintComponent;
 import games.pixscape.runtime.render.*;
 import games.pixscape.runtime.render.batch.GLCaps;
 import games.pixscape.runtime.render.batch.MetricsBatch;
@@ -129,9 +129,9 @@ public final class ActorShadowRectangleShadowGlCheck extends ApplicationAdapter 
             TransformComponent t = world.getMapper(TransformComponent.class).create(e);
             t.x = (i % 4 - 1.5f) * (count == 1 ? 0 : 55);
             t.y = i / 4 * -35;
-            SpatialPhysicsFootprintComponent foot = world.getMapper(SpatialPhysicsFootprintComponent.class).create(e);
-            foot.valid = true;
-            SpatialHeightComponent h = world.getMapper(SpatialHeightComponent.class).create(e);
+            SpatialFootprintComponent foot = world.getMapper(SpatialFootprintComponent.class).create(e);
+            foot.radiusPx = 8f;
+            SpatialRepresentationComponent h = world.getMapper(SpatialRepresentationComponent.class).create(e);
             h.rectangles = new ActorSpatialRectangles();
             // Fixed local rectangle; the light changes only its shadow orientation.
             ActorSpatialRectangleData v = new ActorSpatialRectangleData();
@@ -194,10 +194,10 @@ public final class ActorShadowRectangleShadowGlCheck extends ApplicationAdapter 
             }
             for (int i = 0; i < count; i++) {
                 int e = entities[i];
-                SpatialHeightComponent h = world.getMapper(SpatialHeightComponent.class).get(e);
+                SpatialRepresentationComponent h = world.getMapper(SpatialRepresentationComponent.class).get(e);
                 // The projected actor origin rises together with physical altitude.
                 float altitude = frame >= 24 ? 30 : 0;
-                h.altitude = altitude;
+                world.getMapper(games.pixscape.runtime.component.spatial.SpatialFootprintComponent.class).get(e).altitude = altitude;
                 TransformComponent t = world.getMapper(TransformComponent.class).get(e);
                 t.y = i / 4 * -35 + altitude;
                 AnimationComponent a = world.getMapper(AnimationComponent.class).getSafe(e, null);

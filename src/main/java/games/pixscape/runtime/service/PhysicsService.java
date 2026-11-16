@@ -15,6 +15,7 @@ import games.pixscape.runtime.component.TiledLayerComponent;
 import games.pixscape.runtime.component.TransformComponent;
 import games.pixscape.runtime.component.physics.*;
 import games.pixscape.runtime.component.spatial.SpatialBlocksComponent;
+import games.pixscape.runtime.component.spatial.SpatialFootprintComponent;
 import games.pixscape.runtime.hierarchy.WorldTransformState;
 import games.pixscape.runtime.physics.*;
 import games.pixscape.runtime.render.JointDirtyBits;
@@ -273,7 +274,7 @@ public final class PhysicsService {
             shapes.shapes.add(createDefaultShape(allocateNewPhysicsShapeId()));
         }
 
-        PreparedPhysicsBodyCandidate prepared = prepareBodyCandidate(shapes.shapes);
+        PreparedPhysicsBodyCandidate prepared = prepareBodyCandidate(world, eid, shapes.shapes, box2d == null ? 0f : box2d.ppm);
         PhysicsCompiledFixturesComponent compiled =
                 mCompiled.has(eid) ? mCompiled.get(eid) : mCompiled.create(eid);
         publishPreparedCandidate(shapes, compiled, prepared);
@@ -329,8 +330,10 @@ public final class PhysicsService {
         for (int i = 0, n = shapes.shapes.size; i < n; i++) {
             PhysicsShapeData shape = shapes.shapes.get(i);
             if (shape != null
-                    && shape.geometry != null
-                    && shape.geometry.shapeType == shapeType) count++;
+                    && (shape.useSpatialFootprint ? shapeType == PhysicsGeometryData.SHAPE_CIRCLE
+                    : shape.geometry != null && shape.geometry.shapeType == shapeType)) {
+                count++;
+            }
         }
         return count;
     }
@@ -1271,7 +1274,7 @@ public final class PhysicsService {
         PhysicsShapeIdAllocator.validatePhysicsShapeId(physicsShapeId);
         shape.physicsShapeId = physicsShapeId;
         shape.spatialBlockId = 0;
-        shape.spatialFootprint = false;
+        shape.useSpatialFootprint = false;
         shape.geometry = new PhysicsGeometryData();
 
         shape.density = 1f;
@@ -1287,10 +1290,15 @@ public final class PhysicsService {
 
     public static PreparedPhysicsBodyCandidate prepareBodyCandidate(
             Array<PhysicsShapeData> sources) {
+        return prepareBodyCandidate(sources, null, 0f);
+    }
+
+    public static PreparedPhysicsBodyCandidate prepareBodyCandidate(
+            Array<PhysicsShapeData> sources, SpatialFootprintComponent footprint, float pixelsPerMeter) {
         if (sources == null) {
             throw new IllegalArgumentException("Physics shape sources cannot be null.");
         }
-        PhysicsSpatialFootprintValidator.validateCollection(sources);
+        PhysicsShapeCollectionValidator.validateCollection(sources);
         Array<PhysicsShapeData> detached =
                 new Array<>(true, sources.size, PhysicsShapeData.class);
         Array<ResolvedPhysicsShape> resolved =
@@ -1303,7 +1311,9 @@ public final class PhysicsService {
             }
             PhysicsShapeData copy = source.copy();
             detached.add(copy);
-            resolved.add(SHAPE_RESOLVER.resolve(copy));
+            resolved.add(copy.useSpatialFootprint
+                    ? SHAPE_RESOLVER.resolveFootprint(copy, footprint, pixelsPerMeter)
+                    : SHAPE_RESOLVER.resolve(copy));
         }
         return new PreparedPhysicsBodyCandidate(detached, BODY_COMPILER.compile(resolved));
     }
@@ -1333,9 +1343,10 @@ public final class PhysicsService {
             float pixelsPerMeter, games.pixscape.runtime.tiled.TiledLayerData candidateMap,
             SpatialBlocksComponent candidateBlocks) {
         if (!containsLinkedShape(sources)) {
-            return prepareBodyCandidate(sources);
+            return prepareBodyCandidate(sources, world == null ? null : world.getMapper(SpatialFootprintComponent.class)
+                    .getSafe(ownerEntityId, null), pixelsPerMeter);
         }
-        PhysicsSpatialFootprintValidator.validateCollection(sources);
+        PhysicsShapeCollectionValidator.validateCollection(sources);
         if (world == null) {
             throw new IllegalArgumentException(
                     "World is required for linked physics shape ownerEntityId="
@@ -1384,7 +1395,7 @@ public final class PhysicsService {
         if (map == null || spatial == null || transform == null) {
             throw new IllegalArgumentException("Linked physics candidate requires grid, blocks and transform.");
         }
-        PhysicsSpatialFootprintValidator.validateCollection(sources);
+        PhysicsShapeCollectionValidator.validateCollection(sources);
         return prepareLinkedBodyCandidate(sources, map, spatial, transform, pixelsPerMeter, -1);
     }
 
@@ -1452,6 +1463,56 @@ public final class PhysicsService {
             }
         }
         return false;
+    }
+
+    public static boolean containsFootprintShape(Array<PhysicsShapeData> sources) {
+        if (sources != null) {
+            for (int i = 0; i < sources.size; i++) {
+                if (sources.get(i) != null && sources.get(i).useSpatialFootprint) {
+                    return true;
+                }
+            }
+        }
+        return false;
+    }
+
+    /**
+     * Cold authoring mutation: pass a detached candidate. Only an explicitly linked collision
+     * triggers body compilation; altitude, pose and distinct collisions do not. All geometry
+     * is validated before either authored state or compiled caches are published.
+     */
+    public static void setSpatialFootprint(World world, int entity, SpatialFootprintComponent candidate,
+            float pixelsPerMeter) {
+        if (world == null || entity < 0 || !world.getEntityManager().isActive(entity) || candidate == null) {
+            throw new IllegalArgumentException("An active Spatial owner and a detached footprint candidate are required.");
+        }
+        candidate.validate();
+        ComponentMapper<SpatialFootprintComponent> footprints = world.getMapper(SpatialFootprintComponent.class);
+        SpatialFootprintComponent before = footprints.getSafe(entity, null);
+        if (candidate == before) {
+            throw new IllegalArgumentException("Pass a detached footprint candidate before editing the live component.");
+        }
+        boolean geometryChanged = before == null || before.radiusPx != candidate.radiusPx
+                || before.localOffsetXPx != candidate.localOffsetXPx || before.localOffsetYPx != candidate.localOffsetYPx;
+        PhysicsShapesComponent shapes = world.getMapper(PhysicsShapesComponent.class).getSafe(entity, null);
+        PreparedPhysicsBodyCandidate prepared = geometryChanged && shapes != null && containsFootprintShape(shapes.shapes)
+                ? prepareBodyCandidate(shapes.shapes, candidate, pixelsPerMeter) : null;
+        footprints.create(entity).set(candidate);
+        if (prepared != null) {
+            publishPreparedCandidate(shapes, world.getMapper(PhysicsCompiledFixturesComponent.class).create(entity), prepared);
+            DirtyTrackerSystem dirty = world.getSystem(DirtyTrackerSystem.class);
+            if (dirty != null) {
+                dirty.physics(entity, PhysicsDirtyBits.ALL);
+            }
+        }
+    }
+
+    public static void removeSpatialFootprint(World world, int entity) {
+        PhysicsShapesComponent shapes = world.getMapper(PhysicsShapesComponent.class).getSafe(entity, null);
+        if (shapes != null && containsFootprintShape(shapes.shapes)) {
+            throw new IllegalStateException("Remove the footprint-derived collision before disabling Spatial.");
+        }
+        world.getMapper(SpatialFootprintComponent.class).remove(entity);
     }
 
     public static void rebuildPreparedBodyCaches(World world) {

@@ -14,10 +14,10 @@ match the generator without changing them.
 | File | In-file format version | Scope |
 | --- | --- | --- |
 | `project/1.schema.json` | project `"1"` | Export entry point and scene metadata |
-| `scene/3.schema.json` | scene `3` | Artemis envelope; its observed `metadata.version: 1` is a distinct serializer marker |
-| `components/3.schema.json` | scene `3` | 47 supported Runtime component type IDs, including layer names, surface lighting and non-pooled shader parameters |
+| `scene/5.schema.json` | scene `5` | Artemis envelope; its observed `metadata.version: 1` is a distinct serializer marker |
+| `components/5.schema.json` | scene `5` | 50 supported Runtime component type IDs, including layer names, surface lighting and non-pooled shader parameters |
 | `common/1.schema.json` | shared definitions `1` | LibGDX arrays, properties, physics and Spatial payloads |
-| `game-object/3.schema.json` | Game Object `3` | Independent definition and local entity/joint IDs |
+| `game-object/4.schema.json` | Game Object `4` | Independent definition and local entity/joint IDs |
 | `animations/unversioned.schema.json` | none | Sprite animation registry; no version field is emitted |
 | `tiled-animations/1.schema.json` | registry `"1"` | Tiled animation frames/durations |
 | `tileset-profiles/1.schema.json` | profile `1` | Tileset dimensions, projection and tile IDs |
@@ -53,7 +53,7 @@ Objects, HUD, registries, tileset profiles, atlas page paths and particle
 effect paths. For scene components it resolves each document's
 `componentIdentifiers`, expands each entity's archetype and validates explicit
 payloads against the matching fully qualified type ID. The nonstandard
-`x-pixscape-components` mapping in `components/3.schema.json` provides that
+`x-pixscape-components` mapping in `components/5.schema.json` provides that
 link; the short aliases are **not** global identifiers. The validator also
 rejects a Layer/EntityIndex combination inherited entirely from an archetype.
 The self-test checks eight representative invalid fixtures, including wrong
@@ -118,3 +118,5 @@ current map cell, which is what Runtime uses. Scene entity transform defaults
 come from components and archetypes; Game Object definition transform fields
 have different initial values. The root of a Game Object definition is at
 `(0,0)`, has local `zIndex = 0`, and does not carry `layerIndex`.
+
+Spatial actors use an authored circular `SpatialFootprintComponent` (pixels and altitude) plus `SpatialRepresentationComponent` (static/clip rectangles). Physics shapes may set `useSpatialFootprint: true` only with null geometry and spatialBlockId 0. Old `SpatialHeightComponent` and physics `spatialFootprint` markers are rejected, with no automatic footprint migration.

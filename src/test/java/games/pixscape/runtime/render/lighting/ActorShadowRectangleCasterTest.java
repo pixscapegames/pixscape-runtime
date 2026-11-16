@@ -6,8 +6,8 @@ import games.pixscape.runtime.component.AnimationComponent;
 import games.pixscape.runtime.component.AssetRefComponent;
 import games.pixscape.runtime.component.SurfaceLightingComponent;
 import games.pixscape.runtime.component.TransformComponent;
-import games.pixscape.runtime.component.spatial.SpatialHeightComponent;
-import games.pixscape.runtime.component.spatial.SpatialPhysicsFootprintComponent;
+import games.pixscape.runtime.component.spatial.SpatialRepresentationComponent;
+import games.pixscape.runtime.component.spatial.SpatialFootprintComponent;
 import games.pixscape.runtime.render.DynamicEntityRenderState;
 import games.pixscape.runtime.render.FrameRenderQueue;
 import games.pixscape.runtime.render.LayerStateSOA;
@@ -105,7 +105,7 @@ public class ActorShadowRectangleCasterTest {
     }
 
     @Test
-    public void onlyAnAuthoringWorldMaySuspendAnIncompleteActorShadow() {
+    public void invalidAutonomousFootprintIsDiagnosedAndValidStateCanRecover() {
         DynamicEntityRenderState dynamic = new DynamicEntityRenderState(4);
         FrameRenderQueue queue = new FrameRenderQueue(4);
         LightingGeometrySystem geometry = new LightingGeometrySystem(dynamic, new TiledRenderState(4),
@@ -118,36 +118,25 @@ public class ActorShadowRectangleCasterTest {
             dynamic.x3[slot] = dynamic.x4[slot] = 32;
             dynamic.y2[slot] = dynamic.y3[slot] = 64;
             world.getMapper(TransformComponent.class).create(actor);
-            SpatialHeightComponent height = world.getMapper(SpatialHeightComponent.class).create(actor);
+            SpatialRepresentationComponent height = world.getMapper(SpatialRepresentationComponent.class).create(actor);
             height.rectangles = new ActorSpatialRectangles();
             height.rectangles.staticRectangle = new ActorSpatialRectangleData();
             world.getMapper(SurfaceLightingComponent.class).create(actor).shadowCaster = true;
             assertThrows(LightingAdmissionException.class, world::process);
 
-            geometry.allowIncompleteAuthoringFootprints();
+            SpatialFootprintComponent foot = world.getMapper(SpatialFootprintComponent.class).create(actor);
+            foot.radiusPx = 8f;
             world.process();
-            LightingSurface surface = queue.lighting.entities.get(actor);
-            assertTrue(surface.receiveLight);
-            assertEquals(0, queue.lighting.casters.size);
-            SpatialPhysicsFootprintComponent foot = world.getMapper(SpatialPhysicsFootprintComponent.class).create(actor);
-            foot.valid = true;
-            world.process();
-            assertSame(surface, queue.lighting.casters.first().surface);
-            foot.valid = false;
-            world.process();
-            assertNull(surface.shadowVertices);
-            assertEquals(0, surface.shadowVertexCount);
-            assertFalse(surface.shadowCaster);
-            assertEquals(0, queue.lighting.casters.size);
-            foot.valid = true;
+            LightingSurface surface = queue.lighting.casters.first().surface;
+            foot.radiusPx = 0f;
+            assertThrows(LightingAdmissionException.class, world::process);
+            foot.radiusPx = 8f;
             world.process();
             assertSame(surface, queue.lighting.casters.first().surface);
             assertEquals(6, surface.shadowVertexCount);
 
-            foot.valid = false;
-            foot.invalidSpatialFootprint = true;
+            foot.radiusPx = 0f;
             assertThrows(LightingAdmissionException.class, world::process);
-            foot.invalidSpatialFootprint = false;
             world.getMapper(TransformComponent.class).remove(actor);
             assertThrows(LightingAdmissionException.class, world::process);
         } finally {
@@ -178,9 +167,9 @@ public class ActorShadowRectangleCasterTest {
             d.v1[slot] = .2f;
             d.v2[slot] = .8f;
             world.getMapper(TransformComponent.class).create(e);
-            SpatialPhysicsFootprintComponent foot = world.getMapper(SpatialPhysicsFootprintComponent.class).create(e);
-            foot.valid = true;
-            SpatialHeightComponent h = world.getMapper(SpatialHeightComponent.class).create(e);
+            SpatialFootprintComponent foot = world.getMapper(SpatialFootprintComponent.class).create(e);
+            foot.radiusPx = 8f;
+            SpatialRepresentationComponent h = world.getMapper(SpatialRepresentationComponent.class).create(e);
             h.rectangles = new ActorSpatialRectangles();
             h.rectangles.put(7, "walk", new ActorSpatialRectangleData());
             ActorSpatialRectangleData idle = new ActorSpatialRectangleData();
@@ -217,7 +206,7 @@ public class ActorShadowRectangleCasterTest {
             assertEquals(updates, storage.updates);
             assertEquals(.4f, q.lighting.casters.first().u1, 0);
             animation.currentClip = "idle";
-            h.altitude = 40;
+            foot.altitude = 40;
             world.process();
             assertEquals(updates + 1, storage.updates);
             assertEquals(40, q.lighting.casters.first().minZ, .001);
@@ -230,7 +219,7 @@ public class ActorShadowRectangleCasterTest {
             assertEquals(1, q.lighting.casters.size);
             assertEquals(identity, s.casterShadowGroup());
             assertEquals(identity, s.receiverShadowGroup(24));
-            world.getMapper(SpatialHeightComponent.class).remove(e);
+            world.getMapper(SpatialRepresentationComponent.class).remove(e);
             world.process();
             assertNull("Disabling spatial must stop using the cached actor caster", s.shadowVertices);
             LightingFrame.Caster actual = q.lighting.casters.first();

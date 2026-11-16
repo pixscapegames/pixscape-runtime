@@ -17,7 +17,7 @@ import java.util.Map;
  */
 public final class GameObjectAsset {
     public static final String EXTENSION = ".gameobject";
-    public static final int SCHEMA_VERSION = 3;
+    public static final int SCHEMA_VERSION = 4;
 
     public int schemaVersion = SCHEMA_VERSION;
     public int rootSourceEntityId = -1;
@@ -55,7 +55,8 @@ public final class GameObjectAsset {
         /**
          * Authored Spatial vertical volume; derived Spatial footprint cache is intentionally absent.
          */
-        public SpatialHeightData spatialHeight;
+        public SpatialRepresentationData spatialRepresentation;
+        public games.pixscape.runtime.component.spatial.SpatialFootprintComponent spatialFootprint;
         /**
          * Authored Body definition; runtime Box2D state is intentionally absent.
          */
@@ -154,8 +155,7 @@ public final class GameObjectAsset {
         public boolean enabled;
     }
 
-    public static final class SpatialHeightData {
-        public float altitude;
+    public static final class SpatialRepresentationData {
         public games.pixscape.runtime.spatial.ActorSpatialRectangles rectangles;
     }
 
@@ -175,7 +175,7 @@ public final class GameObjectAsset {
         /**
          * Self-contained circular Spatial footprint marker; no Scene Spatial block is referenced.
          */
-        public boolean spatialFootprint;
+        public boolean useSpatialFootprint;
     }
 
     /**

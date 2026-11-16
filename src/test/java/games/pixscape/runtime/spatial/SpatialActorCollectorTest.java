@@ -6,8 +6,8 @@ import com.artemis.WorldConfigurationBuilder;
 import games.pixscape.runtime.component.EntityIndexComponent;
 import games.pixscape.runtime.component.TransformComponent;
 import games.pixscape.runtime.component.physics.PhysicsBodyComponent;
-import games.pixscape.runtime.component.spatial.SpatialHeightComponent;
-import games.pixscape.runtime.component.spatial.SpatialPhysicsFootprintComponent;
+import games.pixscape.runtime.component.spatial.SpatialRepresentationComponent;
+import games.pixscape.runtime.component.spatial.SpatialFootprintComponent;
 import games.pixscape.runtime.hierarchy.WorldTransformState;
 import games.pixscape.runtime.render.DrawList;
 import games.pixscape.runtime.render.DynamicEntityRenderState;
@@ -25,8 +25,8 @@ public class SpatialActorCollectorTest {
             int e = f.createActor(10, 20, 2, true);
             f.addCircle(e, 3, 0, 0);
             f.addActorDrawSlot(e);
-            SpatialHeightComponent height = f.height.get(e);
-            height.altitude = 5;
+            SpatialRepresentationComponent height = f.height.get(e);
+            f.footprints.get(e).altitude = 5;
             games.pixscape.runtime.component.AnimationComponent animation = f.world.getMapper(
                     games.pixscape.runtime.component.AnimationComponent.class).create(e);
             f.world.getMapper(games.pixscape.runtime.component.AssetRefComponent.class).create(e).assetId = 7;
@@ -81,6 +81,8 @@ public class SpatialActorCollectorTest {
                 fixture.entityIndex, fixture.transform, fixture.height, fixture.shapes);
 
         Assert.assertEquals(1, fixture.collector.actorCount());
+        Assert.assertFalse(fixture.body.has(actor));
+        Assert.assertFalse(fixture.world.getMapper(games.pixscape.runtime.component.physics.PhysicsShapesComponent.class).has(actor));
         Assert.assertEquals(fixture.renderSlotFor(actor), fixture.collector.actorSlot[0]);
         Assert.assertEquals(actor, fixture.collector.actorEntityId[0]);
         Assert.assertEquals(2, fixture.collector.actorLayerIndex[0]);
@@ -143,15 +145,15 @@ public class SpatialActorCollectorTest {
     }
 
     @Test
-    public void excludesActorWithoutValidPhysicsCircleFootprint() {
+    public void excludesActorWithoutValidAuthoredCircleFootprint() {
         Fixture fixture = new Fixture();
         int missingBody = fixture.createActor(10f, 20f, 2, true);
         int disabledBody = fixture.createActor(30f, 40f, 2, true);
         fixture.addCircle(disabledBody, 3f, 0f, 0f);
-        fixture.footprints.get(disabledBody).valid = false;
+        fixture.footprints.get(disabledBody).radiusPx = 0f;
         int noCircle = fixture.createActor(50f, 60f, 2, true);
         fixture.body.create(noCircle);
-        fixture.footprints.create(noCircle);
+        fixture.footprints.create(noCircle).radiusPx = 0;
         fixture.addActorDrawSlot(missingBody);
         fixture.addActorDrawSlot(disabledBody);
         fixture.addActorDrawSlot(noCircle);
@@ -163,10 +165,10 @@ public class SpatialActorCollectorTest {
     }
 
     @Test
-    public void computesActorFootprintFromTransformCircleAndPixelsPerMeter() {
+    public void computesActorFootprintFromTransformAndAuthoredCircle() {
         Fixture fixture = new Fixture();
         int actor = fixture.createActor(10f, 20f, 2, true);
-        fixture.height.get(actor).altitude = 3f;
+        fixture.footprints.create(actor).altitude = 3f;
         games.pixscape.runtime.spatial.SpatialRectangleTestData.setHeight(fixture.height.get(actor), 7f);
         fixture.transform.get(actor).rotationRad = (float) (Math.PI * 0.5);
         fixture.addCircle(actor, 4f, 5f, 1f);
@@ -270,11 +272,11 @@ public class SpatialActorCollectorTest {
 
         final ComponentMapper<EntityIndexComponent> entityIndex = world.getMapper(EntityIndexComponent.class);
         final ComponentMapper<TransformComponent> transform = world.getMapper(TransformComponent.class);
-        final ComponentMapper<SpatialHeightComponent> height = world.getMapper(SpatialHeightComponent.class);
+        final ComponentMapper<SpatialRepresentationComponent> height = world.getMapper(SpatialRepresentationComponent.class);
         final ComponentMapper<PhysicsBodyComponent> body = world.getMapper(PhysicsBodyComponent.class);
-        final ComponentMapper<SpatialPhysicsFootprintComponent> shapes =
-                world.getMapper(SpatialPhysicsFootprintComponent.class);
-        final ComponentMapper<SpatialPhysicsFootprintComponent> footprints = shapes;
+        final ComponentMapper<SpatialFootprintComponent> shapes =
+                world.getMapper(SpatialFootprintComponent.class);
+        final ComponentMapper<SpatialFootprintComponent> footprints = shapes;
 
         Fixture() {
             collector.setRepresentationMappers(world.getMapper(games.pixscape.runtime.component.AnimationComponent.class), world.getMapper(games.pixscape.runtime.component.AssetRefComponent.class));
@@ -283,7 +285,7 @@ public class SpatialActorCollectorTest {
 
         int createActor(float x, float y, int layerIndex, boolean spatialLayer) {
             int actor = createActorWithoutHeight(x, y, layerIndex);
-            SpatialHeightComponent h = height.create(actor);
+            SpatialRepresentationComponent h = height.create(actor);
             games.pixscape.runtime.spatial.SpatialRectangleTestData.setHeight(h, 2f);
             if (spatialLayer) {
                 spatialLayers[layerIndex] = true;
@@ -305,9 +307,7 @@ public class SpatialActorCollectorTest {
         }
 
         void addCircle(int actor, float radiusPx, float offsetXPx, float offsetYPx) {
-            body.create(actor);
-            SpatialPhysicsFootprintComponent footprint = footprints.create(actor);
-            footprint.valid = true;
+            SpatialFootprintComponent footprint = footprints.create(actor);
             footprint.radiusPx = radiusPx;
             footprint.localOffsetXPx = offsetXPx;
             footprint.localOffsetYPx = offsetYPx;

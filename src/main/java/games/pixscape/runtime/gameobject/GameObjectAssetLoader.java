@@ -177,11 +177,16 @@ public final class GameObjectAssetLoader {
         }
         if (entity.physicsBody != null) validateBody(entity, file);
         if (entity.physicsShapes != null) validateShapes(entity, file);
-        if (entity.spatialHeight != null) {
-            if (entity.spatialHeight.rectangles == null)
+        if (entity.spatialFootprint != null) {
+            entity.spatialFootprint.validate();
+        }
+        if (entity.spatialRepresentation != null) {
+            if (entity.spatialRepresentation.rectangles == null)
                 throw new IllegalArgumentException("Spatial actor rectangles are missing: " + entity.sourceEntityId);
-            entity.spatialHeight.rectangles.validate();
-            requireFinite(entity.spatialHeight.altitude, "spatialHeight.altitude", entity.sourceEntityId, file);
+            entity.spatialRepresentation.rectangles.validate();
+            if (entity.spatialFootprint == null) {
+                throw failure(file, "Spatial representation requires an authored footprint.");
+            }
         }
     }
 
@@ -217,7 +222,10 @@ public final class GameObjectAssetLoader {
             shape.maskBits = source.maskBits;
             shape.groupIndex = source.groupIndex;
             shape.enabled = source.enabled;
-            shape.spatialFootprint = source.spatialFootprint;
+            shape.useSpatialFootprint = source.useSpatialFootprint;
+            if (source.useSpatialFootprint && entity.spatialFootprint == null) {
+                throw failure(file, "Footprint-derived collision requires a same-owner spatial footprint.");
+            }
             try {
                 shape.validateStructure();
             } catch (IllegalArgumentException ex) {

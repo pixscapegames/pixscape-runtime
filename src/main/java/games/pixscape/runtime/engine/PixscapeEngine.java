@@ -1674,9 +1674,6 @@ public final class PixscapeEngine {
         requireSystem(GameObjectHierarchySystem.class).prepareRuntimeAvailability();
         PhysicsService.rebuildPreparedBodyCaches(world, meta.pixelsPerMeter);
         applyPhysicsFromScene(meta, false);
-        PhysicsSpatialFootprintSyncSystem footprints =
-                requireSystem(PhysicsSpatialFootprintSyncSystem.class);
-        footprints.prepareRuntimeAvailability();
         if (meta.physicsEnabled) {
             box2dSyncSystem.prepareRuntimeAvailability();
         }
@@ -2194,14 +2191,6 @@ public final class PixscapeEngine {
             box2dWorldService.setGravity(meta.gravityX, meta.gravityY);
             box2dWorldService.setDoSleep(meta.doSleep);
         }
-        PhysicsSpatialFootprintSyncSystem footprintSync =
-                world.getSystem(PhysicsSpatialFootprintSyncSystem.class);
-        if (footprintSync == null) {
-            throw new IllegalStateException(
-                    "PhysicsSpatialFootprintSyncSystem is required "
-                            + "to apply scene pixelsPerMeter.");
-        }
-        footprintSync.setPixelsPerMeter(ppm);
 
         box2dSyncSystem.setSceneMeta(meta);
         box2dSyncSystem.setEnabled(activate);

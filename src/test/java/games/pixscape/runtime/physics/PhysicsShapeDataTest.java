@@ -27,14 +27,14 @@ public class PhysicsShapeDataTest {
     @Test
     public void copyIsDeepAndPreservesSpatialFootprintOwnership() {
         PhysicsShapeData source = polygon();
-        source.spatialFootprint = true;
+        source.useSpatialFootprint = true;
         source.geometry.shapeType = PhysicsGeometryData.SHAPE_CIRCLE;
         source.geometry.radius = 1f;
         PhysicsShapeData copy = source.copy();
 
         Assert.assertTrue(source.contentEquals(copy));
         Assert.assertEquals(0, copy.spatialBlockId);
-        Assert.assertTrue(copy.spatialFootprint);
+        Assert.assertTrue(copy.useSpatialFootprint);
         copy.geometry.polygonVertices[0] = 99f;
         copy.density = 4f;
 
@@ -92,37 +92,18 @@ public class PhysicsShapeDataTest {
     }
 
     @Test
-    public void spatialFootprintRequiresEnabledManualCircleWithPositiveRadius() {
+    public void footprintSourceHasNoEditableGeometryAndCanBeDisabled() {
         PhysicsShapeData shape = new PhysicsShapeData();
         shape.physicsShapeId = 1;
+        shape.useSpatialFootprint = true;
         shape.geometry = new PhysicsGeometryData();
-        shape.spatialFootprint = true;
-
-        expectInvalid(shape, "circle geometry");
-
-        shape.geometry.shapeType = PhysicsGeometryData.SHAPE_POLYGON;
-        shape.geometry.polygonVertexCount = 3;
-        shape.geometry.polygonVertices = new float[]{0f, 0f, 1f, 0f, 0f, 1f};
-        expectInvalid(shape, "circle geometry");
-
-        shape.geometry.shapeType = PhysicsGeometryData.SHAPE_CIRCLE;
-        shape.sensor = true;
-        shape.validateStructure();
-
-        shape.enabled = false;
-        expectInvalid(shape, "must be enabled");
-
-        shape.enabled = true;
-        shape.geometry.radius = 0f;
-        expectInvalid(shape, "radius");
-
-        shape.geometry.radius = Float.NaN;
-        expectInvalid(shape, "finite");
-
-        shape.geometry.radius = 1f;
-        shape.spatialBlockId = 4;
+        expectInvalid(shape, "no copied geometry");
         shape.geometry = null;
-        expectInvalid(shape, "manual shape");
+        shape.sensor = true;
+        shape.enabled = false;
+        shape.validateStructure();
+        shape.spatialBlockId = 4;
+        expectInvalid(shape, "spatialBlockId=0");
     }
 
     @Test
@@ -143,7 +124,6 @@ public class PhysicsShapeDataTest {
         Assert.assertArrayEquals(
                 compiled.polygonVertices, restoredCompiled.polygonVertices, 0f);
         Assert.assertEquals(compiled.physicsShapeId, restoredCompiled.physicsShapeId);
-        Assert.assertEquals(compiled.spatialFootprint, restoredCompiled.spatialFootprint);
         Assert.assertEquals(compiled.partIndex, restoredCompiled.partIndex);
     }
 
@@ -151,9 +131,8 @@ public class PhysicsShapeDataTest {
     public void explicitSpatialFootprintRoundTripsAndOldJsonDefaultsToFalse() {
         PhysicsShapeData explicit = new PhysicsShapeData();
         explicit.physicsShapeId = 9;
-        explicit.geometry = new PhysicsGeometryData();
-        explicit.geometry.shapeType = PhysicsGeometryData.SHAPE_CIRCLE;
-        explicit.spatialFootprint = true;
+        explicit.geometry = null;
+        explicit.useSpatialFootprint = true;
         Json json = new Json();
 
         PhysicsShapeData restoredExplicit = json.fromJson(
@@ -161,8 +140,8 @@ public class PhysicsShapeDataTest {
         PhysicsShapeData restoredLegacy = json.fromJson(PhysicsShapeData.class,
                 "{physicsShapeId:9,spatialBlockId:0,geometry:{shapeType:1,radius:1}}");
 
-        Assert.assertTrue(restoredExplicit.spatialFootprint);
-        Assert.assertFalse(restoredLegacy.spatialFootprint);
+        Assert.assertTrue(restoredExplicit.useSpatialFootprint);
+        Assert.assertFalse(restoredLegacy.useSpatialFootprint);
     }
 
     private static PhysicsShapeData polygon() {

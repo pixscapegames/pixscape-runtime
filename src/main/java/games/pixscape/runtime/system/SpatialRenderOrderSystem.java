@@ -9,8 +9,8 @@ import com.artemis.utils.IntBag;
 import com.badlogic.gdx.math.Vector2;
 import games.pixscape.runtime.component.*;
 import games.pixscape.runtime.component.spatial.SpatialBlocksComponent;
-import games.pixscape.runtime.component.spatial.SpatialHeightComponent;
-import games.pixscape.runtime.component.spatial.SpatialPhysicsFootprintComponent;
+import games.pixscape.runtime.component.spatial.SpatialRepresentationComponent;
+import games.pixscape.runtime.component.spatial.SpatialFootprintComponent;
 import games.pixscape.runtime.profiling.ProfiledSystem;
 import games.pixscape.runtime.profiling.SystemProfilePhases;
 import games.pixscape.runtime.profiling.SystemProfiler;
@@ -30,10 +30,10 @@ public final class SpatialRenderOrderSystem extends BaseSystem implements Profil
     private ComponentMapper<TransformComponent> mTransform;
     private ComponentMapper<EntityIndexComponent> mEntityIndex;
     private ComponentMapper<PixscapeIdentityComponent> mIdentity;
-    private ComponentMapper<SpatialHeightComponent> mSpatialHeight;
+    private ComponentMapper<SpatialRepresentationComponent> mSpatialRepresentation;
     private ComponentMapper<TiledLayerComponent> mTiled;
     private ComponentMapper<SpatialBlocksComponent> mSpatialBlocks;
-    private ComponentMapper<SpatialPhysicsFootprintComponent> mSpatialPhysicsFootprint;
+    private ComponentMapper<SpatialFootprintComponent> mSpatialFootprint;
 
     private EntitySubscription layersSub;
     private EntitySubscription tiledMapsSub;
@@ -392,8 +392,8 @@ public final class SpatialRenderOrderSystem extends BaseSystem implements Profil
                 world.getEntityManager(),
                 mEntityIndex,
                 mTransform,
-                mSpatialHeight,
-                mSpatialPhysicsFootprint,
+                mSpatialRepresentation,
+                mSpatialFootprint,
                 mIdentity,
                 gameObjectHierarchy != null ? gameObjectHierarchy.worldTransforms() : null);
     }
@@ -414,8 +414,8 @@ public final class SpatialRenderOrderSystem extends BaseSystem implements Profil
                 world.getEntityManager(),
                 mEntityIndex,
                 mTransform,
-                mSpatialHeight,
-                mSpatialPhysicsFootprint,
+                mSpatialRepresentation,
+                mSpatialFootprint,
                 gameObjectHierarchy != null ? gameObjectHierarchy.worldTransforms() : null);
     }
 

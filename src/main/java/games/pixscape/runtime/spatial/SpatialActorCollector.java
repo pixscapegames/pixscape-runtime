@@ -2,12 +2,11 @@ package games.pixscape.runtime.spatial;
 
 import com.artemis.ComponentMapper;
 import com.artemis.EntityManager;
-import com.badlogic.gdx.math.MathUtils;
 import games.pixscape.runtime.component.EntityIndexComponent;
 import games.pixscape.runtime.component.PixscapeIdentityComponent;
 import games.pixscape.runtime.component.TransformComponent;
-import games.pixscape.runtime.component.spatial.SpatialHeightComponent;
-import games.pixscape.runtime.component.spatial.SpatialPhysicsFootprintComponent;
+import games.pixscape.runtime.component.spatial.SpatialRepresentationComponent;
+import games.pixscape.runtime.component.spatial.SpatialFootprintComponent;
 import games.pixscape.runtime.hierarchy.WorldTransformState;
 import games.pixscape.runtime.render.DrawList;
 import games.pixscape.runtime.render.DynamicEntityRenderState;
@@ -25,7 +24,7 @@ public final class SpatialActorCollector {
         this.assets = assets;
     }
 
-    private ActorSpatialRectangleData rectangle(int entity, SpatialHeightComponent spatial) {
+    private ActorSpatialRectangleData rectangle(int entity, SpatialRepresentationComponent spatial) {
         if (spatial == null || spatial.rectangles == null) return null;
         games.pixscape.runtime.component.AnimationComponent animation = animations == null ? null : animations.getSafe(entity, null);
         games.pixscape.runtime.component.AssetRefComponent asset = assets == null ? null : assets.getSafe(entity, null);
@@ -82,15 +81,15 @@ public final class SpatialActorCollector {
                         EntityManager entityManager,
                         ComponentMapper<EntityIndexComponent> entityIndexMapper,
                         ComponentMapper<TransformComponent> transformMapper,
-                        ComponentMapper<SpatialHeightComponent> spatialHeightMapper,
-                        ComponentMapper<SpatialPhysicsFootprintComponent> spatialFootprintMapper) {
+                        ComponentMapper<SpatialRepresentationComponent> spatialRepresentationMapper,
+                        ComponentMapper<SpatialFootprintComponent> spatialFootprintMapper) {
         collect(drawList,
                 state,
                 spatialLayers,
                 entityManager,
                 entityIndexMapper,
                 transformMapper,
-                spatialHeightMapper,
+                spatialRepresentationMapper,
                 spatialFootprintMapper,
                 null,
                 null);
@@ -102,11 +101,11 @@ public final class SpatialActorCollector {
                         EntityManager entityManager,
                         ComponentMapper<EntityIndexComponent> entityIndexMapper,
                         ComponentMapper<TransformComponent> transformMapper,
-                        ComponentMapper<SpatialHeightComponent> spatialHeightMapper,
-                        ComponentMapper<SpatialPhysicsFootprintComponent> spatialFootprintMapper,
+                        ComponentMapper<SpatialRepresentationComponent> spatialRepresentationMapper,
+                        ComponentMapper<SpatialFootprintComponent> spatialFootprintMapper,
                         ComponentMapper<PixscapeIdentityComponent> identityMapper) {
         collect(drawList, state, spatialLayers, entityManager, entityIndexMapper, transformMapper,
-                spatialHeightMapper, spatialFootprintMapper, identityMapper, null);
+                spatialRepresentationMapper, spatialFootprintMapper, identityMapper, null);
     }
 
     public void collect(DrawList drawList,
@@ -115,8 +114,8 @@ public final class SpatialActorCollector {
                         EntityManager entityManager,
                         ComponentMapper<EntityIndexComponent> entityIndexMapper,
                         ComponentMapper<TransformComponent> transformMapper,
-                        ComponentMapper<SpatialHeightComponent> spatialHeightMapper,
-                        ComponentMapper<SpatialPhysicsFootprintComponent> spatialFootprintMapper,
+                        ComponentMapper<SpatialRepresentationComponent> spatialRepresentationMapper,
+                        ComponentMapper<SpatialFootprintComponent> spatialFootprintMapper,
                         ComponentMapper<PixscapeIdentityComponent> identityMapper,
                         WorldTransformState worldTransforms) {
         clear();
@@ -136,7 +135,7 @@ public final class SpatialActorCollector {
                     entityManager,
                     entityIndexMapper,
                     transformMapper,
-                    spatialHeightMapper,
+                    spatialRepresentationMapper,
                     spatialFootprintMapper,
                     identityMapper,
                     worldTransforms);
@@ -177,8 +176,8 @@ public final class SpatialActorCollector {
                         EntityManager entityManager,
                         ComponentMapper<EntityIndexComponent> entityIndexMapper,
                         ComponentMapper<TransformComponent> transformMapper,
-                        ComponentMapper<SpatialHeightComponent> spatialHeightMapper,
-                        ComponentMapper<SpatialPhysicsFootprintComponent> spatialFootprintMapper,
+                        ComponentMapper<SpatialRepresentationComponent> spatialRepresentationMapper,
+                        ComponentMapper<SpatialFootprintComponent> spatialFootprintMapper,
                         ComponentMapper<PixscapeIdentityComponent> identityMapper,
                         WorldTransformState worldTransforms) {
         if (!isEligibleActorSlotWithoutFootprint(slot,
@@ -186,16 +185,15 @@ public final class SpatialActorCollector {
                 spatialLayers,
                 entityManager,
                 entityIndexMapper,
-                spatialHeightMapper)) {
+                spatialRepresentationMapper)) {
             return false;
         }
 
         int entity = state.renderSlotToEntityId[slot];
         TransformComponent transform = transformMapper.getSafe(entity, null);
-        SpatialHeightComponent height = spatialHeightMapper.getSafe(entity, null);
-        if (!writeActorPhysicsCircleFootprint(entity,
+        SpatialRepresentationComponent height = spatialRepresentationMapper.getSafe(entity, null);
+        if (!writeActorCircleFootprint(entity,
                 transform,
-                height,
                 spatialFootprintMapper,
                 worldTransforms,
                 tmpFootprint)) {
@@ -243,10 +241,10 @@ public final class SpatialActorCollector {
                                        EntityManager entityManager,
                                        ComponentMapper<EntityIndexComponent> entityIndexMapper,
                                        ComponentMapper<TransformComponent> transformMapper,
-                                       ComponentMapper<SpatialHeightComponent> spatialHeightMapper,
-                                       ComponentMapper<SpatialPhysicsFootprintComponent> spatialFootprintMapper) {
+                                       ComponentMapper<SpatialRepresentationComponent> spatialRepresentationMapper,
+                                       ComponentMapper<SpatialFootprintComponent> spatialFootprintMapper) {
         return isEligibleActorSlot(slot, state, spatialLayers, entityManager, entityIndexMapper,
-                transformMapper, spatialHeightMapper, spatialFootprintMapper, null);
+                transformMapper, spatialRepresentationMapper, spatialFootprintMapper, null);
     }
 
     public boolean isEligibleActorSlot(int slot,
@@ -255,23 +253,21 @@ public final class SpatialActorCollector {
                                        EntityManager entityManager,
                                        ComponentMapper<EntityIndexComponent> entityIndexMapper,
                                        ComponentMapper<TransformComponent> transformMapper,
-                                       ComponentMapper<SpatialHeightComponent> spatialHeightMapper,
-                                       ComponentMapper<SpatialPhysicsFootprintComponent> spatialFootprintMapper,
+                                       ComponentMapper<SpatialRepresentationComponent> spatialRepresentationMapper,
+                                       ComponentMapper<SpatialFootprintComponent> spatialFootprintMapper,
                                        WorldTransformState worldTransforms) {
         if (!isEligibleActorSlotWithoutFootprint(
-                slot, state, spatialLayers, entityManager, entityIndexMapper, spatialHeightMapper)) {
+                slot, state, spatialLayers, entityManager, entityIndexMapper, spatialRepresentationMapper)) {
             return false;
         }
 
         int entity = state.renderSlotToEntityId[slot];
-        SpatialHeightComponent height = spatialHeightMapper.getSafe(entity, null);
         TransformComponent transform = transformMapper != null
                 ? transformMapper.getSafe(entity, null)
                 : null;
-        return writeActorPhysicsCircleFootprint(
+        return writeActorCircleFootprint(
                 entity,
                 transform,
-                height,
                 spatialFootprintMapper,
                 worldTransforms,
                 null);
@@ -284,10 +280,10 @@ public final class SpatialActorCollector {
             EntityManager entityManager,
             ComponentMapper<EntityIndexComponent> entityIndexMapper,
             ComponentMapper<TransformComponent> transformMapper,
-            ComponentMapper<SpatialHeightComponent> spatialHeightMapper,
-            ComponentMapper<SpatialPhysicsFootprintComponent> spatialFootprintMapper) {
+            ComponentMapper<SpatialRepresentationComponent> spatialRepresentationMapper,
+            ComponentMapper<SpatialFootprintComponent> spatialFootprintMapper) {
         return isEligibleActorSlotOnSpatialLayer(slot, state, spatialLayerEnabled, entityManager,
-                entityIndexMapper, transformMapper, spatialHeightMapper, spatialFootprintMapper, null);
+                entityIndexMapper, transformMapper, spatialRepresentationMapper, spatialFootprintMapper, null);
     }
 
     public boolean isEligibleActorSlotOnSpatialLayer(
@@ -297,8 +293,8 @@ public final class SpatialActorCollector {
             EntityManager entityManager,
             ComponentMapper<EntityIndexComponent> entityIndexMapper,
             ComponentMapper<TransformComponent> transformMapper,
-            ComponentMapper<SpatialHeightComponent> spatialHeightMapper,
-            ComponentMapper<SpatialPhysicsFootprintComponent> spatialFootprintMapper,
+            ComponentMapper<SpatialRepresentationComponent> spatialRepresentationMapper,
+            ComponentMapper<SpatialFootprintComponent> spatialFootprintMapper,
             WorldTransformState worldTransforms) {
         if (!isEligibleActorSlotWithoutFootprint(
                 slot,
@@ -307,19 +303,17 @@ public final class SpatialActorCollector {
                 spatialLayerEnabled,
                 entityManager,
                 entityIndexMapper,
-                spatialHeightMapper)) {
+                spatialRepresentationMapper)) {
             return false;
         }
 
         int entity = state.renderSlotToEntityId[slot];
-        SpatialHeightComponent height = spatialHeightMapper.getSafe(entity, null);
         TransformComponent transform = transformMapper != null
                 ? transformMapper.getSafe(entity, null)
                 : null;
-        return writeActorPhysicsCircleFootprint(
+        return writeActorCircleFootprint(
                 entity,
                 transform,
-                height,
                 spatialFootprintMapper,
                 worldTransforms,
                 null);
@@ -331,7 +325,7 @@ public final class SpatialActorCollector {
             boolean[] spatialLayers,
             EntityManager entityManager,
             ComponentMapper<EntityIndexComponent> entityIndexMapper,
-            ComponentMapper<SpatialHeightComponent> spatialHeightMapper) {
+            ComponentMapper<SpatialRepresentationComponent> spatialRepresentationMapper) {
         return isEligibleActorSlotWithoutFootprint(
                 slot,
                 state,
@@ -339,7 +333,7 @@ public final class SpatialActorCollector {
                 false,
                 entityManager,
                 entityIndexMapper,
-                spatialHeightMapper);
+                spatialRepresentationMapper);
     }
 
     private boolean isEligibleActorSlotWithoutFootprint(
@@ -349,7 +343,7 @@ public final class SpatialActorCollector {
             boolean spatialLayerEnabled,
             EntityManager entityManager,
             ComponentMapper<EntityIndexComponent> entityIndexMapper,
-            ComponentMapper<SpatialHeightComponent> spatialHeightMapper) {
+            ComponentMapper<SpatialRepresentationComponent> spatialRepresentationMapper) {
         if (!isRenderableSlot(slot, state)) return false;
 
         int entity = state.renderSlotToEntityId[slot];
@@ -363,66 +357,21 @@ public final class SpatialActorCollector {
             return false;
         }
 
-        SpatialHeightComponent height = spatialHeightMapper != null
-                ? spatialHeightMapper.getSafe(entity, null)
+        SpatialRepresentationComponent height = spatialRepresentationMapper != null
+                ? spatialRepresentationMapper.getSafe(entity, null)
                 : null;
         ActorSpatialRectangleData rectangle = rectangle(entity, height);
         return rectangle != null && rectangle.width > 0f && rectangle.height > 0f;
     }
 
-    static boolean writeActorPhysicsCircleFootprint(int entity,
+    static boolean writeActorCircleFootprint(int entity,
                                                     TransformComponent transform,
-                                                    SpatialHeightComponent height,
-                                                    ComponentMapper<SpatialPhysicsFootprintComponent> spatialFootprintMapper,
-                                                    SpatialActorGeometry.Footprint out) {
-        return writeActorPhysicsCircleFootprint(entity, transform, height, spatialFootprintMapper, null, out);
-    }
-
-    static boolean writeActorPhysicsCircleFootprint(int entity,
-                                                    TransformComponent transform,
-                                                    SpatialHeightComponent height,
-                                                    ComponentMapper<SpatialPhysicsFootprintComponent> spatialFootprintMapper,
+                                                    ComponentMapper<SpatialFootprintComponent> spatialFootprintMapper,
                                                     WorldTransformState worldTransforms,
                                                     SpatialActorGeometry.Footprint out) {
-        if (transform == null || height == null) return false;
-        SpatialPhysicsFootprintComponent footprint = spatialFootprintMapper != null
-                ? spatialFootprintMapper.getSafe(entity, null)
-                : null;
-        if (footprint == null || !footprint.valid || footprint.radiusPx <= 0f) {
-            return false;
-        }
-
-        float poseX = transform.x;
-        float poseY = transform.y;
-        float poseRotation = transform.rotationRad;
-        if (worldTransforms != null && worldTransforms.isResolved(entity)) {
-            poseX = worldTransforms.x[entity];
-            poseY = worldTransforms.y[entity];
-            poseRotation = worldTransforms.rotationRad[entity];
-        }
-        float localX = footprint.localOffsetXPx;
-        float localY = footprint.localOffsetYPx;
-        float cos = MathUtils.cos(poseRotation);
-        float sin = MathUtils.sin(poseRotation);
-        float cx = poseX + localX * cos - localY * sin;
-        float cy = poseY + localX * sin + localY * cos;
-        float radius = footprint.radiusPx;
-        if (!Float.isFinite(cx) || !Float.isFinite(cy) || !Float.isFinite(radius) || radius <= 0f) {
-            return false;
-        }
-
-        if (out != null) {
-            out.footX = cx;
-            out.footY = cy;
-            out.minX = cx - radius;
-            out.maxX = cx + radius;
-            out.minY = cy - radius;
-            out.maxY = cy + radius;
-            out.bottom = height.altitude;
-            out.top = height.altitude; // Rectangle interval is collected separately from the physical footprint.
-            out.pointOnly = false;
-        }
-        return true;
+        return games.pixscape.runtime.service.SpatialActorPose.resolve(entity, transform,
+                spatialFootprintMapper == null ? null : spatialFootprintMapper.getSafe(entity, null),
+                worldTransforms, out);
     }
 
     private static boolean isRenderableSlot(int slot, DynamicEntityRenderState state) {

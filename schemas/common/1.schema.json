@@ -173,7 +173,7 @@
           "type": "integer",
           "default": 0
         },
-        "spatialFootprint": {
+        "useSpatialFootprint": {
           "type": "boolean",
           "default": false
         },
@@ -220,7 +220,36 @@
           "type": "boolean",
           "default": true
         }
-      }
+      },
+      "not": {
+        "required": [
+          "spatialFootprint"
+        ]
+      },
+      "allOf": [
+        {
+          "if": {
+            "properties": {
+              "useSpatialFootprint": {
+                "const": true
+              }
+            },
+            "required": [
+              "useSpatialFootprint"
+            ]
+          },
+          "then": {
+            "properties": {
+              "geometry": {
+                "type": "null"
+              },
+              "spatialBlockId": {
+                "const": 0
+              }
+            }
+          }
+        }
+      ]
     },
     "spatialShape": {
       "type": "object",
@@ -425,6 +454,57 @@
         "normals",
         "triangles"
       ]
+    },
+    "actorRectangle": {
+      "type": "object",
+      "properties": {
+        "width": {
+          "type": "number",
+          "exclusiveMinimum": 0,
+          "default": 32
+        },
+        "height": {
+          "type": "number",
+          "exclusiveMinimum": 0,
+          "default": 64
+        },
+        "x": {
+          "type": "number"
+        },
+        "y": {
+          "type": "number"
+        },
+        "pivotX": {
+          "type": "number"
+        },
+        "pivotY": {
+          "type": "number"
+        }
+      }
+    },
+    "actorRectangles": {
+      "type": "object",
+      "properties": {
+        "staticRectangle": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/actorRectangle"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "clips": {
+          "type": "object",
+          "additionalProperties": {
+            "type": "object",
+            "additionalProperties": {
+              "$ref": "#/$defs/actorRectangle"
+            }
+          }
+        }
+      }
     }
   }
 }

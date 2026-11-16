@@ -59,18 +59,22 @@ def write(path, schema):
 
 
 COMMON = "common/1.schema.json"
-COMP = "components/3.schema.json"
+COMP = "components/5.schema.json"
 common_defs = {
     "intArray": obj({"items": {"type": ["array", "null"], "items": I}, "size": NONNEG}, ("size",), description="LibGDX IntArray. Items may be omitted or null at SceneLoader boundary; only the first size entries are active when present."),
     "byteArray": obj({"items": arr(I), "size": NONNEG}, ("size",), description="LibGDX ByteArray. Items may be omitted for zero-filled storage; only the first size entries are active."),
     "propertyValue": obj({"type": {"enum": ["STRING", "BOOLEAN", "INTEGER", "FLOAT", "COLOR", "OBJECT", "CLASS"]}, "stringValue": NULLABLE_S, "booleanValue": B, "integerValue": I, "floatValue": N, "className": NULLABLE_S, "classProperties": {"$ref": "#/$defs/propertySet"}}, ("type",)),
     "propertySet": obj({"values": {"type": "object", "additionalProperties": {"$ref": "#/$defs/propertyValue"}}}),
     "physicsGeometry": obj({"shapeType": {"type": "integer", "enum": [0, 1, 2]}, "offsetX": N, "offsetY": N, "angleDegrees": N, "radius": N, "halfWidth": N, "halfHeight": N, "polygonVertices": arr(N), "polygonVertexCount": NONNEG}),
-    "physicsShape": obj({"physicsShapeId": I, "spatialBlockId": I, "spatialFootprint": B, "geometry": {"anyOf": [{"$ref": "#/$defs/physicsGeometry"}, {"type": "null"}]}, "density": N, "friction": N, "restitution": N, "sensor": B, "categoryBits": I, "maskBits": I, "groupIndex": I, "enabled": B}),
+    "physicsShape": obj({"physicsShapeId": I, "spatialBlockId": I, "useSpatialFootprint": B, "geometry": {"anyOf": [{"$ref": "#/$defs/physicsGeometry"}, {"type": "null"}]}, "density": N, "friction": N, "restitution": N, "sensor": B, "categoryBits": I, "maskBits": I, "groupIndex": I, "enabled": B}),
     "spatialShape": obj({"shapeType": {"type": "integer", "enum": [0, 1, 2]}, "polyVerts": arr(N), "polyCount": NONNEG, "halfW": N, "halfH": N, "radius": N, "offsetX": N, "offsetY": N, "angleDeg": N, "collisionEnabled": B, "actorOccluder": B, "lightOccluder": B, "particleOccluder": B, "altitude": N, "height": N}),
     "spatialBlock": obj({"id": I, "structureId": I, "name": NULLABLE_S, "x": N, "y": N, "width": N, "depth": N, "altitude": N, "height": N, "actorOccluder": B, "lightOccluder": B, "shadowCaster": B, "particleOccluder": B, "linkedTileRefsAuthored": B, "linkedTileRefs": arr(obj({"gx": I, "gy": I, "tileAssetId": I}))}),
 }
 common_defs["localLightingSurface"] = obj({"xyz": arr(N), "uv": arr(N), "normals": arr(N), "triangles": arr(NONNEG), "receiveLight": B, "shadowCaster": B, "twoSided": B}, ("xyz", "uv", "normals", "triangles"))
+common_defs["actorRectangle"] = obj({"width": {"type": "number", "exclusiveMinimum": 0, "default": 32}, "height": {"type": "number", "exclusiveMinimum": 0, "default": 64}, "x": N, "y": N, "pivotX": N, "pivotY": N})
+common_defs["actorRectangles"] = obj({"staticRectangle": {"anyOf": [{"$ref": "#/$defs/actorRectangle"}, {"type": "null"}]}, "clips": {"type": "object", "additionalProperties": {"type": "object", "additionalProperties": {"$ref": "#/$defs/actorRectangle"}}}})
+common_defs["physicsShape"]["not"] = {"required": ["spatialFootprint"]}
+common_defs["physicsShape"]["allOf"] = [{"if": {"properties": {"useSpatialFootprint": {"const": True}}, "required": ["useSpatialFootprint"]}, "then": {"properties": {"geometry": {"type": "null"}, "spatialBlockId": {"const": 0}}}}]
 common_defaults = {
     "localLightingSurface": {"receiveLight": True, "shadowCaster": False, "twoSided": False},
     "intArray": {"items": [], "size": 0},
@@ -83,7 +87,7 @@ common_defaults = {
                         "angleDegrees": 0, "radius": 0.5, "halfWidth": 0.5,
                         "halfHeight": 0.5, "polygonVertices": [], "polygonVertexCount": 0},
     "physicsShape": {"physicsShapeId": 0, "spatialBlockId": 0,
-                     "spatialFootprint": False, "geometry": None, "density": 1,
+                     "useSpatialFootprint": False, "geometry": None, "density": 1,
                      "friction": 0.2, "restitution": 0, "sensor": False,
                      "categoryBits": 1, "maskBits": -1, "groupIndex": 0,
                      "enabled": True},
@@ -152,7 +156,10 @@ components = {
     "PixscapeTagComponent": c({"sa": "tags"}),
     "CustomPropertiesComponent": c({}, {"properties": ref(COMMON + "#/$defs/propertySet")}),
     "TiledLayerComponent": c({"s": "atlasTag", "i": "tileWidth tileHeight mapWidthCells mapHeightCells chunkSize", "n": "originX originY defaultTileAltitude defaultTileHeight", "b": "spatialEnabled", "ia": "tileXs tileYs tileAssetIds", "ba": "tileTransformFlags"}, {"projection": {"enum": ["ORTHO", "ISO", None]}, "tileAltitudes": {"type": ["array", "null"], "items": N}, "tileHeights": {"type": ["array", "null"], "items": N}, "tileSpatialFlags": {"anyOf": [ref(COMMON + "#/$defs/intArray"), {"type": "null"}]}, "tileSpatialOverrides": {"anyOf": [ref(COMMON + "#/$defs/byteArray"), {"type": "null"}]}}),
-    "SpatialHeightComponent": c({"n": "altitude height"}),
+    "SpatialFootprintComponent": c({"n": "altitude localOffsetXPx localOffsetYPx"}, {"radiusPx": {"type": "number", "exclusiveMinimum": 0, "default": 8}}),
+    "SpatialRepresentationComponent": c({}, {"rectangles": ref(COMMON + "#/$defs/actorRectangles")}),
+    "TiledMapComponent": c({"i": "tileWidth tileHeight width height"}, {"projection": {"enum": ["ORTHO", "ISO", None]}}),
+    "TiledMapLayerComponent": c({}, {"kind": {"enum": ["TILE", "OBJECT", "IMAGE"], "default": "TILE"}}),
     "SpatialShapesComponent": c({}, {"shapes": arr(ref(COMMON + "#/$defs/spatialShape"))}),
     "SpatialBlocksComponent": c({"i": "nextSpatialBlockId"}, {"blocks": arr(ref(COMMON + "#/$defs/spatialBlock"))}),
     "PointLightComponent": c({"n": "r g b intensity radius falloff height", "b": "enabled"}),
@@ -242,13 +249,13 @@ for name in components:
     elif name in ("PointLightComponent", "ConeLightComponent"):
         package += ".light"
     component_paths[package + "." + name] = name
-write(COMP, {"title": "Pixscape scene component payloads (scene schema 3)",
+write(COMP, {"title": "Pixscape scene component payloads (scene schema 5)",
              "description": "Resolve each document's componentIdentifiers first; these definitions are selected by fully qualified type ID, never by a globally fixed alias.",
              "x-pixscape-components": component_paths, "$defs": components})
 
 AVAIL = obj({"sprites": arr(POS), "animations": arr(POS), "particles": arr(NONS), "gameObjects": arr(NONS), "tiledTiles": arr(POS), "tiledAnimations": arr(POS)})
 SCENE_META = obj({
-    "sceneSchemaVersion": {"const": 3}, "name": NULLABLE_S, "file": NONS,
+    "sceneSchemaVersion": {"const": 5}, "name": NULLABLE_S, "file": NONS,
     "defaultHudScreenId": {"type": ["string", "null"], "default": None}, "nextEntityStableId": POS,
     "nextPhysicsShapeId": POS, "physicsEnabled": {"type": "boolean", "default": False},
     "pixelsPerMeter": {"type": "number", "default": 100},
@@ -276,8 +283,8 @@ write("project/1.schema.json", {
     "description": "Absent or blank version is normalized to 1 by Runtime; the schema documents the canonical value when present. Paths resolve from the directory passed to the engine, not runtimeRootDir."
 })
 
-write("scene/3.schema.json", {
-    "title": "Artemis scene envelope for Pixscape scene schema 3",
+write("scene/5.schema.json", {
+    "title": "Artemis scene envelope for Pixscape scene schema 5",
     "type": "object", "required": ["metadata", "componentIdentifiers", "entities", "archetypes"],
     "properties": {
         "metadata": obj({"version": I}, ("version",)),
@@ -311,7 +318,8 @@ go_optional = {
     "surfaceLighting": components["SurfaceLightingComponent"],
     "pointLight": components["PointLightComponent"],
     "coneLight": components["ConeLightComponent"],
-    "spatialHeight": components["SpatialHeightComponent"],
+    "spatialFootprint": components["SpatialFootprintComponent"],
+    "spatialRepresentation": components["SpatialRepresentationComponent"],
     "physicsBody": components["PhysicsBodyComponent"],
     "gameObject": obj(),
 }
@@ -319,7 +327,7 @@ go_entity = obj({"sourceEntityId": {"type": "integer", "minimum": 0, "default": 
                  "parentSourceEntityId": {"type": "integer", "default": -1},
                  "transform": go_transform,
                  "entityIndex": {"anyOf": [go_entity_index, {"type": "null"}], "default": None},
-                 "physicsShapes": {**arr(obj({"localShapeId": POS, "geometry": ref(COMMON + "#/$defs/physicsGeometry"), "density": N, "friction": N, "restitution": N, "sensor": B, "categoryBits": I, "maskBits": I, "groupIndex": I, "enabled": B, "spatialFootprint": B})), "default": []},
+                 "physicsShapes": {**arr(obj({"localShapeId": POS, "geometry": {"anyOf": [ref(COMMON + "#/$defs/physicsGeometry"), {"type": "null"}]}, "density": N, "friction": N, "restitution": N, "sensor": B, "categoryBits": I, "maskBits": I, "groupIndex": I, "enabled": B, "useSpatialFootprint": B})), "default": []},
                  **{name: {"anyOf": [shape, {"type": "null"}], "default": None} for name, shape in go_optional.items()}},
                 ("transform",))
 joint_base = {"jointLocalId": POS, "type": {"type": "integer", "minimum": 0, "maximum": 9},
@@ -342,9 +350,9 @@ for label, numeric, booleans in [
         fields.update({"jointALocalId": POS, "jointBLocalId": POS})
     joint_base[label] = {"anyOf": [obj(fields), {"type": "null"}]}
 go_joint = obj(joint_base, ("jointLocalId", "type", "bodyALocalEntityId", "bodyBLocalEntityId"))
-write("game-object/3.schema.json", {
-    "title": "Pixscape Game Object definition 3",
-    **obj({"schemaVersion": {"const": 3}, "rootSourceEntityId": NONNEG,
+write("game-object/4.schema.json", {
+    "title": "Pixscape Game Object definition 4",
+    **obj({"schemaVersion": {"const": 4}, "rootSourceEntityId": NONNEG,
            "entities": arr(go_entity), "joints": {**arr(go_joint), "default": []}},
           ("schemaVersion", "rootSourceEntityId", "entities"), extra=False),
     "description": "A definition does not place an instance. The root has x=y=0 and zIndex=0; layerIndex is forbidden in entityIndex. Local member transforms and zIndex survive spawn. Cross-entity references and the unique root are validated semantically."

@@ -391,10 +391,6 @@ public final class WorldConfigFactory {
                 new GameObjectHierarchySystem(entityCapacityHint),
                 profiled(new Box2dSyncSystem(null), systemProfiler),
                 new GameObjectPhysicsWritebackSystem(),
-                profiled(new PhysicsSpatialFootprintSyncSystem(
-                        meta != null && meta.pixelsPerMeter > 0f
-                                ? meta.pixelsPerMeter
-                                : DEFAULT_PIXELS_PER_METER), systemProfiler),
                 profiled(new UpdateWorldGeometrySystem(), systemProfiler),
                 profiled(new AnimationSystem(animationRegistry, atlasRuntimeService), systemProfiler),
                 profiled(new TiledEntityAnimationSystem(animatedTileRegistry, atlasRuntimeService), systemProfiler),

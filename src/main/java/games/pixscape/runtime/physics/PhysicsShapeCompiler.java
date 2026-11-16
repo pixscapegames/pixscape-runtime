@@ -80,7 +80,6 @@ public final class PhysicsShapeCompiler {
     private static CompiledFixtureData base(ResolvedPhysicsShape source, int partIndex) {
         CompiledFixtureData compiled = new CompiledFixtureData();
         compiled.physicsShapeId = source.physicsShapeId;
-        compiled.spatialFootprint = source.spatialFootprint;
         compiled.partIndex = partIndex;
         compiled.offsetX = source.offsetX;
         compiled.offsetY = source.offsetY;
