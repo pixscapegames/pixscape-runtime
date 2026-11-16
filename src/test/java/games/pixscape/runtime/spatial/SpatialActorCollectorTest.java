@@ -19,6 +19,40 @@ import java.util.Arrays;
 
 public class SpatialActorCollectorTest {
     @Test
+    public void ownerMotionTransportsIndependentFootprintAndRectangleWithoutPhysics() {
+        Fixture f = new Fixture();
+        try {
+            int e = f.createActor(10, 20, 2, true);
+            f.addCircle(e, 8, 40, -12);
+            f.addActorDrawSlot(e);
+            f.world.getMapper(PhysicsBodyComponent.class).remove(e);
+            ActorSpatialRectangleData rectangle = f.height.get(e).rectangles.staticRectangle;
+            rectangle.x = -23;
+            rectangle.y = 61;
+            float[] quad = new float[8];
+            for (int step = 0; step < 3; step++) {
+                f.collector.collect(f.drawList, f.state, f.spatialLayers, f.world.getEntityManager(),
+                        f.entityIndex, f.transform, f.height, f.shapes);
+                f.collector.writeInfluenceQuad(0, 0, 0, quad);
+                Assert.assertEquals(f.transform.get(e).x + rectangle.x, quad[0], .0001f);
+                Assert.assertEquals(f.transform.get(e).y + rectangle.y, quad[1], .0001f);
+                Assert.assertEquals(f.transform.get(e).x + f.footprints.get(e).localOffsetXPx, f.collector.actorFootX[0], .0001f);
+                if (step == 0) {
+                    f.footprints.get(e).localOffsetXPx = -90;
+                    f.footprints.get(e).localOffsetYPx = 35;
+                    f.footprints.get(e).radiusPx = 17;
+                } else {
+                    rectangle.x = 70;
+                    f.transform.get(e).x += 100;
+                    f.transform.get(e).y -= 20;
+                }
+            }
+        } finally {
+            f.world.dispose();
+        }
+    }
+
+    @Test
     public void activeRectangleControlsBoundsAndVerticalIntervalWithoutMovingFootprint() {
         Fixture f = new Fixture();
         try {
@@ -191,8 +225,8 @@ public class SpatialActorCollectorTest {
         Assert.assertEquals(29f, fixture.collector.actorBaseEndY[0], 0.0001f);
         float[] influence = new float[8];
         fixture.collector.writeInfluenceQuad(0, 100f, -50f, influence);
-        // The effective rotated circle is already projected; altitude=3 is not added again.
-        Assert.assertArrayEquals(new float[]{105.5f, -25, 112.5f, -25, 112.5f, -18, 105.5f, -18}, influence, .0001f);
+        // The rectangle follows the owner origin; neither footprint offset nor altitude is added.
+        Assert.assertArrayEquals(new float[]{106.5f, -30, 113.5f, -30, 113.5f, -23, 106.5f, -23}, influence, .0001f);
     }
 
     @Test
@@ -218,8 +252,8 @@ public class SpatialActorCollectorTest {
         fixture.collector.writeInfluenceQuad(0, 0, 0, influence);
         Assert.assertEquals(100 - fixture.height.get(actor).rectangles.staticRectangle.height * .5f, influence[0], .0001f);
         Assert.assertEquals(100 + fixture.height.get(actor).rectangles.staticRectangle.height * .5f, influence[2], .0001f);
-        Assert.assertEquals(205, influence[1], .0001f);
-        Assert.assertEquals(205 + fixture.height.get(actor).rectangles.staticRectangle.height, influence[5], .0001f);
+        Assert.assertEquals(200, influence[1], .0001f);
+        Assert.assertEquals(200 + fixture.height.get(actor).rectangles.staticRectangle.height, influence[5], .0001f);
     }
 
     @Test

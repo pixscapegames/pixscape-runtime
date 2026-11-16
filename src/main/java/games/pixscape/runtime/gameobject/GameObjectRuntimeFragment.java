@@ -6,7 +6,7 @@ import com.badlogic.gdx.utils.Array;
  * Asset-local hierarchy data for expert Runtime spawning; no scene placement is stored.
  */
 public final class GameObjectRuntimeFragment {
-    public static final int CURRENT_SCHEMA_VERSION = 4;
+    public static final int CURRENT_SCHEMA_VERSION = 5;
 
     public int schemaVersion = CURRENT_SCHEMA_VERSION;
     public String sourceAssetId = "";
@@ -18,7 +18,13 @@ public final class GameObjectRuntimeFragment {
 
     public static GameObjectRuntimeFragment fromAsset(
             GameObjectAsset asset, String sourceAssetId) {
-        if (asset == null) throw new IllegalArgumentException("Game Object asset must not be null.");
+        if (asset == null) {
+            throw new IllegalArgumentException("Game Object asset must not be null.");
+        }
+        if (asset.schemaVersion != GameObjectAsset.SCHEMA_VERSION) {
+            throw new IllegalArgumentException("Game Object asset requires schemaVersion "
+                    + GameObjectAsset.SCHEMA_VERSION + ", found " + asset.schemaVersion + ".");
+        }
         GameObjectRuntimeFragment fragment = new GameObjectRuntimeFragment();
         fragment.schemaVersion = CURRENT_SCHEMA_VERSION;
         fragment.sourceAssetId = sourceAssetId != null ? sourceAssetId : "";

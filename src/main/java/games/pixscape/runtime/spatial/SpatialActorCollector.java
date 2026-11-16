@@ -223,7 +223,10 @@ public final class SpatialActorCollector {
         actorFootY[actor] = tmpFootprint.footY;
         actorAltitude[actor] = tmpFootprint.bottom;
         actorHeight[actor] = rectangle.height;
-        ActorSpatialRectanglePlacement.influenceBounds(rectangle, tmpFootprint.footX, tmpFootprint.footY,
+        boolean resolved = worldTransforms != null && worldTransforms.isResolved(entity);
+        ActorSpatialRectanglePlacement.influenceBounds(rectangle,
+                resolved ? worldTransforms.x[entity] : transform.x,
+                resolved ? worldTransforms.y[entity] : transform.y,
                 influenceBounds, actor * 4);
         actorCircleX[actor] = tmpFootprint.footX;
         actorCircleY[actor] = tmpFootprint.footY;

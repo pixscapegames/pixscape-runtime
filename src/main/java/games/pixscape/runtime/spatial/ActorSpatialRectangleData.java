@@ -1,9 +1,10 @@
 package games.pixscape.runtime.spatial;
 
 /**
- * Fixed projected-pixel rectangle relative to the actor's resolved footprint centre.
- * Height is also the actor's spatial height. The independent shadow pivot uses the same
- * local coordinates; neither it nor the light changes the sorting rectangle or altitude.
+ * Fixed projected-pixel rectangle relative to the resolved owner origin (x/y).
+ * Visual scale and rotation do not resize or rotate this axis-aligned envelope.
+ * Height is also the actor's spatial height. Shadow pivotX/pivotY retain their
+ * projected-pixel offsets from the resolved footprint, independently of this rectangle.
  */
 public final class ActorSpatialRectangleData {
     public float width = 32f, height = 64f;

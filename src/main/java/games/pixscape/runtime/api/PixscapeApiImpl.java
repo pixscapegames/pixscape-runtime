@@ -1492,7 +1492,7 @@ public final class PixscapeApiImpl implements PixscapeAPI {
         public SpatialEntityFacade disable() {
             World world = handle.world();
             if (world == null) return this;
-            PhysicsService.removeSpatialFootprint(world, handle.entityId);
+            world.getMapper(games.pixscape.runtime.component.spatial.SpatialFootprintComponent.class).remove(handle.entityId);
             ComponentMapper<SpatialRepresentationComponent> mapper = world.getMapper(SpatialRepresentationComponent.class);
             if (mapper.has(handle.entityId)) mapper.remove(handle.entityId);
             return this;
@@ -1676,8 +1676,12 @@ public final class PixscapeApiImpl implements PixscapeAPI {
             candidate.localOffsetXPx = offsetX;
             candidate.localOffsetYPx = offsetY;
             candidate.radiusPx = radius;
-            SceneMetaRuntime meta = engine.getActiveSceneMeta();
-            PhysicsService.setSpatialFootprint(handle.world(), handle.entityId, candidate, meta == null ? 0f : meta.pixelsPerMeter);
+            candidate.validate();
+            footprint(true).set(candidate);
+            DirtyTrackerSystem dirty = handle.world().getSystem(DirtyTrackerSystem.class);
+            if (dirty != null) {
+                dirty.order(handle.entityId);
+            }
             return this;
         }
 

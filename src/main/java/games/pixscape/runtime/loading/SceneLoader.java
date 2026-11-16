@@ -49,7 +49,8 @@ public final class SceneLoader {
         SceneMetaRuntime.validateSceneSchemaVersion(
                 sceneMeta != null ? sceneMeta.sceneSchemaVersion : -1,
                 sceneMeta != null ? sceneMeta.name : inFile.path());
-        rejectLegacySpatial(new JsonReader().parse(serialized));
+        rejectLegacySpatial(new JsonReader().parse(serialized),
+                sceneMeta.sceneSchemaVersion != SceneMetaRuntime.CURRENT_SCENE_SCHEMA_VERSION);
         validateMapLightingConvention(serialized, inFile.path());
         SceneMetaRuntime candidateMeta = new SceneMetaRuntime(sceneMeta);
         serialized = validateSerializedScene(serialized, candidateMeta, inFile);
@@ -83,7 +84,7 @@ public final class SceneLoader {
         }
     }
 
-    private static void rejectLegacySpatial(JsonValue value) {
+    private static void rejectLegacySpatial(JsonValue value, boolean oldRectangleOrigin) {
         if (value == null) {
             return;
         }
@@ -94,8 +95,15 @@ public final class SceneLoader {
                 || "spatialFootprint".equals(value.name) && value.isBoolean()) {
             throw new IllegalArgumentException("Obsolete physics-owned Spatial footprint; reconfigure the actor with SpatialFootprintComponent and SpatialRepresentationComponent.");
         }
+        if (oldRectangleOrigin && (value.name != null && value.name.endsWith(".SpatialRepresentationComponent")
+                || value.isString() && value.asString().endsWith(".SpatialRepresentationComponent"))) {
+            throw new IllegalArgumentException("Obsolete footprint-relative rectangle; reconfigure entity-relative spatial rectangles.");
+        }
+        if ("useSpatialFootprint".equals(value.name)) {
+            throw new IllegalArgumentException("Obsolete useSpatialFootprint: author independent collision geometry.");
+        }
         for (JsonValue child = value.child; child != null; child = child.next) {
-            rejectLegacySpatial(child);
+            rejectLegacySpatial(child, oldRectangleOrigin);
         }
     }
 
@@ -185,11 +193,6 @@ public final class SceneLoader {
                     games.pixscape.runtime.component.spatial.SpatialFootprintComponent.class).getSafe(e, null);
             if (footprint != null) {
                 footprint.validate();
-            }
-            games.pixscape.runtime.component.physics.PhysicsShapesComponent collisions = world.getMapper(
-                    games.pixscape.runtime.component.physics.PhysicsShapesComponent.class).getSafe(e, null);
-            if (footprint == null && collisions != null && PhysicsService.containsFootprintShape(collisions.shapes)) {
-                throw new IllegalArgumentException("Footprint-derived collision on entity " + e + " requires a same-owner footprint.");
             }
             if (h == null) continue;
             if (footprint == null) {

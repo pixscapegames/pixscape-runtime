@@ -17,7 +17,7 @@ import java.util.Map;
  */
 public final class GameObjectAsset {
     public static final String EXTENSION = ".gameobject";
-    public static final int SCHEMA_VERSION = 4;
+    public static final int SCHEMA_VERSION = 5;
 
     public int schemaVersion = SCHEMA_VERSION;
     public int rootSourceEntityId = -1;
@@ -175,7 +175,6 @@ public final class GameObjectAsset {
         /**
          * Self-contained circular Spatial footprint marker; no Scene Spatial block is referenced.
          */
-        public boolean useSpatialFootprint;
     }
 
     /**

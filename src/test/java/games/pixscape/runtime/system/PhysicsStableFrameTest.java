@@ -55,7 +55,6 @@ public class PhysicsStableFrameTest {
         circle.physicsShapeId = 1;
         circle.geometry.shapeType = PhysicsGeometryData.SHAPE_CIRCLE;
         circle.geometry.radius = 0.25f;
-        circle.useSpatialFootprint = false;
         sources.shapes.add(circle);
         games.pixscape.runtime.component.spatial.SpatialFootprintComponent authoredFootprint = world.getMapper(games.pixscape.runtime.component.spatial.SpatialFootprintComponent.class).create(actor);
         authoredFootprint.radiusPx = circle.geometry.radius * 100f;

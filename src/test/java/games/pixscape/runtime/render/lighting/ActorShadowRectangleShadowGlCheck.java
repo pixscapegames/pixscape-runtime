@@ -131,6 +131,8 @@ public final class ActorShadowRectangleShadowGlCheck extends ApplicationAdapter 
             t.y = i / 4 * -35;
             SpatialFootprintComponent foot = world.getMapper(SpatialFootprintComponent.class).create(e);
             foot.radiusPx = 8f;
+            foot.localOffsetXPx = 13f;
+            foot.localOffsetYPx = -9f;
             SpatialRepresentationComponent h = world.getMapper(SpatialRepresentationComponent.class).create(e);
             h.rectangles = new ActorSpatialRectangles();
             // Fixed local rectangle; the light changes only its shadow orientation.

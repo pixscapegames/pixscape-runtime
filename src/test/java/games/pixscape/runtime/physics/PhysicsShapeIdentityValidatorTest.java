@@ -99,13 +99,13 @@ public class PhysicsShapeIdentityValidatorTest {
     }
 
     @Test
-    public void multipleExplicitSpatialFootprintsOnOneOwnerAreRejected() {
+    public void multipleIndependentCircleCollisionsOnOneOwnerAreAllowed() {
         Fixture fixture = new Fixture();
         int owner = fixture.owner();
         fixture.spatialCircle(owner, 21);
         fixture.spatialCircle(owner, 22);
 
-        fixture.assertRejected("more than one footprint-derived collision");
+        fixture.validate();
     }
 
     @Test
@@ -217,9 +217,7 @@ public class PhysicsShapeIdentityValidatorTest {
             PhysicsShapeData shape = manual(owner, physicsShapeId);
             shape.geometry.shapeType = PhysicsGeometryData.SHAPE_CIRCLE;
             shape.geometry.radius = 1f;
-            shape.useSpatialFootprint = true;
-            shape.geometry = null;
-            return shape;
+                return shape;
         }
 
         PhysicsShapesComponent shapes(int owner) {

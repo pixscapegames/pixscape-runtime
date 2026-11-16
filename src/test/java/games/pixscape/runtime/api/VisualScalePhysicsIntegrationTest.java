@@ -211,7 +211,6 @@ public class VisualScalePhysicsIntegrationTest {
             shapes.shapes.add(polygon);
             PhysicsShapeData circle = new PhysicsShapeData();
             circle.physicsShapeId = shapeIds.allocateNewPhysicsShapeId();
-            circle.useSpatialFootprint = false;
             circle.geometry = new PhysicsGeometryData();
             circle.geometry.shapeType = PhysicsGeometryData.SHAPE_CIRCLE;
             circle.geometry.offsetX = 0.35f;

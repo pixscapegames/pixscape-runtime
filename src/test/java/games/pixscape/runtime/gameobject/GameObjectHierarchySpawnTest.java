@@ -23,6 +23,16 @@ import org.junit.Test;
 
 public class GameObjectHierarchySpawnTest {
     @Test
+    public void unpublishedOldSpatialFragmentsAndAssetsAreRejectedWithoutConversion() {
+        GameObjectRuntimeFragment fragment = new GameObjectRuntimeFragment();
+        fragment.schemaVersion = 4;
+        Assert.assertThrows(IllegalArgumentException.class, fragment::toAsset);
+        GameObjectAsset asset = hierarchy();
+        asset.schemaVersion = 4;
+        Assert.assertThrows(IllegalArgumentException.class, () -> GameObjectRuntimeFragment.fromAsset(asset, "old"));
+    }
+
+    @Test
     public void repeatedPreparedSpawnsKeepInstancesIndependentAndAvoidTopologyRebuild() throws Exception {
         World world = new World(new WorldConfigurationBuilder().with(
                 new DirtyTrackerSystem(64), new games.pixscape.runtime.system.GameObjectHierarchySystem()).build());
@@ -83,6 +93,8 @@ public class GameObjectHierarchySpawnTest {
         child.spatialRepresentation.rectangles = new games.pixscape.runtime.spatial.ActorSpatialRectangles();
         child.spatialRepresentation.rectangles.staticRectangle = new games.pixscape.runtime.spatial.ActorSpatialRectangleData();
         child.spatialRepresentation.rectangles.staticRectangle.pivotX = 37.25f;
+        child.spatialFootprint.localOffsetXPx = 49f;
+        child.spatialRepresentation.rectangles.staticRectangle.x = -71f;
         GameObjectAssetLoader loader = new GameObjectAssetLoader();
         GameObjectAsset loaded = loader.fromJson(loader.toJson(asset));
         Assert.assertEquals(37.25f, loaded.entities.get(1).spatialRepresentation.rectangles.staticRectangle.pivotX, 0);
@@ -93,6 +105,9 @@ public class GameObjectHierarchySpawnTest {
             world.process();
             SpatialRepresentationComponent s = world.getMapper(SpatialRepresentationComponent.class).get(spawned.createdEntityIds().get(1));
             Assert.assertEquals(37.25f, s.rectangles.staticRectangle.pivotX, 0);
+            Assert.assertEquals(-71f, s.rectangles.staticRectangle.x, 0);
+            Assert.assertEquals(49f, world.getMapper(games.pixscape.runtime.component.spatial.SpatialFootprintComponent.class)
+                    .get(spawned.createdEntityIds().get(1)).localOffsetXPx, 0);
             loaded.entities.get(1).spatialRepresentation.rectangles.staticRectangle.pivotX = 90;
             Assert.assertEquals(37.25f, s.rectangles.staticRectangle.pivotX, 0);
         } finally {
@@ -241,8 +256,6 @@ public class GameObjectHierarchySpawnTest {
         GameObjectAsset.PhysicsShapeData shape = member.physicsShapes.get(0);
         shape.geometry.shapeType = PhysicsGeometryData.SHAPE_CIRCLE;
         shape.geometry.radius = 2f;
-        shape.useSpatialFootprint = true;
-        shape.geometry = null;
 
         SpawnResult result = new GameObjectRuntimeFragmentSpawner(
                 new IdentityRegistry(), meta, new AtlasRuntimeService())
@@ -255,7 +268,7 @@ public class GameObjectHierarchySpawnTest {
         Assert.assertEquals(6f, height.rectangles.staticRectangle.height, 0f);
         PhysicsShapeData spawnedShape = world.getMapper(PhysicsShapesComponent.class)
                 .get(spawnedMember).shapes.first();
-        Assert.assertTrue(spawnedShape.useSpatialFootprint);
+        Assert.assertNotNull(spawnedShape.geometry);
         Assert.assertNotEquals(shape.localShapeId, spawnedShape.physicsShapeId);
     }
 

@@ -5,7 +5,7 @@ package games.pixscape.runtime.api;
  */
 public interface SpatialEntityFacade {
     /**
-     * Returns whether the entity has a autonomous footprint and representation.
+     * Returns whether the entity has an autonomous footprint and representation.
      */
     boolean enabled();
 
@@ -13,12 +13,12 @@ public interface SpatialEntityFacade {
     float footprintOffsetX();
     float footprintOffsetY();
 
-    /** Cold geometric edit in pixels; prepares any explicitly linked collision before publication. */
+    /** Validated spatial edit in pixels; never changes or recompiles collision geometry. */
     SpatialEntityFacade setFootprint(float offsetX, float offsetY, float radius);
 
 
     /**
-     * Ensures the entity has a autonomous footprint and representation.
+     * Ensures the entity has an autonomous footprint and representation.
      */
     SpatialEntityFacade enable();
 
@@ -62,22 +62,22 @@ public interface SpatialEntityFacade {
     float rectangleWidth();
 
     /**
-     * Local rectangle X relative to the resolved footprint center, or zero when absent.
+     * Projected rectangle X relative to the resolved entity origin, or zero when absent.
      */
     float rectangleX();
 
     /**
-     * Local rectangle Y relative to the resolved footprint center, or zero when absent.
+     * Projected rectangle Y relative to the resolved entity origin, or zero when absent.
      */
     float rectangleY();
 
     /**
-     * Local shadow pivot X, independent of sorting/altitude, or zero when absent.
+     * Projected shadow pivot X relative to the resolved footprint, or zero when absent.
      */
     float shadowPivotX();
 
     /**
-     * Local shadow pivot Y, independent of sorting/altitude, or zero when absent.
+     * Projected shadow pivot Y relative to the resolved footprint, or zero when absent.
      */
     float shadowPivotY();
 

@@ -23,6 +23,32 @@ public class ActorShadowRectangleCasterTest {
     private static final float[] Q = {-80, -40, -80, 180, 80, 180, 80, -40};
 
     @Test
+    public void footprintMovesOnlyItsShadowPivotWhileRectangleMappingStaysAtOwnerOrigin() {
+        ActorSpatialRectangleData rectangle = new ActorSpatialRectangleData();
+        rectangle.x = -40;
+        rectangle.y = 15;
+        rectangle.pivotX = 3;
+        rectangle.pivotY = -2;
+        ActorShadowRectangleCaster caster = new ActorShadowRectangleCaster();
+        caster.update(rectangle, 0, 0, 10, 45, -17, Q);
+        float[] before = caster.vertices.clone();
+        caster.update(rectangle, 0, 0, 10, -30, 28, Q);
+        for (int i = 0; i < 6; i++) {
+            int offset = i * 8;
+            assertEquals(before[offset + 3], caster.vertices[offset + 3], .00001f);
+            assertEquals(before[offset + 4], caster.vertices[offset + 4], .00001f);
+            assertEquals(LightingCoordinates.screenX(before[offset], before[offset + 1]),
+                    LightingCoordinates.screenX(caster.vertices[offset], caster.vertices[offset + 1]), .0001f);
+            assertEquals(LightingCoordinates.screenY(before[offset], before[offset + 1], before[offset + 2]),
+                    LightingCoordinates.screenY(caster.vertices[offset], caster.vertices[offset + 1], caster.vertices[offset + 2]), .0001f);
+        }
+        caster.faceLight(100, -100);
+        for (float value : caster.lightVertices) {
+            assertTrue(Float.isFinite(value));
+        }
+    }
+
+    @Test
     public void lightFacingTrianglesPreserveMappingContactAndReference() {
         ActorSpatialRectangleData r = new ActorSpatialRectangleData();
         r.x = -35;
@@ -34,7 +60,7 @@ public class ActorShadowRectangleCasterTest {
         ActorShadowRectangleCaster c = new ActorShadowRectangleCaster();
         LightingFrame.Caster bounds = new LightingFrame.Caster();
         for (float altitude : new float[]{0, 40}) {
-            c.update(r, 0, 0, altitude, Q);
+            c.update(r, 0, 0, altitude, 0, 0, Q);
             assertEquals(6, c.vertexCount);
             float[] reference = c.vertices.clone();
             c.bounds(bounds);
@@ -58,7 +84,7 @@ public class ActorShadowRectangleCasterTest {
                     assertEquals(sx, LightingCoordinates.screenX(reference[o], reference[o + 1]), .0001);
                     assertEquals(sy, LightingCoordinates.screenY(reference[o], reference[o + 1], reference[o + 2]), .0001);
                 }
-                c.update(r, 0, 0, altitude, Q);
+                c.update(r, 0, 0, altitude, 0, 0, Q);
                 assertEquals(updates, c.updates);
             }
             c.faceLight(LightingCoordinates.worldX(r.pivotX, r.pivotY, 0), LightingCoordinates.worldY(r.pivotX, r.pivotY, 0));
@@ -72,11 +98,11 @@ public class ActorShadowRectangleCasterTest {
         ActorSpatialRectangleData r = new ActorSpatialRectangleData();
         r.x = -200;
         r.width = 400;
-        c.update(r, 0, 0, 0, Q);
+        c.update(r, 0, 0, 0, 0, 0, Q);
         assertTrue(c.vertices[3] < 0);
         float[] before = c.vertices.clone();
         int updates = c.updates;
-        c.update(r, 0, 0, 0, new float[]{-90, -40, -90, 180, 90, 180, 90, -40});
+        c.update(r, 0, 0, 0, 0, 0, new float[]{-90, -40, -90, 180, 90, 180, 90, -40});
         assertEquals(updates + 1, c.updates);
         for (int o = 0; o < 48; o += 8) for (int k = 0; k < 3; k++) assertEquals(before[o + k], c.vertices[o + k], 0);
         assertNotEquals(before[3], c.vertices[3], 0);
@@ -88,14 +114,14 @@ public class ActorShadowRectangleCasterTest {
         ActorSpatialRectangleData r = new ActorSpatialRectangleData();
         r.pivotX = 3;
         r.pivotY = -4;
-        c.update(r, 0, 0, 0, Q);
+        c.update(r, 0, 0, 0, 0, 0, Q);
         c.faceLight(100, 70);
         float[] before = c.lightVertices.clone(), moved = Q.clone();
         for (int i = 0; i < 8; i += 2) {
             moved[i] += 20;
             moved[i + 1] += 20;
         }
-        c.update(r, 30, 10, 0, moved);
+        c.update(r, 30, 10, 0, 0, 0, moved);
         c.faceLight(130, 80);
         for (int o = 0; o < 48; o += 8) {
             assertEquals(before[o] + 30, c.lightVertices[o], .0001);

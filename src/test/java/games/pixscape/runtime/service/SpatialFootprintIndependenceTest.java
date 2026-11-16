@@ -14,43 +14,30 @@ import org.junit.Test;
 
 public class SpatialFootprintIndependenceTest {
     @Test
-    public void linkedGeometryIsPreparedAtomicallyAndAltitudeDoesNotRecompile() {
+    public void spatialMutationAndRemovalNeverRecompileOrChangeIndependentCollision() {
         World world = new World(new WorldConfiguration());
         try {
             int actor = world.create();
             world.getMapper(TransformComponent.class).create(actor);
             world.getMapper(PhysicsBodyComponent.class).create(actor);
             SpatialFootprintComponent footprint = world.getMapper(SpatialFootprintComponent.class).create(actor);
-            footprint.radiusPx = 30;
-            footprint.localOffsetXPx = 12;
             PhysicsShapesComponent shapes = world.getMapper(PhysicsShapesComponent.class).create(actor);
             PhysicsShapeData source = PhysicsService.createDefaultShape(1);
-            source.useSpatialFootprint = true;
-            source.geometry = null;
+            source.geometry.halfWidth = 2.5f;
             source.sensor = true;
             shapes.shapes.add(source);
+            PhysicsShapeData before = source.copy();
             PhysicsCompiledFixturesComponent compiled = world.getMapper(PhysicsCompiledFixturesComponent.class).create(actor);
-            PhysicsService.publishPreparedCandidate(shapes, compiled, PhysicsService.prepareBodyCandidate(world, actor, shapes.shapes, 100));
+            PhysicsService.publishPreparedCandidate(shapes, compiled, PhysicsService.prepareBodyCandidate(shapes.shapes));
             int generation = compiled.generation;
-            Assert.assertEquals(.3f, compiled.fixtures.first().radius, .00001f);
-            SpatialFootprintComponent candidate = footprint.copy();
-            candidate.radiusPx = 55;
-            PhysicsService.setSpatialFootprint(world, actor, candidate, 100);
-            Assert.assertEquals(generation + 1, compiled.generation);
-            Assert.assertEquals(.55f, compiled.fixtures.first().radius, .00001f);
-            Assert.assertEquals(.12f, compiled.fixtures.first().offsetX, .00001f);
-            Assert.assertNull(shapes.shapes.first().geometry);
-            Assert.assertTrue(compiled.fixtures.first().sensor);
-            candidate.radiusPx = Float.NaN;
-            Assert.assertThrows(IllegalArgumentException.class, () -> PhysicsService.setSpatialFootprint(world, actor, candidate, 100));
-            Assert.assertEquals(55, footprint.radiusPx, 0);
-            Assert.assertEquals(generation + 1, compiled.generation);
-            candidate.radiusPx = 55;
-            candidate.altitude = 28;
-            PhysicsService.setSpatialFootprint(world, actor, candidate, 100);
-            Assert.assertEquals(generation + 1, compiled.generation);
-            Assert.assertEquals(28, footprint.altitude, 0);
-            Assert.assertThrows(IllegalStateException.class, () -> PhysicsService.removeSpatialFootprint(world, actor));
+            footprint.radiusPx = 55;
+            footprint.localOffsetXPx = 90;
+            footprint.localOffsetYPx = -14;
+            footprint.altitude = 28;
+            footprint.validate();
+            world.process();
+            Assert.assertEquals(generation, compiled.generation);
+            Assert.assertTrue(before.contentEquals(shapes.shapes.first()));
             new PhysicsService(world, null).removePhysics(actor);
             Assert.assertSame(footprint, world.getMapper(SpatialFootprintComponent.class).get(actor));
             Assert.assertEquals(55, footprint.radiusPx, 0);

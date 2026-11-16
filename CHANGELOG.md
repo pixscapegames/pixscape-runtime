@@ -3,12 +3,12 @@
 ## [0.2.5-SNAPSHOT]
 
 ### Breaking changes
-* Spatial actors now use authored `SpatialFootprintComponent` and `SpatialRepresentationComponent`, independent of physics. New scenes use schema 5 and Game Objects/fragments schema 4; obsolete actor footprints are rejected without migration.
-* Scenes now use schema 4 for Tiled maps and their ordered tile, image and object layers. Supported schema 3 scenes are converted on load, with one map per existing tile grid.
+* Spatial actors now use authored `SpatialFootprintComponent` and `SpatialRepresentationComponent`, independent of physics. New scenes use schema 6 and Game Objects/fragments schema 5; obsolete actor footprints are rejected without migration.
+* Tiled map containers and ordered tile, image and object layers introduced in schema 4 remain supported. Compatible schema 3 scenes are converted on load, with one map per existing tile grid.
 * Renamed tile-layer APIs: `TiledMapRef` becomes `TiledLayerRef`, `map()` becomes `layer()`, `TiledMapFacade` becomes `TiledLayerFacade`, and `TiledMapLayerData` becomes `TiledLayerData`.
 
 ### Added
-* Added footprint radius/offset APIs and optional footprint-derived collision geometry with prepared atomic publication. See [the spatial/physics contract](docs/spatial-physics-decoupling.txt).
+* Added independent footprint radius/offset APIs and entity-relative occlusion rectangles; shadow pivot offsets retain their footprint-relative role. See [the spatial/physics contract](docs/spatial-physics-decoupling.txt).
 * Added a session-only composition visibility filter for editor integration, without changing authored visibility or physics.
 * Added prepared Game Object factories and explicit rigid placement of physics-backed compositions.
 * Added read-only tile custom properties and `findAllByTiledLayerName(...)` for Tiled-layer contents.

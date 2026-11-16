@@ -54,7 +54,7 @@ public class SceneLoaderTiledMapConfigurationTest {
             metadata.nextEntityStableId = 20;
             SceneLoader.loadScene(target, save(source), false, metadata);
             target.process();
-            Assert.assertEquals(5, metadata.sceneSchemaVersion);
+            Assert.assertEquals(6, metadata.sceneSchemaVersion);
             Assert.assertEquals(2, target.getAspectSubscriptionManager().get(
                     Aspect.all(games.pixscape.runtime.component.TiledMapComponent.class)).getEntities().size());
             int restored = target.getAspectSubscriptionManager().get(Aspect.all(TiledLayerComponent.class)).getEntities().get(0);

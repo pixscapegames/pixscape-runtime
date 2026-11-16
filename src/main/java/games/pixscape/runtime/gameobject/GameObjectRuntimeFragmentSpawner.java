@@ -379,12 +379,10 @@ public final class GameObjectRuntimeFragmentSpawner {
                 shape.maskBits = source.maskBits;
                 shape.groupIndex = source.groupIndex;
                 shape.enabled = source.enabled;
-                shape.useSpatialFootprint = source.useSpatialFootprint;
                 shapes.add(shape);
             }
             result.put(data.sourceEntityId, new PreparedPhysics(
-                    copyBody(data.physicsBody), PhysicsService.prepareBodyCandidate(shapes, data.spatialFootprint,
-                            sceneMeta != null ? sceneMeta.pixelsPerMeter : 100f)));
+                    copyBody(data.physicsBody), PhysicsService.prepareBodyCandidate(shapes)));
         }
         return result;
     }

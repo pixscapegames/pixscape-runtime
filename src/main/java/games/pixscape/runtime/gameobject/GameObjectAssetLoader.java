@@ -222,10 +222,7 @@ public final class GameObjectAssetLoader {
             shape.maskBits = source.maskBits;
             shape.groupIndex = source.groupIndex;
             shape.enabled = source.enabled;
-            shape.useSpatialFootprint = source.useSpatialFootprint;
-            if (source.useSpatialFootprint && entity.spatialFootprint == null) {
-                throw failure(file, "Footprint-derived collision requires a same-owner spatial footprint.");
-            }
+
             try {
                 shape.validateStructure();
             } catch (IllegalArgumentException ex) {

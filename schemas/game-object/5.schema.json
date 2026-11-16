@@ -1,11 +1,11 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "$id": "https://pixscape.games/schemas/pixscape/game-object/4.schema.json",
-  "title": "Pixscape Game Object definition 4",
+  "$id": "https://pixscape.games/schemas/pixscape/game-object/5.schema.json",
+  "title": "Pixscape Game Object definition 5",
   "type": "object",
   "properties": {
     "schemaVersion": {
-      "const": 4
+      "const": 5
     },
     "rootSourceEntityId": {
       "type": "integer",
@@ -86,14 +86,7 @@
                   "minimum": 1
                 },
                 "geometry": {
-                  "anyOf": [
-                    {
-                      "$ref": "https://pixscape.games/schemas/pixscape/common/1.schema.json#/$defs/physicsGeometry"
-                    },
-                    {
-                      "type": "null"
-                    }
-                  ]
+                  "$ref": "https://pixscape.games/schemas/pixscape/common/1.schema.json#/$defs/physicsGeometry"
                 },
                 "density": {
                   "type": "number"
@@ -118,11 +111,12 @@
                 },
                 "enabled": {
                   "type": "boolean"
-                },
-                "useSpatialFootprint": {
-                  "type": "boolean"
                 }
-              }
+              },
+              "required": [
+                "geometry"
+              ],
+              "additionalProperties": false
             },
             "default": []
           },

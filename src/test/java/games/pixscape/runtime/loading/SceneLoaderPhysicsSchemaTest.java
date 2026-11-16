@@ -215,8 +215,6 @@ public class SceneLoaderPhysicsSchemaTest {
                 shape.geometry = new PhysicsGeometryData();
                 shape.geometry.shapeType = PhysicsGeometryData.SHAPE_CIRCLE;
                 shape.geometry.radius = 1f;
-                shape.useSpatialFootprint = true;
-                shape.geometry = null;
                 world.getMapper(games.pixscape.runtime.component.spatial.SpatialFootprintComponent.class).create(entityId);
                 shapes.shapes.add(shape);
             }
@@ -232,8 +230,8 @@ public class SceneLoaderPhysicsSchemaTest {
             int entityId = target.getAspectSubscriptionManager()
                     .get(Aspect.all(PhysicsShapesComponent.class))
                     .getEntities().get(0);
-            Assert.assertTrue(target.getMapper(PhysicsShapesComponent.class)
-                    .get(entityId).shapes.first().useSpatialFootprint);
+            Assert.assertNotNull(target.getMapper(PhysicsShapesComponent.class)
+                    .get(entityId).shapes.first().geometry);
         } finally {
             target.dispose();
         }
@@ -252,6 +250,8 @@ public class SceneLoaderPhysicsSchemaTest {
                 footprint.localOffsetXPx = -4;
                 world.getMapper(games.pixscape.runtime.component.spatial.SpatialRepresentationComponent.class)
                         .create(actor).rectangles = games.pixscape.runtime.spatial.SpatialRectangleTestData.rectangles(80);
+                world.getMapper(games.pixscape.runtime.component.spatial.SpatialRepresentationComponent.class)
+                        .get(actor).rectangles.staticRectangle.x = 73f;
             }
         });
         World target = world();
@@ -265,6 +265,8 @@ public class SceneLoaderPhysicsSchemaTest {
             Assert.assertEquals(19, footprint.radiusPx, 0);
             Assert.assertEquals(7, footprint.altitude, 0);
             Assert.assertEquals(-4, footprint.localOffsetXPx, 0);
+            Assert.assertEquals(73f, target.getMapper(games.pixscape.runtime.component.spatial.SpatialRepresentationComponent.class)
+                    .get(actor).rectangles.staticRectangle.x, 0f);
             Assert.assertFalse(target.getMapper(PhysicsBodyComponent.class).has(actor));
             Assert.assertFalse(target.getMapper(PhysicsShapesComponent.class).has(actor));
         } finally {
@@ -291,6 +293,44 @@ public class SceneLoaderPhysicsSchemaTest {
             IllegalArgumentException failure = Assert.assertThrows(IllegalArgumentException.class,
                     () -> SceneLoader.loadScene(target, file, true, meta));
             Assert.assertTrue(failure.getMessage().contains("Obsolete physics-owned Spatial footprint"));
+            Assert.assertTrue(target.getEntityManager().isActive(existing));
+        } finally {
+            target.dispose();
+            file.delete();
+        }
+    }
+
+    @Test
+    public void removedCollisionSourceFieldIsRejectedBeforeSceneReplacement() throws Exception {
+        FileHandle file = writeScene(world -> { });
+        file.writeString("{\"useSpatialFootprint\":false," + file.readString("UTF-8").substring(1), false, "UTF-8");
+        World target = world();
+        try {
+            int existing = target.create();
+            target.process();
+            IllegalArgumentException failure = Assert.assertThrows(IllegalArgumentException.class,
+                    () -> SceneLoader.loadScene(target, file, true, new SceneMetaRuntime()));
+            Assert.assertTrue(failure.getMessage().contains("Obsolete useSpatialFootprint"));
+            Assert.assertTrue(target.getEntityManager().isActive(existing));
+        } finally {
+            target.dispose();
+            file.delete();
+        }
+    }
+
+    @Test
+    public void oldRectangleOriginIsRejectedBeforeSceneReplacement() throws Exception {
+        FileHandle file = writeScene(world -> world.getMapper(
+                games.pixscape.runtime.component.spatial.SpatialRepresentationComponent.class).create(world.create()));
+        World target = world();
+        try {
+            int existing = target.create();
+            target.process();
+            SceneMetaRuntime meta = new SceneMetaRuntime();
+            meta.sceneSchemaVersion = 4;
+            IllegalArgumentException failure = Assert.assertThrows(IllegalArgumentException.class,
+                    () -> SceneLoader.loadScene(target, file, true, meta));
+            Assert.assertTrue(failure.getMessage().contains("Obsolete footprint-relative rectangle"));
             Assert.assertTrue(target.getEntityManager().isActive(existing));
         } finally {
             target.dispose();

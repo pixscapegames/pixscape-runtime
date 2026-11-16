@@ -173,10 +173,6 @@
           "type": "integer",
           "default": 0
         },
-        "useSpatialFootprint": {
-          "type": "boolean",
-          "default": false
-        },
         "geometry": {
           "anyOf": [
             {
@@ -222,31 +218,47 @@
         }
       },
       "not": {
-        "required": [
-          "spatialFootprint"
+        "anyOf": [
+          {
+            "required": [
+              "spatialFootprint"
+            ]
+          },
+          {
+            "required": [
+              "useSpatialFootprint"
+            ]
+          }
         ]
       },
       "allOf": [
         {
           "if": {
             "properties": {
-              "useSpatialFootprint": {
-                "const": true
+              "spatialBlockId": {
+                "minimum": 1
               }
             },
             "required": [
-              "useSpatialFootprint"
+              "spatialBlockId"
             ]
           },
           "then": {
             "properties": {
               "geometry": {
                 "type": "null"
-              },
-              "spatialBlockId": {
-                "const": 0
               }
             }
+          },
+          "else": {
+            "properties": {
+              "geometry": {
+                "$ref": "#/$defs/physicsGeometry"
+              }
+            },
+            "required": [
+              "geometry"
+            ]
           }
         }
       ]
@@ -480,7 +492,8 @@
         "pivotY": {
           "type": "number"
         }
-      }
+      },
+      "description": "Axis-aligned projected pixels: x/y relative to the resolved entity origin; pivotX/Y relative to its resolved spatial footprint. Visual scale/rotation do not resize this rectangle."
     },
     "actorRectangles": {
       "type": "object",

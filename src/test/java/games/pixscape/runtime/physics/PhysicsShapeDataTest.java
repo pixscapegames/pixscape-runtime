@@ -27,14 +27,13 @@ public class PhysicsShapeDataTest {
     @Test
     public void copyIsDeepAndPreservesSpatialFootprintOwnership() {
         PhysicsShapeData source = polygon();
-        source.useSpatialFootprint = true;
         source.geometry.shapeType = PhysicsGeometryData.SHAPE_CIRCLE;
         source.geometry.radius = 1f;
         PhysicsShapeData copy = source.copy();
 
         Assert.assertTrue(source.contentEquals(copy));
         Assert.assertEquals(0, copy.spatialBlockId);
-        Assert.assertTrue(copy.useSpatialFootprint);
+        Assert.assertNotNull(copy.geometry);
         copy.geometry.polygonVertices[0] = 99f;
         copy.density = 4f;
 
@@ -91,20 +90,7 @@ public class PhysicsShapeDataTest {
         shape.validateStructure();
     }
 
-    @Test
-    public void footprintSourceHasNoEditableGeometryAndCanBeDisabled() {
-        PhysicsShapeData shape = new PhysicsShapeData();
-        shape.physicsShapeId = 1;
-        shape.useSpatialFootprint = true;
-        shape.geometry = new PhysicsGeometryData();
-        expectInvalid(shape, "no copied geometry");
-        shape.geometry = null;
-        shape.sensor = true;
-        shape.enabled = false;
-        shape.validateStructure();
-        shape.spatialBlockId = 4;
-        expectInvalid(shape, "spatialBlockId=0");
-    }
+
 
     @Test
     public void sourceAndCompiledDataRoundTripThroughLibgdxJson() {
@@ -127,22 +113,7 @@ public class PhysicsShapeDataTest {
         Assert.assertEquals(compiled.partIndex, restoredCompiled.partIndex);
     }
 
-    @Test
-    public void explicitSpatialFootprintRoundTripsAndOldJsonDefaultsToFalse() {
-        PhysicsShapeData explicit = new PhysicsShapeData();
-        explicit.physicsShapeId = 9;
-        explicit.geometry = null;
-        explicit.useSpatialFootprint = true;
-        Json json = new Json();
 
-        PhysicsShapeData restoredExplicit = json.fromJson(
-                PhysicsShapeData.class, json.toJson(explicit));
-        PhysicsShapeData restoredLegacy = json.fromJson(PhysicsShapeData.class,
-                "{physicsShapeId:9,spatialBlockId:0,geometry:{shapeType:1,radius:1}}");
-
-        Assert.assertTrue(restoredExplicit.useSpatialFootprint);
-        Assert.assertFalse(restoredLegacy.useSpatialFootprint);
-    }
 
     private static PhysicsShapeData polygon() {
         PhysicsShapeData shape = new PhysicsShapeData();

@@ -394,14 +394,20 @@ public final class LightingGeometrySystem extends BaseSystem {
         if (!games.pixscape.runtime.service.SpatialActorPose.resolve(e, t, foot, state, actorPose)) {
             throw new LightingAdmissionException("Spatial actor " + e + " has no valid authored footprint");
         }
-        games.pixscape.runtime.spatial.ActorSpatialRectanglePlacement.anchor(actorPose.footX, actorPose.footY,
+        boolean resolved = state != null && state.isResolved(e);
+        float ownerX = resolved ? state.x[e] : t.x;
+        float ownerY = resolved ? state.y[e] : t.y;
+        games.pixscape.runtime.spatial.ActorSpatialRectanglePlacement.anchor(ownerX, ownerY,
                 0f, 0f, 0f, actorPose.bottom, rectangleAnchor);
         if (surface.actorShadowRectangle == null) surface.actorShadowRectangle = new ActorShadowRectangleCaster();
-        surface.actorShadowRectangle.update(rectangle, rectangleAnchor[0], rectangleAnchor[1], rectangleAnchor[2], corners);
+        surface.actorShadowRectangle.update(rectangle, rectangleAnchor[0], rectangleAnchor[1], rectangleAnchor[2],
+                actorPose.footX - ownerX, actorPose.footY - ownerY, corners);
         surface.shadowVertices = surface.actorShadowRectangle.vertices;
         surface.shadowVertexCount = surface.actorShadowRectangle.vertexCount;
         if (surface.imageQuad) {
             // Receiver stays on the footprint anchor; editing the caster must not move received lighting.
+            games.pixscape.runtime.spatial.ActorSpatialRectanglePlacement.anchor(actorPose.footX, actorPose.footY,
+                    0f, 0f, 0f, actorPose.bottom, rectangleAnchor);
             float x = rectangleAnchor[0], y = rectangleAnchor[1], z = rectangleAnchor[2];
             SilhouetteImageMapping.imageUV(corners, LightingCoordinates.screenX(x, y), LightingCoordinates.screenY(x, y, z), rectangleUV, 0);
             SpriteSurfaceSupport.sheet(surface.vertices, corners, rectangleUV[0], rectangleUV[1], z, 1, -1);

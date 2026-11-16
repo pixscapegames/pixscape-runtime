@@ -6,10 +6,6 @@ package games.pixscape.runtime.physics;
 public final class PhysicsShapeData {
     public int physicsShapeId = 0;
     public int spatialBlockId = 0;
-    /**
-     * Uses the same owner's authored Spatial footprint as collision geometry.
-     */
-    public boolean useSpatialFootprint = false;
     public PhysicsGeometryData geometry;
 
     public float density = 1f;
@@ -27,7 +23,6 @@ public final class PhysicsShapeData {
         PhysicsShapeData copy = new PhysicsShapeData();
         copy.physicsShapeId = physicsShapeId;
         copy.spatialBlockId = spatialBlockId;
-        copy.useSpatialFootprint = useSpatialFootprint;
         copy.geometry = geometry != null ? geometry.copy() : null;
         copy.density = density;
         copy.friction = friction;
@@ -48,11 +43,7 @@ public final class PhysicsShapeData {
         if (spatialBlockId < 0) {
             throw invalid("spatialBlockId must be non-negative.");
         }
-        if (useSpatialFootprint) {
-            if (spatialBlockId != 0 || geometry != null) {
-                throw invalid("footprint-derived collision requires spatialBlockId=0 and no copied geometry.");
-            }
-        } else if (spatialBlockId == 0) {
+        if (spatialBlockId == 0) {
             if (geometry == null) {
                 throw invalid("manual shape geometry is required.");
             }
@@ -78,7 +69,6 @@ public final class PhysicsShapeData {
         return other != null
                 && physicsShapeId == other.physicsShapeId
                 && spatialBlockId == other.spatialBlockId
-                && useSpatialFootprint == other.useSpatialFootprint
                 && (geometry == null
                 ? other.geometry == null
                 : geometry.contentEquals(other.geometry))

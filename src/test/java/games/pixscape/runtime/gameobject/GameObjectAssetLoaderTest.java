@@ -17,7 +17,7 @@ public class GameObjectAssetLoaderTest {
 
     @Test
     public void literalJsonCollectionsPreserveOrderAndIdentities() {
-        String json = "{schemaVersion:4,rootSourceEntityId:9,entities:["
+        String json = "{schemaVersion:5,rootSourceEntityId:9,entities:["
                 + "{sourceEntityId:9,transform:{scaleX:1,scaleY:1},gameObject:{},physicsBody:{}},"
                 + "{sourceEntityId:2,parentSourceEntityId:9,transform:{scaleX:1,scaleY:1},"
                 + "tags:{values:[enemy,boss]},physicsBody:{},physicsShapes:["
@@ -242,28 +242,42 @@ public class GameObjectAssetLoaderTest {
     }
 
     @Test
-    public void v3SpatialHeightAndAutonomousFootprintRoundTrip() {
+    public void independentSpatialSettingsAndCollisionRoundTrip() {
         GameObjectAsset asset = validNestedAsset();
         GameObjectAsset.GameObjectEntityData physical = asset.entities.get(2);
         physical.physicsBody = body();
         GameObjectAsset.PhysicsShapeData footprint = shape(1, circle());
         footprint.enabled = true;
-        footprint.useSpatialFootprint = true;
-        footprint.geometry = null;
         physical.physicsShapes.add(footprint);
         physical.spatialRepresentation = new GameObjectAsset.SpatialRepresentationData();
         physical.spatialRepresentation.rectangles = new games.pixscape.runtime.spatial.ActorSpatialRectangles();
         physical.spatialRepresentation.rectangles.staticRectangle = new games.pixscape.runtime.spatial.ActorSpatialRectangleData();
         physical.spatialFootprint = new games.pixscape.runtime.component.spatial.SpatialFootprintComponent();
         physical.spatialFootprint.altitude = 2.5f;
+        physical.spatialFootprint.localOffsetXPx = 47f;
         physical.spatialRepresentation.rectangles = games.pixscape.runtime.spatial.SpatialRectangleTestData.rectangles(7.5f);
 
+        physical.spatialRepresentation.rectangles.staticRectangle.x = -61f;
         GameObjectAsset restored = loader.fromJson(loader.toJson(asset));
 
-        Assert.assertEquals(4, restored.schemaVersion);
-        Assert.assertTrue(restored.entities.get(2).physicsShapes.get(0).useSpatialFootprint);
+        Assert.assertEquals(47f, restored.entities.get(2).spatialFootprint.localOffsetXPx, 0f);
+        Assert.assertEquals(-61f, restored.entities.get(2).spatialRepresentation.rectangles.staticRectangle.x, 0f);
+        Assert.assertEquals(5, restored.schemaVersion);
+        Assert.assertNotNull(restored.entities.get(2).physicsShapes.get(0).geometry);
         Assert.assertEquals(2.5f, restored.entities.get(2).spatialFootprint.altitude, 0f);
         Assert.assertEquals(7.5f, restored.entities.get(2).spatialRepresentation.rectangles.staticRectangle.height, 0f);
+    }
+
+    @Test
+    public void removedCollisionSourceFieldIsRejectedEvenWhenFalse() {
+        GameObjectAsset asset = validNestedAsset();
+        GameObjectAsset.GameObjectEntityData entity = asset.entities.get(2);
+        entity.physicsBody = new GameObjectAsset.PhysicsBodyData();
+        entity.physicsShapes.add(shape(1, circle()));
+        com.badlogic.gdx.utils.JsonValue json = new com.badlogic.gdx.utils.JsonReader().parse(loader.toJson(asset));
+        json.get("entities").get(2).get("physicsShapes").get(0)
+                .addChild("useSpatialFootprint", new com.badlogic.gdx.utils.JsonValue(false));
+        Assert.assertThrows(RuntimeException.class, () -> loader.fromJson(json.toJson(com.badlogic.gdx.utils.JsonWriter.OutputType.json)));
     }
 
     @Test
@@ -320,7 +334,7 @@ public class GameObjectAssetLoaderTest {
 
         GameObjectAsset restored = loader.fromJson(loader.toJson(asset));
 
-        Assert.assertEquals(4, restored.schemaVersion);
+        Assert.assertEquals(5, restored.schemaVersion);
         Assert.assertEquals(1, restored.joints.size);
         GameObjectAsset.GameObjectJointData restoredJoint = restored.joints.get(0);
         Assert.assertEquals(7, restoredJoint.jointLocalId);
@@ -343,7 +357,7 @@ public class GameObjectAssetLoaderTest {
     public void v2AssetsAreRejectedRatherThanSilentlyMigrated() {
         GameObjectAsset asset = validNestedAsset();
         asset.schemaVersion = 2;
-        rejected(asset, "schemaVersion must be 4");
+        rejected(asset, "schemaVersion must be 5");
     }
 
     private void rejected(GameObjectAsset asset, String diagnostic) {

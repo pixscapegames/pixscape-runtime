@@ -14,7 +14,6 @@ public final class PhysicsShapeCollectionValidator {
             throw new IllegalArgumentException("Physics shape collection cannot be null.");
         }
 
-        int footprintCount = 0;
         for (int i = 0; i < shapes.size; i++) {
             PhysicsShapeData shape = shapes.get(i);
             if (shape == null) {
@@ -22,15 +21,7 @@ public final class PhysicsShapeCollectionValidator {
                         "Physics shape collection contains a null shape at index " + i + ".");
             }
             shape.validateStructure();
-            if (!shape.useSpatialFootprint) {
-                continue;
-            }
 
-            footprintCount++;
-            if (footprintCount > 1) {
-                throw new IllegalArgumentException(
-                        "Physics body has more than one footprint-derived collision.");
-            }
         }
     }
 }

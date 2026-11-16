@@ -66,15 +66,14 @@ public class Box2dSyncSystemPhysicsContractTest {
     }
 
     @Test
-    public void sensorSpatialFootprintMaterializesAsBox2dSensor() {
+    public void sensorCircleMaterializesIndependentlyOfSpatialFootprint() {
         Harness harness = new Harness();
         harness.source.geometry.shapeType = PhysicsGeometryData.SHAPE_CIRCLE;
         harness.source.geometry.radius = 0.5f;
         games.pixscape.runtime.component.spatial.SpatialFootprintComponent authoredFootprint = harness.world.getMapper(games.pixscape.runtime.component.spatial.SpatialFootprintComponent.class).create(harness.entityId);
         authoredFootprint.radiusPx = 50f;
         authoredFootprint.localOffsetXPx = harness.source.geometry.offsetX * 100f;
-        harness.source.useSpatialFootprint = true;
-        harness.source.geometry = null;
+        harness.source.geometry = new games.pixscape.runtime.physics.PhysicsGeometryData();
         harness.source.sensor = true;
 
         harness.prepareAndProcess();

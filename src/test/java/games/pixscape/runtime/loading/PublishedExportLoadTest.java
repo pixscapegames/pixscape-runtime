@@ -31,7 +31,7 @@ public class PublishedExportLoadTest {
         try {
             loadEveryScene(root);
         } catch (RuntimeException incompatible) {
-            if (!missingActorSpatialRectangles(incompatible)) throw incompatible;
+            if (!unsupportedSpatialFormat(incompatible)) throw incompatible;
             // Optional user-owned corpus is intentionally not migrated by tests.
             return;
         }
@@ -56,7 +56,7 @@ public class PublishedExportLoadTest {
         try {
             loadEveryScene(root);
         } catch (RuntimeException incompatible) {
-            if (!missingActorSpatialRectangles(incompatible)) {
+            if (!unsupportedSpatialFormat(incompatible)) {
                 throw incompatible;
             }
         }
@@ -93,13 +93,15 @@ public class PublishedExportLoadTest {
         }
     }
 
-    private static boolean missingActorSpatialRectangles(Throwable error) {
+    private static boolean unsupportedSpatialFormat(Throwable error) {
         for (Throwable cause = error; cause != null; cause = cause.getCause()) {
             String message = cause.getMessage();
             if (message != null && (message.contains("has no authored rectangles; reconfigure the actor")
                     || message.contains("Spatial actor spatial rectangles are missing:")
                     || message.contains("Obsolete physics-owned Spatial footprint")
-                    || message.contains("unsupported schemaVersion 3; expected 4"))) return true;
+                    || message.contains("requires sceneSchemaVersion 6, found 5")
+                    || message.contains("unsupported schemaVersion 3; expected 5")
+                    || message.contains("unsupported schemaVersion 4; expected 5"))) return true;
         }
         return false;
     }
@@ -108,7 +110,7 @@ public class PublishedExportLoadTest {
         try {
             new GameObjectAssetLoader().load(file);
         } catch (RuntimeException incompatible) {
-            if (!missingActorSpatialRectangles(incompatible)) throw incompatible;
+            if (!unsupportedSpatialFormat(incompatible)) throw incompatible;
         }
     }
 }

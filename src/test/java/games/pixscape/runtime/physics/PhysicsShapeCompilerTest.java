@@ -44,14 +44,12 @@ public class PhysicsShapeCompilerTest {
     }
 
     @Test
-    public void compilesExplicitSpatialFootprintWithSourceProvenance() {
+    public void compilesIndependentCircleWithSourceProvenance() {
         PhysicsShapeData shape = base(PhysicsGeometryData.SHAPE_CIRCLE);
         shape.geometry.radius = 1.25f;
-        shape.useSpatialFootprint = true;
-        shape.geometry = null;
         shape.sensor = true;
 
-        CompiledFixtureData fixture = compiler.compile(new PhysicsShapeResolver().resolveFootprint(shape, new games.pixscape.runtime.component.spatial.SpatialFootprintComponent(), 100f))[0];
+        CompiledFixtureData fixture = compiler.compile(new PhysicsShapeResolver().resolve(shape))[0];
         CompiledFixtureData copy = fixture.copy();
 
         Assert.assertTrue(fixture.sensor);
@@ -61,14 +59,12 @@ public class PhysicsShapeCompilerTest {
     }
 
     @Test
-    public void compiledFixtureValidationAcceptsSensorCircleFootprint() {
+    public void compiledFixtureValidationAcceptsIndependentSensorCircle() {
         PhysicsShapeData shape = base(PhysicsGeometryData.SHAPE_CIRCLE);
         shape.geometry.radius = 0.75f;
-        shape.useSpatialFootprint = true;
-        shape.geometry = null;
         shape.sensor = true;
 
-        CompiledFixtureData fixture = compiler.compile(new PhysicsShapeResolver().resolveFootprint(shape, new games.pixscape.runtime.component.spatial.SpatialFootprintComponent(), 100f))[0];
+        CompiledFixtureData fixture = compiler.compile(new PhysicsShapeResolver().resolve(shape))[0];
 
         fixture.validate();
         Assert.assertTrue(fixture.sensor);
