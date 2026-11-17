@@ -363,6 +363,35 @@ public class GameObjectPhysicsWritebackSystemTest {
     }
 
     @Test
+    public void runtimeAvailabilityBootstrapPreservesAuthoredAndNativeDistanceLength() {
+        int root = entity(1, true, -1, true);
+        world.getMapper(PhysicsBodyComponent.class).get(root).type = PhysicsBodyComponent.STATIC;
+        int child = entity(2, false, 1, true);
+        transform(child).x = -100f;
+        int jointEntity = world.create();
+        PhysicsJointComponent joint = world.getMapper(PhysicsJointComponent.class).create(jointEntity);
+        joint.aEid = root;
+        joint.bEid = child;
+        joint.anchorAx = .2f;
+        world.getMapper(PhysicsDistanceJointComponent.class).create(jointEntity).lengthM = 1f;
+        SceneMetaRuntime meta = new SceneMetaRuntime();
+        meta.gravityY = -9.81f;
+        sync.setSceneMeta(meta);
+        identities.rebuild();
+        sync.setEnabled(false);
+        sync.setEnabled(true);
+        sync.setStepEnabled(false);
+        world.process();
+
+        Assert.assertEquals(1f, world.getMapper(PhysicsDistanceJointComponent.class).get(jointEntity).lengthM, EPSILON);
+        var nativeJoint = (com.badlogic.gdx.physics.box2d.joints.DistanceJoint)
+                world.getMapper(PhysicsRuntimeJointComponent.class).get(jointEntity).joint;
+        Assert.assertEquals(1f, nativeJoint.getLength(), EPSILON);
+        Assert.assertEquals(-1f, nativeBody(child).getPosition().x, EPSILON);
+        Assert.assertEquals(0f, nativeBody(child).getPosition().y, EPSILON);
+    }
+
+    @Test
     public void runtimeNativePoseWinsForStaticAndKinematicBodies() {
         int staticBody = entity(1, true, -1, true);
         world.getMapper(PhysicsBodyComponent.class).get(staticBody).type = PhysicsBodyComponent.STATIC;

@@ -400,7 +400,8 @@ public final class Box2dSyncSystem extends BaseSystem implements ProfiledSystem 
             dirty.consumePhysics(physicsDirtyConsumer);
         }
 
-        if (bootstrapStepPending && !fullRebuildPending) {
+        boolean bootstrapped = bootstrapStepPending && !fullRebuildPending;
+        if (bootstrapped) {
             box2d.world.step(1f / 60f, 6, 2);
             if (dirty != null) {
                 IntBag joints = jointsSub.getEntities();
@@ -456,8 +457,12 @@ public final class Box2dSyncSystem extends BaseSystem implements ProfiledSystem 
             if (movedByAuthoring) {
                 rt.body.setTransform(targetX, targetY, targetAngle);
                 rt.body.setAwake(true);
-                refreshConnectedDistanceJointLengths(e);
-                markJointsDirtyForBody(e);
+                // Restoring the design pose after bootstrap stabilization is not an authored
+                // move. Keep the configured length used to create the native joint above.
+                if (!bootstrapped) {
+                    refreshConnectedDistanceJointLengths(e);
+                    markJointsDirtyForBody(e);
+                }
             }
         }
     }
