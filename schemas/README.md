@@ -30,9 +30,7 @@ future compatibility promise.
 
 The additive 2.5D lighting fields keep these format versions. Missing light
 height/quality/resolution default to `128`, `1` and `512`; the map lighting
-plane defaults to `0`. Sprite shadow casting remains opt-in. See
-[the geometric and material contract](../docs/lighting-2_5d.md) before adding
-local XYZ/UV descriptions or registering maps at different physical altitudes.
+plane defaults to `0`. Sprite shadow casting remains opt-in.
 
 ## Run the checks
 
