@@ -17,7 +17,6 @@ public interface PixscapeAPI {
     /**
      * Runtime spatial render-order API.
      */
-    SpatialAPI spatial();
 
     /**
      * Expert ECS access for low-level use cases.

@@ -254,6 +254,7 @@ public class SpatialTileOrderCompilerTest {
         actor.actorCircleX = new float[]{5.001f};
         actor.actorCircleY = new float[]{15};
         actor.actorAltitude = new float[]{0};
+        actor.actorBottom = actor.actorAltitude.clone();
         actor.actorHeight = new float[]{16};
         SpatialFaceRelationSolver relations = new SpatialFaceRelationSolver();
         relations.solve(actor, faces);

@@ -6,11 +6,11 @@ import com.badlogic.gdx.math.Vector2;
  * High-level authored transform access for one entity.
  * For standalone entities and top-level Game Objects this is the normal authored world pose.
  * For a Game Object member it is the authored local transform relative to its parent; this
- * facade does not expose the resolved world transform.
+ * point conversions use the latest published resolved world transform.
  * Setters establish a standalone authored transform when it is absent.
  * Non-finite position, rotation, scale, origin, and delta values are rejected before mutation.
  * Scale is visual: it changes rendered geometry and propagates through the existing hierarchy,
- * but never resizes or rebuilds physics fixtures, spatial volumes, or joints. Changing its sign
+ * including image-space occlusion zones, but never resizes physics fixtures, footprints, or joints. Changing its sign
  * flips the image without reflecting its collision; a non-centered origin can also shift the image.
  * Ordinary entities support negative, uniform, and non-uniform finite scale, including entities
  * with their own Body and joints. Game Objects require positive uniform scale, and ancestors of
@@ -56,6 +56,16 @@ public interface TransformFacade {
      * @throws IllegalArgumentException if {@code out} is null
      */
     Vector2 xy(Vector2 out);
+
+    /** Converts a point through the latest published hierarchy frame into world coordinates.
+     * Uses the resolved Body pose when present. Does not process the world or allocate per call.
+     * Ordinary leaf origins are geometry-only; parent frames include their hierarchy pivot.
+     * Throws for stale handles, absent transforms or unresolved dependent poses.
+     */
+    Vector2 localToWorld(float x, float y, Vector2 out);
+
+    /** Inverse of localToWorld; additionally rejects singular frames. Failures leave out intact. */
+    Vector2 worldToLocal(float x, float y, Vector2 out);
 
     float rotationRad();
 

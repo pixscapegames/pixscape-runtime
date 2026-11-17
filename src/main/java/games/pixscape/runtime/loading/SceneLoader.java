@@ -49,8 +49,6 @@ public final class SceneLoader {
         SceneMetaRuntime.validateSceneSchemaVersion(
                 sceneMeta != null ? sceneMeta.sceneSchemaVersion : -1,
                 sceneMeta != null ? sceneMeta.name : inFile.path());
-        rejectLegacySpatial(new JsonReader().parse(serialized),
-                sceneMeta.sceneSchemaVersion != SceneMetaRuntime.CURRENT_SCENE_SCHEMA_VERSION);
         validateMapLightingConvention(serialized, inFile.path());
         SceneMetaRuntime candidateMeta = new SceneMetaRuntime(sceneMeta);
         serialized = validateSerializedScene(serialized, candidateMeta, inFile);
@@ -81,29 +79,6 @@ public final class SceneLoader {
                     "Error while loading scene: " + inFile.path()
                             + (detail != null && !detail.isEmpty() ? ": " + detail : ""),
                     e);
-        }
-    }
-
-    private static void rejectLegacySpatial(JsonValue value, boolean oldRectangleOrigin) {
-        if (value == null) {
-            return;
-        }
-        if (value.name != null && (value.name.endsWith(".SpatialHeightComponent")
-                || value.name.endsWith(".SpatialPhysicsFootprintComponent"))
-                || value.isString() && (value.asString().endsWith(".SpatialHeightComponent")
-                || value.asString().endsWith(".SpatialPhysicsFootprintComponent"))
-                || "spatialFootprint".equals(value.name) && value.isBoolean()) {
-            throw new IllegalArgumentException("Obsolete physics-owned Spatial footprint; reconfigure the actor with SpatialFootprintComponent and SpatialRepresentationComponent.");
-        }
-        if (oldRectangleOrigin && (value.name != null && value.name.endsWith(".SpatialRepresentationComponent")
-                || value.isString() && value.asString().endsWith(".SpatialRepresentationComponent"))) {
-            throw new IllegalArgumentException("Obsolete footprint-relative rectangle; reconfigure entity-relative spatial rectangles.");
-        }
-        if ("useSpatialFootprint".equals(value.name)) {
-            throw new IllegalArgumentException("Obsolete useSpatialFootprint: author independent collision geometry.");
-        }
-        for (JsonValue child = value.child; child != null; child = child.next) {
-            rejectLegacySpatial(child, oldRectangleOrigin);
         }
     }
 
@@ -150,11 +125,7 @@ public final class SceneLoader {
                 validateCustomProperties(format, validationWorld, sceneFile);
                 validatePersistentIdentities(
                         format, validationWorld, sceneMeta, sceneFile);
-                if (sceneMeta.sceneSchemaVersion == 3) {
-                    validateTiledMapConfigurations(format, validationWorld, sceneFile);
-                }
-                TiledMapSceneUpgrade.convert(validationWorld, format, sceneMeta);
-                TiledMapSceneUpgrade.bindConfigurations(validationWorld, format, sceneMeta);
+                TiledMapSceneBindings.bindConfigurations(validationWorld, format, sceneMeta);
                 validateGameObjectHierarchy(
                         format, validationWorld, sceneMeta, sceneFile);
                 validatePhysicsSchema(
@@ -194,17 +165,9 @@ public final class SceneLoader {
             if (footprint != null) {
                 footprint.validate();
             }
-            if (h == null) continue;
-            if (footprint == null) {
-                throw new IllegalArgumentException("Spatial actor " + e + " requires an autonomous footprint; reconfigure the actor");
+            if (h != null && h.rectangles != null) {
+                h.rectangles.validate();
             }
-            if (h.rectangles == null)
-                throw new IllegalArgumentException("Spatial actor " + e + " has no authored rectangles; reconfigure the actor");
-            h.rectangles.validate();
-            AnimationComponent animation = world.getMapper(AnimationComponent.class).getSafe(e, null);
-            AssetRefComponent asset = world.getMapper(AssetRefComponent.class).getSafe(e, null);
-            if (h.rectangles.get(asset == null ? 0 : asset.assetId, animation == null ? null : animation.currentClip) == null)
-                throw new IllegalArgumentException("Spatial actor " + e + " has no spatial rectangle for its active representation");
         }
     }
 

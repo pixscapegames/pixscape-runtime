@@ -29,21 +29,21 @@ public class RuntimeProjectIOTest {
     }
 
     @Test
-    public void sceneSchemaVersionThreeIsAccepted() throws Exception {
+    public void currentSceneSchemaVersionIsAccepted() throws Exception {
         FileHandle projectDir = projectDirectory(projectJson(
-                "\"sceneSchemaVersion\":3,"));
+                "\"sceneSchemaVersion\":7,"));
 
         RuntimeConfig config = RuntimeProjectIO.loadProject(projectDir);
 
         SceneMetaRuntime scene = config.getCurrentSceneMeta();
-        Assert.assertEquals(3, scene.sceneSchemaVersion);
+        Assert.assertEquals(7, scene.sceneSchemaVersion);
         Assert.assertTrue(scene.physicsEnabled);
     }
 
     @Test
     public void removedMainCameraOffscreenMetadataIsIgnored() throws Exception {
         FileHandle projectDir = projectDirectory(projectJson(
-                "\"sceneSchemaVersion\":3,\"mainCameraOffscreen\":true,"));
+                "\"sceneSchemaVersion\":7,\"mainCameraOffscreen\":true,"));
 
         RuntimeConfig config = RuntimeProjectIO.loadProject(projectDir);
 

@@ -18,6 +18,15 @@ import com.badlogic.gdx.files.FileHandle;
 public interface GameObjectsAPI {
 
     /**
+     * Adds/reparents an existing entity while preserving its resolved world pose. A null parent
+     * detaches it. Compatible visual parents gain GameObject capability in the same operation.
+     * Rejects cycles, incompatible scales and unsupported nodes before mutation. Bodies and joints
+     * keep their native poses and connections, including joints crossing hierarchy boundaries.
+     * Explicit cold operation after structural publication; may allocate/rebuild derived topology.
+     */
+    void reparent(EntityRef child, EntityRef parent);
+
+    /**
      * Acquires a reusable factory for a definition prepared automatically before scene READY.
      * Normalizes the name once. The factory is invalid after scene retirement or replacement
      * of this asset's prepared definition. Each spawn still creates independent mutable state.

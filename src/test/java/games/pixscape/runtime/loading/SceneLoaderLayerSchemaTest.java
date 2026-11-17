@@ -42,14 +42,14 @@ public class SceneLoaderLayerSchemaTest {
     }
 
     @Test
-    public void finalSchemaThreeLayerRoundTripsWithoutType() throws Exception {
+    public void currentLayerRoundTripsWithoutRemovedFlags() throws Exception {
         FileHandle scene = finalSchemaScene();
         String serialized = scene.readString("UTF-8");
         JsonValue serializedLayer = serializedLayer(serialized);
 
         Assert.assertNotNull(serializedLayer);
         Assert.assertEquals(4, serializedLayer.getInt("layerIndex"));
-        Assert.assertTrue(serializedLayer.getBoolean("spatialEnabled"));
+        Assert.assertFalse(serializedLayer.has("spatialEnabled"));
         Assert.assertFalse(serializedLayer.has("type"));
 
         World loaded = world();
@@ -80,9 +80,9 @@ public class SceneLoaderLayerSchemaTest {
     private static void assertObsoleteTypeRejected(int value) throws Exception {
         FileHandle valid = finalSchemaScene();
         String stale = valid.readString("UTF-8").replace(
-                "\"LayerComponent\":{\"layerIndex\":4,\"spatialEnabled\":true}",
+                "\"LayerComponent\":{\"layerIndex\":4}",
                 "\"LayerComponent\":{\"layerIndex\":4,\"type\":" + value
-                        + ",\"spatialEnabled\":true}");
+                        + "}");
         Assert.assertTrue("Fixture injection failed", stale.contains("\"type\":" + value));
         FileHandle scene = new FileHandle(File.createTempFile("pixscape-stale-layer-", ".json"));
         scene.writeString(stale, false, "UTF-8");
@@ -107,7 +107,6 @@ public class SceneLoaderLayerSchemaTest {
             int layerEntity = source.create();
             LayerComponent layer = source.getMapper(LayerComponent.class).create(layerEntity);
             layer.layerIndex = 4;
-            layer.spatialEnabled = true;
 
             int mapEntity = source.create();
             source.getMapper(EntityIndexComponent.class).create(mapEntity).layerIndex = 4;

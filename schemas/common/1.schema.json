@@ -473,18 +473,20 @@
         "width": {
           "type": "number",
           "exclusiveMinimum": 0,
-          "default": 32
+          "default": 1
         },
         "height": {
           "type": "number",
           "exclusiveMinimum": 0,
-          "default": 64
+          "default": 1
         },
         "x": {
-          "type": "number"
+          "type": "number",
+          "default": 0
         },
         "y": {
-          "type": "number"
+          "type": "number",
+          "default": 0
         },
         "pivotX": {
           "type": "number"
@@ -493,7 +495,7 @@
           "type": "number"
         }
       },
-      "description": "Axis-aligned projected pixels: x/y relative to the resolved entity origin; pivotX/Y relative to its resolved spatial footprint. Visual scale/rotation do not resize this rectangle."
+      "description": "Optional image-local normalized zone with finite, strictly positive configured dimensions, clipped against the native visual triangles after deformation. Missing settings mean the full image. Only the resulting geometry may be empty after clipping or deformation. pivotX/Y are projected pixel offsets from the resolved footprint, independent of image TRS."
     },
     "actorRectangles": {
       "type": "object",

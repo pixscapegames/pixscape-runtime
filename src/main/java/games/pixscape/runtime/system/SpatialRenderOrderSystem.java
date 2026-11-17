@@ -26,7 +26,6 @@ public final class SpatialRenderOrderSystem extends BaseSystem implements Profil
     private final TiledRenderState tiledState;
     private final DrawList drawList;
 
-    private ComponentMapper<LayerComponent> mLayer;
     private ComponentMapper<TransformComponent> mTransform;
     private ComponentMapper<EntityIndexComponent> mEntityIndex;
     private ComponentMapper<PixscapeIdentityComponent> mIdentity;
@@ -35,12 +34,8 @@ public final class SpatialRenderOrderSystem extends BaseSystem implements Profil
     private ComponentMapper<SpatialBlocksComponent> mSpatialBlocks;
     private ComponentMapper<SpatialFootprintComponent> mSpatialFootprint;
 
-    private EntitySubscription layersSub;
     private EntitySubscription tiledMapsSub;
 
-    private boolean[] spatialLayers = new boolean[0];
-    private int[] activeSpatialLayerIndices = new int[0];
-    private int activeSpatialLayerCount;
 
     private int[] faceMapEntities = new int[0];
     private int faceMapCount;
@@ -119,8 +114,8 @@ public final class SpatialRenderOrderSystem extends BaseSystem implements Profil
         actorCollector.setRepresentationMappers(world.getMapper(games.pixscape.runtime.component.AnimationComponent.class),
                 world.getMapper(games.pixscape.runtime.component.AssetRefComponent.class));
         gameObjectHierarchy = world.getSystem(GameObjectHierarchySystem.class);
-        layersSub = world.getAspectSubscriptionManager().get(
-                Aspect.all(LayerComponent.class).exclude(EntityIndexComponent.class));
+        GameObjectCompositionSystem composition = world.getSystem(GameObjectCompositionSystem.class);
+        actorCollector.setCompositionState(composition == null ? null : composition.state());
         tiledMapsSub = world.getAspectSubscriptionManager()
                 .get(Aspect.all(EntityIndexComponent.class, TiledLayerComponent.class)
                         .exclude(LayerComponent.class));
@@ -204,7 +199,6 @@ public final class SpatialRenderOrderSystem extends BaseSystem implements Profil
             return;
         }
 
-        rebuildSpatialLayers();
         collectSpatialActors();
         if (actorCollector.actorCount() == 0 || drawList.size == 1) {
             return;
@@ -388,7 +382,6 @@ public final class SpatialRenderOrderSystem extends BaseSystem implements Profil
     private void collectSpatialActors() {
         actorCollector.collect(drawList,
                 ecsState,
-                spatialLayers,
                 world.getEntityManager(),
                 mEntityIndex,
                 mTransform,
@@ -402,15 +395,14 @@ public final class SpatialRenderOrderSystem extends BaseSystem implements Profil
      * Returns whether the current derived render state makes {@code entityId}
      * eligible for Spatial actor ordering.
      */
-    public boolean participatesInRenderOrder(int entityId, boolean spatialLayerEnabled) {
+    public boolean participatesInRenderOrder(int entityId) {
         if (ecsState == null || entityId < 0 || !world.getEntityManager().isActive(entityId)) {
             return false;
         }
         int slot = ecsState.renderSlotForEntity(entityId);
-        return actorCollector.isEligibleActorSlotOnSpatialLayer(
+        return actorCollector.isEligibleActorSlot(
                 slot,
                 ecsState,
-                spatialLayerEnabled,
                 world.getEntityManager(),
                 mEntityIndex,
                 mTransform,
@@ -449,34 +441,6 @@ public final class SpatialRenderOrderSystem extends BaseSystem implements Profil
         System.arraycopy(orderingKernel.orderedDomains(), 0, drawList.domainData(), 0, drawList.size);
     }
 
-    private void rebuildSpatialLayers() {
-        for (int i = 0; i < activeSpatialLayerCount; i++) {
-            spatialLayers[activeSpatialLayerIndices[i]] = false;
-        }
-        activeSpatialLayerCount = 0;
-
-        if (layersSub == null) return;
-
-        IntBag layers = layersSub.getEntities();
-        int[] data = layers.getData();
-        for (int i = 0, n = layers.size(); i < n; i++) {
-            int entity = data[i];
-            LayerComponent layer = mLayer.getSafe(entity, null);
-            if (layer == null
-                    || layer.layerIndex < 0
-                    || !layer.spatialEnabled) {
-                continue;
-            }
-
-            ensureSpatialLayerCapacity(layer.layerIndex + 1);
-            if (!spatialLayers[layer.layerIndex]) {
-                ensureActiveSpatialLayerCapacity(activeSpatialLayerCount + 1);
-                spatialLayers[layer.layerIndex] = true;
-                activeSpatialLayerIndices[activeSpatialLayerCount++] = layer.layerIndex;
-            }
-        }
-    }
-
     private boolean isSpatialTiledMap(TiledLayerComponent tiled) {
         return (tiled != null && tiled.spatialEnabled)
                 || (tiled != null && tiled.data != null && tiled.data.spatialEnabled);
@@ -487,22 +451,6 @@ public final class SpatialRenderOrderSystem extends BaseSystem implements Profil
      */
     int tiledLayerEntityCount() {
         return tiledMapsSub != null ? tiledMapsSub.getEntities().size() : 0;
-    }
-
-    private void ensureSpatialLayerCapacity(int required) {
-        if (required <= spatialLayers.length) return;
-        int next = Math.max(8, spatialLayers.length);
-        while (required > next) next <<= 1;
-        boolean[] expanded = new boolean[next];
-        System.arraycopy(spatialLayers, 0, expanded, 0, spatialLayers.length);
-        spatialLayers = expanded;
-    }
-
-    private void ensureActiveSpatialLayerCapacity(int required) {
-        if (required <= activeSpatialLayerIndices.length) return;
-        int next = Math.max(8, activeSpatialLayerIndices.length);
-        while (required > next) next <<= 1;
-        activeSpatialLayerIndices = Arrays.copyOf(activeSpatialLayerIndices, next);
     }
 
     private void ensureMappedTiledRefCapacity(int required) {

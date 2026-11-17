@@ -225,6 +225,8 @@ public class SpatialJunctionLocalityTest {
             pose.x = -200;
             pose.y = 3800;
             // Deliberately large sprite still selects the two audited tiles.
+            f.world.getMapper(SpatialRepresentationComponent.class).get(f.actor).rectangles.staticRectangle =
+                    new ActorSpatialRectangleData();
             f.ecs.x1[f.slot] = f.ecs.x4[f.slot] = -1100;
             f.ecs.x2[f.slot] = f.ecs.x3[f.slot] = 1200;
             f.ecs.y1[f.slot] = f.ecs.y2[f.slot] = 3000;
@@ -409,7 +411,7 @@ public class SpatialJunctionLocalityTest {
             if (original == 0) draw.addEcsSlot(slot);
             for (int i = 0; i < refs.size; i++) draw.addTiledSlot(refs.get(i));
             if (original == 1) draw.addEcsSlot(slot);
-            actors.collect(draw, ecs, new boolean[]{true}, world.getEntityManager(), world.getMapper(EntityIndexComponent.class), world.getMapper(TransformComponent.class), world.getMapper(SpatialRepresentationComponent.class), world.getMapper(SpatialFootprintComponent.class));
+            actors.collect(draw, ecs, world.getEntityManager(), world.getMapper(EntityIndexComponent.class), world.getMapper(TransformComponent.class), world.getMapper(SpatialRepresentationComponent.class), world.getMapper(SpatialFootprintComponent.class));
             snapshot.build(draw, ecs.getRenderCapacity(), actors);
             int[] indices = new int[tiled.getCapacity()];
             Arrays.fill(indices, -1);

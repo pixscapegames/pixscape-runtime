@@ -163,6 +163,11 @@ public final class GameObjectRuntimeFragmentSpawner {
             IntBag createdIds = toBag(created);
             GameObjectHierarchySystem hierarchy = world.getSystem(GameObjectHierarchySystem.class);
             if (hierarchy != null) hierarchy.registerPreparedSpawn(createdIds);
+            games.pixscape.runtime.system.GameObjectCompositionSystem composition =
+                    world.getSystem(games.pixscape.runtime.system.GameObjectCompositionSystem.class);
+            if (composition != null) {
+                composition.registerPreparedSpawn(createdIds);
+            }
             if (completeRuntime) {
                 if (hierarchy == null) throw new IllegalStateException("Game Object hierarchy is unavailable.");
                 hierarchy.resolvePreparedSpawn(createdIds);

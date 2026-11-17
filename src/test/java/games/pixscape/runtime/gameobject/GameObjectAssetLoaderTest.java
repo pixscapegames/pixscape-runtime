@@ -16,8 +16,22 @@ public class GameObjectAssetLoaderTest {
     private final GameObjectAssetLoader loader = new GameObjectAssetLoader();
 
     @Test
+    public void serializedZoneRejectsZeroConfiguredDimensionsButAllowsPositiveOutsideImage() {
+        String prefix = "{schemaVersion:6,rootSourceEntityId:1,entities:["
+                + "{sourceEntityId:1,transform:{scaleX:1,scaleY:1},gameObject:{},"
+                + "spatialRepresentation:{rectangles:{staticRectangle:";
+        String suffix = "}}}]}";
+        for (String zone : new String[]{"{width:0,height:1}", "{width:1,height:0}"}) {
+            Assert.assertThrows(IllegalArgumentException.class, () -> loader.fromJson(prefix + zone + suffix));
+        }
+        GameObjectAsset restored = loader.fromJson(prefix + "{x:2,y:2,width:1,height:1}" + suffix);
+        Assert.assertEquals(1, restored.entities.first().spatialRepresentation.rectangles.staticRectangle.width, 0);
+        Assert.assertEquals(2, restored.entities.first().spatialRepresentation.rectangles.staticRectangle.x, 0);
+    }
+
+    @Test
     public void literalJsonCollectionsPreserveOrderAndIdentities() {
-        String json = "{schemaVersion:5,rootSourceEntityId:9,entities:["
+        String json = "{schemaVersion:6,rootSourceEntityId:9,entities:["
                 + "{sourceEntityId:9,transform:{scaleX:1,scaleY:1},gameObject:{},physicsBody:{}},"
                 + "{sourceEntityId:2,parentSourceEntityId:9,transform:{scaleX:1,scaleY:1},"
                 + "tags:{values:[enemy,boss]},physicsBody:{},physicsShapes:["
@@ -262,7 +276,7 @@ public class GameObjectAssetLoaderTest {
 
         Assert.assertEquals(47f, restored.entities.get(2).spatialFootprint.localOffsetXPx, 0f);
         Assert.assertEquals(-61f, restored.entities.get(2).spatialRepresentation.rectangles.staticRectangle.x, 0f);
-        Assert.assertEquals(5, restored.schemaVersion);
+        Assert.assertEquals(6, restored.schemaVersion);
         Assert.assertNotNull(restored.entities.get(2).physicsShapes.get(0).geometry);
         Assert.assertEquals(2.5f, restored.entities.get(2).spatialFootprint.altitude, 0f);
         Assert.assertEquals(7.5f, restored.entities.get(2).spatialRepresentation.rectangles.staticRectangle.height, 0f);
@@ -334,7 +348,7 @@ public class GameObjectAssetLoaderTest {
 
         GameObjectAsset restored = loader.fromJson(loader.toJson(asset));
 
-        Assert.assertEquals(5, restored.schemaVersion);
+        Assert.assertEquals(6, restored.schemaVersion);
         Assert.assertEquals(1, restored.joints.size);
         GameObjectAsset.GameObjectJointData restoredJoint = restored.joints.get(0);
         Assert.assertEquals(7, restoredJoint.jointLocalId);
@@ -357,7 +371,7 @@ public class GameObjectAssetLoaderTest {
     public void v2AssetsAreRejectedRatherThanSilentlyMigrated() {
         GameObjectAsset asset = validNestedAsset();
         asset.schemaVersion = 2;
-        rejected(asset, "schemaVersion must be 5");
+        rejected(asset, "schemaVersion must be 6");
     }
 
     private void rejected(GameObjectAsset asset, String diagnostic) {

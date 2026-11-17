@@ -43,6 +43,7 @@ public class SpatialBlockLinkActorTest {
         actors.actorCircleY = new float[]{point[1]};
         actors.actorCircleRadius = new float[]{.5f};
         actors.actorAltitude = new float[]{0};
+        actors.actorBottom = actors.actorAltitude.clone();
         actors.actorHeight = new float[]{32};
         SpatialFaceRelationSolver solver = new SpatialFaceRelationSolver();
         solver.solve(actors, faces);

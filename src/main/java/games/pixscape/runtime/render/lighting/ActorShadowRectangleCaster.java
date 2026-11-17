@@ -1,66 +1,65 @@
 package games.pixscape.runtime.render.lighting;
 
-import games.pixscape.runtime.spatial.ActorSpatialRectangleData;
+import games.pixscape.runtime.spatial.ActorSpatialGeometry;
 
 /**
- * Prepared alpha mapping and a separate reusable per-light pair of triangles.
+ * Prepared native-triangle alpha mapping and reusable per-light triangles.
  * The reference publication and its swept bounds never depend on a light.
  */
 public final class ActorShadowRectangleCaster {
-    public static final int MAX_VERTICES = 6;
+    public static final int MAX_VERTICES = ActorSpatialGeometry.MAX_VERTICES;
     private static final float DIAGONAL = .70710678f;
     public final float[] vertices = new float[MAX_VERTICES * 8];
     public final float[] lightVertices = new float[MAX_VERTICES * 8];
-    private final float[] horizontal = new float[MAX_VERTICES], last = new float[19];
+    private final float[] horizontal = new float[MAX_VERTICES], last = new float[5];
+    private ActorSpatialGeometry lastGeometry;
+    private int geometryRevision;
     private boolean initialized;
     public int vertexCount;
     public int updates;
     private float pivotX, pivotY, radius, minZ, maxZ;
 
-    public void update(ActorSpatialRectangleData r, float x, float y, float z,
-                       float footprintOffsetX, float footprintOffsetY, float[] quad) {
-        boolean same = initialized;
-        for (int i = 0; i < 8; i++) if (last[i] != quad[i]) same = false;
-        if (last[8] != x || last[9] != y || last[10] != z || last[11] != r.x || last[12] != r.y
-                || last[13] != r.width || last[14] != r.height || last[15] != r.pivotX || last[16] != r.pivotY)
-            same = false;
-        if (last[17] != footprintOffsetX || last[18] != footprintOffsetY) {
-            same = false;
+    public void update(ActorSpatialGeometry geometry, float footX, float footY, float altitude,
+                       float offsetX, float offsetY) {
+        if (initialized && lastGeometry == geometry && geometryRevision == geometry.revision
+                && last[0] == footX && last[1] == footY && last[2] == altitude
+                && last[3] == offsetX && last[4] == offsetY) {
+            return;
         }
-        if (same) return;
-        float pivotOffsetX = footprintOffsetX + r.pivotX;
-        float pivotOffsetY = footprintOffsetY + r.pivotY;
-        float sx = LightingCoordinates.screenX(x, y), sy = LightingCoordinates.screenY(x, y, z);
-        pivotX = x + LightingCoordinates.worldX(pivotOffsetX, pivotOffsetY, 0);
-        pivotY = y + LightingCoordinates.worldY(pivotOffsetX, pivotOffsetY, 0);
-        radius = Math.max(Math.abs(r.x - pivotOffsetX), Math.abs(r.x + r.width - pivotOffsetX)) * DIAGONAL;
-        minZ = z + r.y - pivotOffsetY;
-        maxZ = minZ + r.height;
-        for (int i = 0; i < MAX_VERTICES; i++) {
-            int c = SpriteSurfaceSupport.corner(i), o = i * 8;
-            float px = r.x + (c >= 2 ? r.width : 0), py = r.y + (c == 1 || c == 2 ? r.height : 0);
-            horizontal[i] = (px - pivotOffsetX) * DIAGONAL;
-            vertices[o] = pivotX + (px - pivotOffsetX) * .5f;
-            vertices[o + 1] = pivotY - (px - pivotOffsetX) * .5f;
-            vertices[o + 2] = z + py - pivotOffsetY;
-            SilhouetteImageMapping.imageUV(quad, sx + px, sy + py, vertices, o + 3);
+        float sx = footX + offsetX, sy = footY + offsetY;
+        pivotX = LightingCoordinates.worldX(sx, sy, altitude);
+        pivotY = LightingCoordinates.worldY(sx, sy, altitude);
+        vertexCount = geometry.vertexCount;
+        radius = 0f;
+        minZ = Float.POSITIVE_INFINITY;
+        maxZ = Float.NEGATIVE_INFINITY;
+        for (int i = 0; i < vertexCount; i++) {
+            int source = i * ActorSpatialGeometry.STRIDE, o = i * 8;
+            float px = geometry.vertices[source] - sx;
+            float z = altitude + geometry.vertices[source + 1] - sy;
+            horizontal[i] = px * DIAGONAL;
+            radius = Math.max(radius, Math.abs(horizontal[i]));
+            minZ = Math.min(minZ, z);
+            maxZ = Math.max(maxZ, z);
+            vertices[o] = pivotX + px * .5f;
+            vertices[o + 1] = pivotY - px * .5f;
+            vertices[o + 2] = z;
+            vertices[o + 3] = geometry.vertices[source + 2];
+            vertices[o + 4] = geometry.vertices[source + 3];
             vertices[o + 5] = DIAGONAL;
             vertices[o + 6] = DIAGONAL;
-            vertices[o + 7] = 0;
+            vertices[o + 7] = 0f;
         }
-        vertexCount = MAX_VERTICES;
-        System.arraycopy(quad, 0, last, 0, 8);
-        last[8] = x;
-        last[9] = y;
-        last[10] = z;
-        last[11] = r.x;
-        last[12] = r.y;
-        last[13] = r.width;
-        last[14] = r.height;
-        last[15] = r.pivotX;
-        last[16] = r.pivotY;
-        last[17] = footprintOffsetX;
-        last[18] = footprintOffsetY;
+        if (vertexCount == 0) {
+            minZ = maxZ = altitude;
+        }
+        last[0] = footX;
+        last[1] = footY;
+        last[2] = altitude;
+        last[3] = offsetX;
+        last[4] = offsetY;
+        lastGeometry = geometry;
+        geometryRevision = geometry.revision;
         initialized = true;
         updates++;
     }

@@ -16,15 +16,18 @@ public final class SpatialCircleRelationTest {
         byte side = baseline.relationType[0];
         actor.actorHeight[0] = 60;
         actor.actorAltitude[0] = 20;
+        actor.actorBottom[0] = 20;
         actor.actorCircleY[0] = 21;
         Assert.assertEquals(0, solve(actor, faces).actorRelationCount[0]);
         actor.actorAltitude[0] = 100;
+        actor.actorBottom[0] = 100;
         actor.actorCircleY[0] = 101;
         SpatialFaceRelationSolver raised = solve(actor, faces);
         Assert.assertEquals(2, raised.actorRelationCount[0]);
         Assert.assertEquals(side, raised.relationType[0]);
         Assert.assertEquals(SpatialFaceRelationSolver.ACTOR_BEHIND_FACE, side);
         actor.actorAltitude[0] = 150;
+        actor.actorBottom[0] = 150;
         actor.actorCircleY[0] = 151;
         Assert.assertEquals(0, solve(actor, faces).actorRelationCount[0]);
     }
@@ -151,6 +154,7 @@ public final class SpatialCircleRelationTest {
         actor.actorCircleY = new float[]{y};
         actor.actorCircleRadius = new float[]{radius};
         actor.actorAltitude = new float[]{0f};
+        actor.actorBottom = actor.actorAltitude.clone();
         actor.actorHeight = new float[]{1f};
         return actor;
     }

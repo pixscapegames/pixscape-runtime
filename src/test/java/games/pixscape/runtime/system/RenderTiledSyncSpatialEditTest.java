@@ -45,7 +45,6 @@ public class RenderTiledSyncSpatialEditTest {
         Entity entity = world.createEntity();
         LayerComponent layer = entity.edit().create(LayerComponent.class);
         layer.layerIndex = 0;
-        layer.spatialEnabled = true;
         Entity mapEntity = world.createEntity();
         mapEntity.edit().create(EntityIndexComponent.class).layerIndex = 0;
         TiledLayerComponent tiled = mapEntity.edit().create(TiledLayerComponent.class);

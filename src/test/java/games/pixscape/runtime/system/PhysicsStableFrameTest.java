@@ -47,7 +47,7 @@ public class PhysicsStableFrameTest {
         index.layerIndex = 0;
         SpatialRepresentationComponent height =
                 world.getMapper(SpatialRepresentationComponent.class).create(actor);
-        games.pixscape.runtime.spatial.SpatialRectangleTestData.setHeight(height, 2f);
+        games.pixscape.runtime.spatial.SpatialRectangleTestData.setImageHeight(height, 2f);
         PhysicsShapesComponent sources =
                 world.getMapper(PhysicsShapesComponent.class).create(actor);
         PhysicsShapeData circle = new PhysicsShapeData();
@@ -79,7 +79,7 @@ public class PhysicsStableFrameTest {
         renderState.layerIndex[slot] = 0;
         DrawList drawList = new DrawList(8);
         drawList.addEcsSlot(slot);
-        boolean[] spatialLayers = {true};
+        games.pixscape.runtime.spatial.SpatialRectangleTestData.imageQuad(renderState, slot, -512, 0, 1024, 1024);
         SpatialActorCollector collector = new SpatialActorCollector();
 
         PhysicsService.publishPreparedCandidate(
@@ -112,7 +112,7 @@ public class PhysicsStableFrameTest {
             collector.collect(
                     drawList,
                     renderState,
-                    spatialLayers,
+
                     world.getEntityManager(),
                     entityIndexes,
                     transforms,

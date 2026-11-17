@@ -59,7 +59,7 @@ def write(path, schema):
 
 
 COMMON = "common/1.schema.json"
-COMP = "components/6.schema.json"
+COMP = "components/7.schema.json"
 common_defs = {
     "intArray": obj({"items": {"type": ["array", "null"], "items": I}, "size": NONNEG}, ("size",), description="LibGDX IntArray. Items may be omitted or null at SceneLoader boundary; only the first size entries are active when present."),
     "byteArray": obj({"items": arr(I), "size": NONNEG}, ("size",), description="LibGDX ByteArray. Items may be omitted for zero-filled storage; only the first size entries are active."),
@@ -71,7 +71,7 @@ common_defs = {
     "spatialBlock": obj({"id": I, "structureId": I, "name": NULLABLE_S, "x": N, "y": N, "width": N, "depth": N, "altitude": N, "height": N, "actorOccluder": B, "lightOccluder": B, "shadowCaster": B, "particleOccluder": B, "linkedTileRefsAuthored": B, "linkedTileRefs": arr(obj({"gx": I, "gy": I, "tileAssetId": I}))}),
 }
 common_defs["localLightingSurface"] = obj({"xyz": arr(N), "uv": arr(N), "normals": arr(N), "triangles": arr(NONNEG), "receiveLight": B, "shadowCaster": B, "twoSided": B}, ("xyz", "uv", "normals", "triangles"))
-common_defs["actorRectangle"] = obj({"width": {"type": "number", "exclusiveMinimum": 0, "default": 32}, "height": {"type": "number", "exclusiveMinimum": 0, "default": 64}, "x": N, "y": N, "pivotX": N, "pivotY": N}, description="Axis-aligned projected pixels: x/y relative to the resolved entity origin; pivotX/Y relative to its resolved spatial footprint. Visual scale/rotation do not resize this rectangle.")
+common_defs["actorRectangle"] = obj({"width": {"type": "number", "exclusiveMinimum": 0, "default": 1}, "height": {"type": "number", "exclusiveMinimum": 0, "default": 1}, "x": {"type": "number", "default": 0}, "y": {"type": "number", "default": 0}, "pivotX": N, "pivotY": N}, description="Optional image-local normalized zone with finite, strictly positive configured dimensions, clipped against the native visual triangles after deformation. Missing settings mean the full image. Only the resulting geometry may be empty after clipping or deformation. pivotX/Y are projected pixel offsets from the resolved footprint, independent of image TRS.")
 common_defs["actorRectangles"] = obj({"staticRectangle": {"anyOf": [{"$ref": "#/$defs/actorRectangle"}, {"type": "null"}]}, "clips": {"type": "object", "additionalProperties": {"type": "object", "additionalProperties": {"$ref": "#/$defs/actorRectangle"}}}})
 common_defs["physicsShape"]["not"] = {"anyOf": [{"required": ["spatialFootprint"]}, {"required": ["useSpatialFootprint"]}]}
 common_defs["physicsShape"]["allOf"] = [{
@@ -135,7 +135,7 @@ def c(fields, special=None):
 
 components = {
     "PixscapeIdentityComponent": c({"i": "stableId", "s": "name"}),
-    "LayerComponent": c({"i": "layerIndex", "b": "spatialEnabled"}),
+    "LayerComponent": c({"i": "layerIndex"}),
     "LayerNameComponent": c({"s?": "name"}),
     "EntityIndexComponent": c({"i": "layerIndex zIndex"}),
     "LayerParallaxComponent": c({"n": "factorX factorY"}),
@@ -253,13 +253,13 @@ for name in components:
     elif name in ("PointLightComponent", "ConeLightComponent"):
         package += ".light"
     component_paths[package + "." + name] = name
-write(COMP, {"title": "Pixscape scene component payloads (scene schema 6)",
+write(COMP, {"title": "Pixscape scene component payloads (scene schema 7)",
              "description": "Resolve each document's componentIdentifiers first; these definitions are selected by fully qualified type ID, never by a globally fixed alias.",
              "x-pixscape-components": component_paths, "$defs": components})
 
 AVAIL = obj({"sprites": arr(POS), "animations": arr(POS), "particles": arr(NONS), "gameObjects": arr(NONS), "tiledTiles": arr(POS), "tiledAnimations": arr(POS)})
 SCENE_META = obj({
-    "sceneSchemaVersion": {"const": 6}, "name": NULLABLE_S, "file": NONS,
+    "sceneSchemaVersion": {"const": 7}, "name": NULLABLE_S, "file": NONS,
     "defaultHudScreenId": {"type": ["string", "null"], "default": None}, "nextEntityStableId": POS,
     "nextPhysicsShapeId": POS, "physicsEnabled": {"type": "boolean", "default": False},
     "pixelsPerMeter": {"type": "number", "default": 100},
@@ -287,8 +287,8 @@ write("project/1.schema.json", {
     "description": "Absent or blank version is normalized to 1 by Runtime; the schema documents the canonical value when present. Paths resolve from the directory passed to the engine, not runtimeRootDir."
 })
 
-write("scene/6.schema.json", {
-    "title": "Artemis scene envelope for Pixscape scene schema 6",
+write("scene/7.schema.json", {
+    "title": "Artemis scene envelope for Pixscape scene schema 7",
     "type": "object", "required": ["metadata", "componentIdentifiers", "entities", "archetypes"],
     "properties": {
         "metadata": obj({"version": I}, ("version",)),
@@ -354,9 +354,9 @@ for label, numeric, booleans in [
         fields.update({"jointALocalId": POS, "jointBLocalId": POS})
     joint_base[label] = {"anyOf": [obj(fields), {"type": "null"}]}
 go_joint = obj(joint_base, ("jointLocalId", "type", "bodyALocalEntityId", "bodyBLocalEntityId"))
-write("game-object/5.schema.json", {
-    "title": "Pixscape Game Object definition 5",
-    **obj({"schemaVersion": {"const": 5}, "rootSourceEntityId": NONNEG,
+write("game-object/6.schema.json", {
+    "title": "Pixscape Game Object definition 6",
+    **obj({"schemaVersion": {"const": 6}, "rootSourceEntityId": NONNEG,
            "entities": arr(go_entity), "joints": {**arr(go_joint), "default": []}},
           ("schemaVersion", "rootSourceEntityId", "entities"), extra=False),
     "description": "A definition does not place an instance. The root has x=y=0 and zIndex=0; layerIndex is forbidden in entityIndex. Local member transforms and zIndex survive spawn. Cross-entity references and the unique root are validated semantically."

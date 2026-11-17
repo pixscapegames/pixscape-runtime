@@ -5,9 +5,8 @@ import games.pixscape.runtime.component.TransformComponent;
 /**
  * Derived, non-serialized world-transform storage indexed by Artemis entity ID.
  *
- * <p>This Stage-1 type defines the state contract only. A later hierarchy-resolution system will
- * own publication and invalidation. The primitive arrays allow allocation-free indexed reads after
- * capacity preparation.</p>
+ * <p>GameObjectHierarchySystem owns publication and invalidation, with post-step Physics
+ * writeback using the same storage. Primitive arrays allow allocation-free indexed reads.</p>
  */
 public final class WorldTransformState {
     private static final int MIN_CAPACITY = 16;

@@ -233,6 +233,7 @@ public final class SpatialLocalAnchorMembershipTest {
         actor.actorCircleX = new float[]{x};
         actor.actorCircleY = new float[]{y};
         actor.actorAltitude = new float[]{0};
+        actor.actorBottom = actor.actorAltitude.clone();
         actor.actorHeight = new float[]{1};
         return actor;
     }

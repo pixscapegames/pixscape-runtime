@@ -27,22 +27,24 @@ public class SpatialActorCollectorTest {
             f.addActorDrawSlot(e);
             f.world.getMapper(PhysicsBodyComponent.class).remove(e);
             ActorSpatialRectangleData rectangle = f.height.get(e).rectangles.staticRectangle;
-            rectangle.x = -23;
-            rectangle.y = 61;
+            rectangle.x = .1f;
+            rectangle.y = .2f;
+            rectangle.width = rectangle.height = .5f;
             float[] quad = new float[8];
             for (int step = 0; step < 3; step++) {
-                f.collector.collect(f.drawList, f.state, f.spatialLayers, f.world.getEntityManager(),
+                f.publishQuad(e, f.transform.get(e).x, f.transform.get(e).y, 100, 200);
+                f.collector.collect(f.drawList, f.state, f.world.getEntityManager(),
                         f.entityIndex, f.transform, f.height, f.shapes);
                 f.collector.writeInfluenceQuad(0, 0, 0, quad);
-                Assert.assertEquals(f.transform.get(e).x + rectangle.x, quad[0], .0001f);
-                Assert.assertEquals(f.transform.get(e).y + rectangle.y, quad[1], .0001f);
+                Assert.assertEquals(f.transform.get(e).x + rectangle.x * 100, quad[0], .0001f);
+                Assert.assertEquals(f.transform.get(e).y + rectangle.y * 200, quad[1], .0001f);
                 Assert.assertEquals(f.transform.get(e).x + f.footprints.get(e).localOffsetXPx, f.collector.actorFootX[0], .0001f);
                 if (step == 0) {
                     f.footprints.get(e).localOffsetXPx = -90;
                     f.footprints.get(e).localOffsetYPx = 35;
                     f.footprints.get(e).radiusPx = 17;
                 } else {
-                    rectangle.x = 70;
+                    rectangle.x = .3f;
                     f.transform.get(e).x += 100;
                     f.transform.get(e).y -= 20;
                 }
@@ -66,39 +68,40 @@ public class SpatialActorCollectorTest {
             f.world.getMapper(games.pixscape.runtime.component.AssetRefComponent.class).create(e).assetId = 7;
             height.rectangles = new ActorSpatialRectangles();
             ActorSpatialRectangleData partial = new ActorSpatialRectangleData();
-            partial.width = 40;
-            partial.height = 60;
-            partial.x = -5;
-            partial.y = 12.5f;
+            partial.width = .4f;
+            partial.height = .3f;
+            partial.x = .1f;
+            partial.y = .2f;
             partial.pivotX = 100;
             partial.pivotY = -200;
             height.rectangles.put(7, "partial", partial);
             ActorSpatialRectangleData tall = partial.copy();
-            tall.height = 160;
-            tall.y = -27.5f;
+            tall.height = .8f;
+            tall.y = .1f;
             height.rectangles.put(7, "tall", tall);
             float[] quad = new float[8];
             for (String clip : new String[]{"partial", "tall"}) {
                 animation.currentClip = clip;
                 for (int frame = 0; frame < 4; frame++) {
                     animation.frame = frame;
-                    f.collector.collect(f.drawList, f.state, f.spatialLayers, f.world.getEntityManager(), f.entityIndex, f.transform, f.height, f.shapes);
+                    f.collector.collect(f.drawList, f.state, f.world.getEntityManager(), f.entityIndex, f.transform, f.height, f.shapes);
                     Assert.assertEquals(1, f.collector.actorCount());
                     Assert.assertEquals(5, f.collector.actorAltitude[0], 0);
                     Assert.assertEquals(20, f.collector.actorCircleY[0], 0);
                     ActorSpatialRectangleData r = height.rectangles.get(7, clip);
-                    Assert.assertEquals(r.height, f.collector.actorHeight[0], 0);
+                    Assert.assertEquals(r.height * 200, f.collector.actorHeight[0], .0001f);
+                    Assert.assertEquals(5 + r.y * 200, f.collector.actorBottom[0], .0001f);
                     f.collector.writeInfluenceQuad(0, 0, 0, quad);
-                    float bottom = 20 + r.y, top = bottom + r.height;
-                    Assert.assertArrayEquals(new float[]{5, bottom, 45, bottom, 45, top, 5, top}, quad, .0001f);
+                    float bottom = 20 + r.y * 200, top = bottom + r.height * 200;
+                    Assert.assertArrayEquals(new float[]{20, bottom, 60, bottom, 60, top, 20, top}, quad, .0001f);
                 }
             }
             animation.currentClip = "missing";
-            f.collector.collect(f.drawList, f.state, f.spatialLayers, f.world.getEntityManager(), f.entityIndex, f.transform, f.height, f.shapes);
-            Assert.assertEquals(0, f.collector.actorCount());
+            f.collector.collect(f.drawList, f.state, f.world.getEntityManager(), f.entityIndex, f.transform, f.height, f.shapes);
+            Assert.assertEquals(1, f.collector.actorCount());
             height.rectangles = null;
-            f.collector.collect(f.drawList, f.state, f.spatialLayers, f.world.getEntityManager(), f.entityIndex, f.transform, f.height, f.shapes);
-            Assert.assertEquals(0, f.collector.actorCount());
+            f.collector.collect(f.drawList, f.state, f.world.getEntityManager(), f.entityIndex, f.transform, f.height, f.shapes);
+            Assert.assertEquals(1, f.collector.actorCount());
         } finally {
             f.world.dispose();
         }
@@ -111,7 +114,7 @@ public class SpatialActorCollectorTest {
         fixture.addCircle(actor, 3f, 0f, 0f);
         fixture.addActorDrawSlot(actor);
 
-        fixture.collector.collect(fixture.drawList, fixture.state, fixture.spatialLayers, fixture.world.getEntityManager(),
+        fixture.collector.collect(fixture.drawList, fixture.state, fixture.world.getEntityManager(),
                 fixture.entityIndex, fixture.transform, fixture.height, fixture.shapes);
 
         Assert.assertEquals(1, fixture.collector.actorCount());
@@ -129,7 +132,7 @@ public class SpatialActorCollectorTest {
         int tiledSlot = 30;
         fixture.drawList.addTiledSlot(tiledSlot);
 
-        fixture.collector.collect(fixture.drawList, fixture.state, fixture.spatialLayers, fixture.world.getEntityManager(),
+        fixture.collector.collect(fixture.drawList, fixture.state, fixture.world.getEntityManager(),
                 fixture.entityIndex, fixture.transform, fixture.height, fixture.shapes);
 
         Assert.assertEquals(0, fixture.collector.actorCount());
@@ -142,27 +145,27 @@ public class SpatialActorCollectorTest {
         fixture.addCircle(actor, 3f, 0f, 0f);
         fixture.drawList.addVfxSlot(fixture.renderSlotFor(actor));
 
-        fixture.collector.collect(fixture.drawList, fixture.state, fixture.spatialLayers, fixture.world.getEntityManager(),
+        fixture.collector.collect(fixture.drawList, fixture.state, fixture.world.getEntityManager(),
                 fixture.entityIndex, fixture.transform, fixture.height, fixture.shapes);
 
         Assert.assertEquals(0, fixture.collector.actorCount());
     }
 
     @Test
-    public void excludesActorOnNonSpatialLayer() {
+    public void collectsActorOnAnyOrdinaryLayer() {
         Fixture fixture = new Fixture();
         int actor = fixture.createActor(10f, 20f, 4, false);
         fixture.addCircle(actor, 3f, 0f, 0f);
         fixture.addActorDrawSlot(actor);
 
-        fixture.collector.collect(fixture.drawList, fixture.state, fixture.spatialLayers, fixture.world.getEntityManager(),
+        fixture.collector.collect(fixture.drawList, fixture.state, fixture.world.getEntityManager(),
                 fixture.entityIndex, fixture.transform, fixture.height, fixture.shapes);
 
-        Assert.assertEquals(0, fixture.collector.actorCount());
+        Assert.assertEquals(1, fixture.collector.actorCount());
     }
 
     @Test
-    public void excludesActorWithMissingOrZeroHeight() {
+    public void missingRepresentationUsesImageAndEmptyZoneEmitsNothing() {
         Fixture fixture = new Fixture();
         int missing = fixture.createActorWithoutHeight(10f, 20f, 2);
         fixture.addCircle(missing, 3f, 0f, 0f);
@@ -172,10 +175,10 @@ public class SpatialActorCollectorTest {
         fixture.addActorDrawSlot(missing);
         fixture.addActorDrawSlot(zero);
 
-        fixture.collector.collect(fixture.drawList, fixture.state, fixture.spatialLayers, fixture.world.getEntityManager(),
+        fixture.collector.collect(fixture.drawList, fixture.state, fixture.world.getEntityManager(),
                 fixture.entityIndex, fixture.transform, fixture.height, fixture.shapes);
 
-        Assert.assertEquals(0, fixture.collector.actorCount());
+        Assert.assertEquals(1, fixture.collector.actorCount());
     }
 
     @Test
@@ -192,7 +195,7 @@ public class SpatialActorCollectorTest {
         fixture.addActorDrawSlot(disabledBody);
         fixture.addActorDrawSlot(noCircle);
 
-        fixture.collector.collect(fixture.drawList, fixture.state, fixture.spatialLayers, fixture.world.getEntityManager(),
+        fixture.collector.collect(fixture.drawList, fixture.state, fixture.world.getEntityManager(),
                 fixture.entityIndex, fixture.transform, fixture.height, fixture.shapes);
 
         Assert.assertEquals(0, fixture.collector.actorCount());
@@ -203,12 +206,12 @@ public class SpatialActorCollectorTest {
         Fixture fixture = new Fixture();
         int actor = fixture.createActor(10f, 20f, 2, true);
         fixture.footprints.create(actor).altitude = 3f;
-        games.pixscape.runtime.spatial.SpatialRectangleTestData.setHeight(fixture.height.get(actor), 7f);
+        fixture.height.get(actor).rectangles.staticRectangle.height = .035f;
         fixture.transform.get(actor).rotationRad = (float) (Math.PI * 0.5);
         fixture.addCircle(actor, 4f, 5f, 1f);
         fixture.addActorDrawSlot(actor);
 
-        fixture.collector.collect(fixture.drawList, fixture.state, fixture.spatialLayers, fixture.world.getEntityManager(),
+        fixture.collector.collect(fixture.drawList, fixture.state, fixture.world.getEntityManager(),
                 fixture.entityIndex, fixture.transform, fixture.height, fixture.shapes);
 
         Assert.assertEquals(1, fixture.collector.actorCount());
@@ -226,21 +229,21 @@ public class SpatialActorCollectorTest {
         float[] influence = new float[8];
         fixture.collector.writeInfluenceQuad(0, 100f, -50f, influence);
         // The rectangle follows the owner origin; neither footprint offset nor altitude is added.
-        Assert.assertArrayEquals(new float[]{106.5f, -30, 113.5f, -30, 113.5f, -23, 106.5f, -23}, influence, .0001f);
+        Assert.assertArrayEquals(new float[]{110, -30, 210, -30, 210, -23, 110, -23}, influence, .0001f);
     }
 
     @Test
     public void usesResolvedWorldPoseAndEffectiveRenderLayerForGameObjectMembers() {
         Fixture fixture = new Fixture();
         int actor = fixture.createActor(1f, 2f, 1, false);
-        fixture.spatialLayers[2] = true;
+        fixture.publishQuad(actor, 100, 200, 100, 200);
         fixture.addCircle(actor, 3f, 5f, 0f);
         fixture.addActorDrawSlot(actor);
         fixture.state.layerIndex[fixture.renderSlotFor(actor)] = 2;
         WorldTransformState worldPose = new WorldTransformState();
         worldPose.setResolved(actor, 100f, 200f, (float) (Math.PI * .5), 1f, 1f);
 
-        fixture.collector.collect(fixture.drawList, fixture.state, fixture.spatialLayers,
+        fixture.collector.collect(fixture.drawList, fixture.state,
                 fixture.world.getEntityManager(), fixture.entityIndex, fixture.transform,
                 fixture.height, fixture.shapes, null, worldPose);
 
@@ -250,10 +253,10 @@ public class SpatialActorCollectorTest {
         Assert.assertEquals(205f, fixture.collector.actorFootY[0], .0001f);
         float[] influence = new float[8];
         fixture.collector.writeInfluenceQuad(0, 0, 0, influence);
-        Assert.assertEquals(100 - fixture.height.get(actor).rectangles.staticRectangle.height * .5f, influence[0], .0001f);
-        Assert.assertEquals(100 + fixture.height.get(actor).rectangles.staticRectangle.height * .5f, influence[2], .0001f);
+        Assert.assertEquals(100, influence[0], .0001f);
+        Assert.assertEquals(200, influence[2], .0001f);
         Assert.assertEquals(200, influence[1], .0001f);
-        Assert.assertEquals(200 + fixture.height.get(actor).rectangles.staticRectangle.height, influence[5], .0001f);
+        Assert.assertEquals(400, influence[5], .0001f);
     }
 
     @Test
@@ -266,11 +269,11 @@ public class SpatialActorCollectorTest {
         fixture.addActorDrawSlot(actorA);
         fixture.addActorDrawSlot(actorB);
 
-        fixture.collector.collect(fixture.drawList, fixture.state, fixture.spatialLayers, fixture.world.getEntityManager(),
+        fixture.collector.collect(fixture.drawList, fixture.state, fixture.world.getEntityManager(),
                 fixture.entityIndex, fixture.transform, fixture.height, fixture.shapes);
         int[] first = Arrays.copyOf(fixture.collector.actorStableOrder, fixture.collector.actorCount());
 
-        fixture.collector.collect(fixture.drawList, fixture.state, fixture.spatialLayers, fixture.world.getEntityManager(),
+        fixture.collector.collect(fixture.drawList, fixture.state, fixture.world.getEntityManager(),
                 fixture.entityIndex, fixture.transform, fixture.height, fixture.shapes);
         int[] second = Arrays.copyOf(fixture.collector.actorStableOrder, fixture.collector.actorCount());
 
@@ -288,7 +291,7 @@ public class SpatialActorCollectorTest {
         int[] before = Arrays.copyOf(fixture.drawList.data(), fixture.drawList.size);
         byte[] domainsBefore = Arrays.copyOf(fixture.drawList.domainData(), fixture.drawList.size);
 
-        fixture.collector.collect(fixture.drawList, fixture.state, fixture.spatialLayers, fixture.world.getEntityManager(),
+        fixture.collector.collect(fixture.drawList, fixture.state, fixture.world.getEntityManager(),
                 fixture.entityIndex, fixture.transform, fixture.height, fixture.shapes);
 
         int[] after = Arrays.copyOf(fixture.drawList.data(), fixture.drawList.size);
@@ -302,7 +305,6 @@ public class SpatialActorCollectorTest {
         final DynamicEntityRenderState state = new DynamicEntityRenderState(128);
         final DrawList drawList = new DrawList(128);
         final SpatialActorCollector collector = new SpatialActorCollector();
-        final boolean[] spatialLayers = new boolean[8];
 
         final ComponentMapper<EntityIndexComponent> entityIndex = world.getMapper(EntityIndexComponent.class);
         final ComponentMapper<TransformComponent> transform = world.getMapper(TransformComponent.class);
@@ -314,18 +316,13 @@ public class SpatialActorCollectorTest {
 
         Fixture() {
             collector.setRepresentationMappers(world.getMapper(games.pixscape.runtime.component.AnimationComponent.class), world.getMapper(games.pixscape.runtime.component.AssetRefComponent.class));
-            spatialLayers[2] = true;
         }
 
         int createActor(float x, float y, int layerIndex, boolean spatialLayer) {
             int actor = createActorWithoutHeight(x, y, layerIndex);
             SpatialRepresentationComponent h = height.create(actor);
-            games.pixscape.runtime.spatial.SpatialRectangleTestData.setHeight(h, 2f);
-            if (spatialLayer) {
-                spatialLayers[layerIndex] = true;
-            } else {
-                spatialLayers[layerIndex] = false;
-            }
+            h.rectangles = new ActorSpatialRectangles();
+            h.rectangles.staticRectangle = new ActorSpatialRectangleData();
             return actor;
         }
 
@@ -337,7 +334,16 @@ public class SpatialActorCollectorTest {
             EntityIndexComponent index = entityIndex.create(actor);
             index.layerIndex = layerIndex;
             enableEntitySlot(actor, layerIndex);
+            publishQuad(actor, x, y, 100, 200);
             return actor;
+        }
+
+        void publishQuad(int entity, float x, float y, float width, float height) {
+            int slot = renderSlotFor(entity);
+            state.x1[slot] = state.x2[slot] = x;
+            state.x3[slot] = state.x4[slot] = x + width;
+            state.y1[slot] = state.y4[slot] = y;
+            state.y2[slot] = state.y3[slot] = y + height;
         }
 
         void addCircle(int actor, float radiusPx, float offsetXPx, float offsetYPx) {

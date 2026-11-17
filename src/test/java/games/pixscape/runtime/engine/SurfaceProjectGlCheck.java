@@ -63,7 +63,7 @@ public final class SurfaceProjectGlCheck {
             scenes.append('"').append(name).append("\":{\"name\":\"").append(name).append("\",\"file\":\"").append(name)
                     .append(".json\",\"lightingEnabled\":").append(!name.equals("off"))
                     .append(",\"forwardLighting\":").append(name.equals("forward"))
-                    .append(",\"ambientMulR\":0.2,\"ambientMulG\":0.2,\"ambientMulB\":0.2,\"nextEntityStableId\":7,\"nextPhysicsShapeId\":1,\"sceneSchemaVersion\":3}");
+                    .append(",\"ambientMulR\":0.2,\"ambientMulG\":0.2,\"ambientMulB\":0.2,\"nextEntityStableId\":7,\"nextPhysicsShapeId\":1,\"sceneSchemaVersion\":7}");
         }
         project.child("project.json").writeString("{\"projectFileName\":\"surface\",\"currentSceneName\":\"off\",\"scenes\":{" + scenes + "}}", false, "UTF-8");
         shader(project, "lit", "LIT");

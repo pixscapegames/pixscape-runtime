@@ -2,7 +2,13 @@ package games.pixscape.runtime.system;
 
 import com.artemis.BaseSystem;
 import com.artemis.ComponentMapper;
+import com.artemis.Aspect;
+import com.artemis.EntitySubscription;
+import com.artemis.utils.IntBag;
+import com.badlogic.gdx.utils.IntArray;
 import games.pixscape.runtime.component.*;
+import games.pixscape.runtime.component.physics.PhysicsBodyComponent;
+import games.pixscape.runtime.component.spatial.SpatialFootprintComponent;
 import games.pixscape.runtime.hierarchy.GameObjectCompositionState;
 import games.pixscape.runtime.hierarchy.GameObjectTopologyState;
 import games.pixscape.runtime.render.DynamicEntityRenderState;
@@ -23,6 +29,10 @@ public final class GameObjectCompositionSystem extends BaseSystem {
     private ComponentMapper<VisibilityComponent> visibility;
     private ComponentMapper<AABBComponent> bounds;
     private ComponentMapper<TiledMapLayerComponent> tiledLayers;
+    private ComponentMapper<SpatialFootprintComponent> footprints;
+    private ComponentMapper<PhysicsBodyComponent> bodies;
+    private int[] observedBodyRoot = new int[0];
+    private final IntArray capabilityStack = new IntArray(false, 16);
     private java.util.function.IntPredicate visibilityFilter;
 
     /**
@@ -60,6 +70,19 @@ public final class GameObjectCompositionSystem extends BaseSystem {
         if (hierarchy == null) {
             throw new IllegalStateException("GameObjectCompositionSystem requires GameObjectHierarchySystem.");
         }
+        world.getAspectSubscriptionManager().get(Aspect.all(TransformComponent.class))
+                .addSubscriptionListener(new EntitySubscription.SubscriptionListener() {
+                    @Override
+                    public void inserted(IntBag entities) {
+                    }
+
+                    @Override
+                    public void removed(IntBag entities) {
+                        for (int i = 0; i < entities.size(); i++) {
+                            discardEntity(entities.get(i));
+                        }
+                    }
+                });
     }
 
     @Override
@@ -87,6 +110,98 @@ public final class GameObjectCompositionSystem extends BaseSystem {
         return state;
     }
 
+    /** O(1), including absence. Raw ECS edits must reach the normal publication boundary. */
+    public int spatialOwner(int entity) {
+        return state.spatialOwner(entity);
+    }
+
+    public boolean usesPhysicsParallax(int entity) {
+        GameObjectTopologyState topology = hierarchy.topology();
+        if (entity < 0 || entity >= topology.getEntityCapacity()) {
+            return false;
+        }
+        int root = topology.rootEntityId[entity];
+        if (root < 0) {
+            root = entity;
+        }
+        return root < state.getEntityCapacity() && state.physicsBodyCount[root] > 0;
+    }
+
+    /** Publishes only new, parent-first entities; never visits existing scene roots. */
+    public void registerPreparedSpawn(IntBag entities) {
+        GameObjectTopologyState topology = hierarchy.topology();
+        for (int i = 0; i < entities.size(); i++) {
+            int entity = entities.get(i);
+            if (world.getMapper(TransformComponent.class).has(entity)) {
+                resolveCapabilities(entity, topology);
+            }
+        }
+    }
+
+    /** Explicit mutation boundary, O(affected subtree); getters never perform this traversal. */
+    public void refreshSpatialOwners(int entity) {
+        GameObjectTopologyState topology = hierarchy.topologyForRemoval();
+        if (entity < 0 || entity >= topology.getEntityCapacity()) {
+            return;
+        }
+        capabilityStack.clear();
+        capabilityStack.add(entity);
+        while (capabilityStack.size > 0) {
+            int current = capabilityStack.pop();
+            resolveCapabilities(current, topology);
+            for (int child = topology.firstChildEntityId[current]; child >= 0;
+                 child = topology.nextSiblingEntityId[child]) {
+                capabilityStack.add(child);
+            }
+        }
+    }
+
+    public void discardEntity(int entity) {
+        if (entity >= 0 && entity < observedParent.length) {
+            markParent(observedParent[entity]);
+            // Undo may restore the same stable identities and links on recycled ECS IDs.
+            // Cleared published order must not be mistaken for unchanged cached inputs.
+            observedParent[entity] = -1;
+            observedFirst[entity] = -1;
+            observedNext[entity] = -1;
+            observedZ[entity] = 0;
+            observedStableId[entity] = 0;
+        }
+        if (entity >= 0 && entity < observedBodyRoot.length) {
+            int oldRoot = observedBodyRoot[entity];
+            if (oldRoot >= 0 && state.physicsBodyCount[oldRoot] > 0) {
+                state.physicsBodyCount[oldRoot]--;
+            }
+            observedBodyRoot[entity] = -1;
+        }
+        state.clearEntity(entity);
+    }
+
+    private void resolveCapabilities(int entity, GameObjectTopologyState topology) {
+        state.ensureEntityCapacity(entity);
+        if (entity >= observedBodyRoot.length) {
+            int old = observedBodyRoot.length;
+            observedBodyRoot = Arrays.copyOf(observedBodyRoot, state.getEntityCapacity());
+            Arrays.fill(observedBodyRoot, old, observedBodyRoot.length, -1);
+        }
+        int parent = topology.parentEntityId[entity];
+        state.spatialOwner[entity] = footprints.has(entity) ? entity
+                : parent >= 0 ? state.spatialOwner(parent) : -1;
+        int root = topology.rootEntityId[entity];
+        int bodyRoot = bodies.has(entity) ? (root >= 0 ? root : entity) : -1;
+        int oldRoot = observedBodyRoot[entity];
+        if (oldRoot != bodyRoot) {
+            if (oldRoot >= 0 && state.physicsBodyCount[oldRoot] > 0) {
+                state.physicsBodyCount[oldRoot]--;
+            }
+            if (bodyRoot >= 0) {
+                state.ensureEntityCapacity(bodyRoot);
+                state.physicsBodyCount[bodyRoot]++;
+            }
+            observedBodyRoot[entity] = bodyRoot;
+        }
+    }
+
     /**
      * Returns whether the entity currently contributes drawable bounds to its Game Object.
      */
@@ -105,6 +220,7 @@ public final class GameObjectCompositionSystem extends BaseSystem {
     private void resolveLayerAndVisibility(GameObjectTopologyState topology) {
         for (int entityId = topology.firstTraversalEntityId; entityId >= 0;
              entityId = topology.nextTraversalEntityId[entityId]) {
+            resolveCapabilities(entityId, topology);
             EntityIndexComponent ownIndex = entityIndices.getSafe(entityId, null);
             int parentEntityId = topology.parentEntityId[entityId];
             state.tiledLayerOwner[entityId] = tiledLayers.has(entityId) ? entityId

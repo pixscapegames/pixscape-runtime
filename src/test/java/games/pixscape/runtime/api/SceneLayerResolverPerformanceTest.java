@@ -9,7 +9,7 @@ import org.junit.Test;
 public class SceneLayerResolverPerformanceTest {
 
     @Test
-    public void spatialLookupVisitsOnlyLayersWithRequestedIndex() {
+    public void layerLookupRetainsOnlyMatchingIndices() {
         World world = new World(new WorldConfigurationBuilder().build());
         for (int i = 0; i < 5000; i++) {
             int entity = world.create();
@@ -19,21 +19,16 @@ public class SceneLayerResolverPerformanceTest {
         int targetEntity = world.create();
         LayerComponent target = world.getMapper(LayerComponent.class).create(targetEntity);
         target.layerIndex = 7;
-        target.spatialEnabled = true;
         world.process();
 
         SceneLayerResolver resolver = new SceneLayerResolver();
         resolver.bind(world);
 
         Assert.assertEquals(1, resolver.matchingLayerCount(7));
-        Assert.assertTrue(resolver.isActorSpatialLayerEnabled(7));
-        Assert.assertEquals(1, resolver.lastSpatialLookupVisitCount());
-        Assert.assertFalse(resolver.isActorSpatialLayerEnabled(8));
-        Assert.assertEquals(0, resolver.lastSpatialLookupVisitCount());
+        Assert.assertEquals(targetEntity, resolver.findLayerEntityId(7));
+        Assert.assertEquals(0, resolver.matchingLayerCount(8));
 
-        target.spatialEnabled = false;
-        Assert.assertFalse(resolver.isActorSpatialLayerEnabled(7));
-        Assert.assertEquals(1, resolver.lastSpatialLookupVisitCount());
+        Assert.assertEquals(targetEntity, resolver.findLayerEntityId(7));
     }
 
     @Test
@@ -43,14 +38,14 @@ public class SceneLayerResolverPerformanceTest {
         SceneLayerResolver resolver = new SceneLayerResolver();
 
         resolver.bind(first);
-        Assert.assertTrue(resolver.isActorSpatialLayerEnabled(3));
+        Assert.assertEquals(1, resolver.matchingLayerCount(3));
 
         resolver.bind(replacement);
-        Assert.assertFalse(resolver.isActorSpatialLayerEnabled(3));
-        Assert.assertTrue(resolver.isActorSpatialLayerEnabled(4));
+        Assert.assertEquals(0, resolver.matchingLayerCount(3));
+        Assert.assertEquals(1, resolver.matchingLayerCount(4));
 
         resolver.bind(null);
-        Assert.assertFalse(resolver.isActorSpatialLayerEnabled(4));
+        Assert.assertEquals(0, resolver.matchingLayerCount(4));
     }
 
     private static World worldWithSpatialLayer(int layerIndex, boolean enabled) {
@@ -58,7 +53,6 @@ public class SceneLayerResolverPerformanceTest {
         int entity = world.create();
         LayerComponent layer = world.getMapper(LayerComponent.class).create(entity);
         layer.layerIndex = layerIndex;
-        layer.spatialEnabled = enabled;
         world.process();
         return world;
     }

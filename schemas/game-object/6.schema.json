@@ -1,11 +1,11 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "$id": "https://pixscape.games/schemas/pixscape/game-object/5.schema.json",
-  "title": "Pixscape Game Object definition 5",
+  "$id": "https://pixscape.games/schemas/pixscape/game-object/6.schema.json",
+  "title": "Pixscape Game Object definition 6",
   "type": "object",
   "properties": {
     "schemaVersion": {
-      "const": 5
+      "const": 6
     },
     "rootSourceEntityId": {
       "type": "integer",

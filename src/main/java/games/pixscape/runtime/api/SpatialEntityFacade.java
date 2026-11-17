@@ -1,103 +1,45 @@
 package games.pixscape.runtime.api;
 
-/**
- * Spatial actor placement. Height accessors address the active spatial rectangle, never a separate sorting height.
+/** Independent footprint ownership and optional per-representation settings.
+ * Footprint getters/setters address this entity only. Use resolvedOwner() explicitly to edit
+ * an inherited footprint. Rectangle coordinates are logical image pixels before deformation,
+ * measured from its bottom-left corner; storage is normalized by DimensionsComponent.
+ * Ownership changes publish before return; derived render geometry updates next frame.
+ * Stale handles are inert.
  */
 public interface SpatialEntityFacade {
-    /**
-     * Returns whether the entity has an autonomous footprint and representation.
-     */
-    boolean enabled();
+    boolean hasOwnFootprint();
+
+    /** Cached incarnation-safe handle of the nearest footprint owner, or null. */
+    EntityRef resolvedOwner();
+
+    /** Adds the default footprint if absent; does not create representation settings. */
+    SpatialEntityFacade addFootprint();
+
+    /** Removes only the own footprint. Inheritance and dormant settings remain available. */
+    SpatialEntityFacade removeFootprint();
 
     float footprintRadius();
     float footprintOffsetX();
     float footprintOffsetY();
-
-    /** Validated spatial edit in pixels; never changes or recompiles collision geometry. */
-    SpatialEntityFacade setFootprint(float offsetX, float offsetY, float radius);
-
-
-    /**
-     * Ensures the entity has an autonomous footprint and representation.
-     */
-    SpatialEntityFacade enable();
-
-    /**
-     * Removes the entity autonomous footprint and representation when present.
-     */
-    SpatialEntityFacade disable();
-
-    /**
-     * Bottom altitude of the entity spatial volume, in runtime spatial units.
-     */
     float altitude();
-
-    /**
-     * Height of the active spatial rectangle, in runtime spatial units.
-     */
-    float height();
-
-    /**
-     * Sets the bottom altitude of the entity spatial volume.
-     */
+    SpatialEntityFacade setFootprint(float offsetX, float offsetY, float radius);
     SpatialEntityFacade setAltitude(float altitude);
 
-    /**
-     * Sets the height of the active spatial rectangle.
-     *
-     * <p>Nonpositive values are rejected.</p>
-     */
-    SpatialEntityFacade setHeight(float height);
-
-    /**
-     * Sets the bottom altitude and height of the entity spatial volume.
-     *
-     * <p>Nonpositive height values are rejected.</p>
-     */
-    SpatialEntityFacade setVolume(float altitude, float height);
-
-    /**
-     * Width of the existing active rectangle in projected pixels, or zero when absent.
-     */
-    float rectangleWidth();
-
-    /**
-     * Projected rectangle X relative to the resolved entity origin, or zero when absent.
-     */
     float rectangleX();
-
-    /**
-     * Projected rectangle Y relative to the resolved entity origin, or zero when absent.
-     */
     float rectangleY();
-
-    /**
-     * Projected shadow pivot X relative to the resolved footprint, or zero when absent.
-     */
+    float rectangleWidth();
+    float rectangleHeight();
     float shadowPivotX();
-
-    /**
-     * Projected shadow pivot Y relative to the resolved footprint, or zero when absent.
-     */
     float shadowPivotY();
 
-    /**
-     * Edits the existing active static/animation-clip rectangle. Dimensions must be positive and
-     * every value finite. Throws when a live entity has no prepared active rectangle; does not
-     * create per-clip state in gameplay. Stale references do nothing. Render thread before World
-     * processing; indexed and allocation-free, with final values consumed on the next frame.
-     * Changing the rectangle can change shadow replay capacity requirements at frame publication.
+    /** Creates settings for the active clip on first edit. Configured dimensions must be finite
+     * and strictly positive, including after normalization. Rejected values leave settings intact.
+     * A valid zone may produce empty geometry after clipping or visual deformation.
      */
     SpatialEntityFacade setRectangle(float x, float y, float width, float height);
 
-    /**
-     * Same lifecycle/cost as setRectangle; changes only the independent local shadow pivot.
-     */
+    /** Projected pixel offset relative to the resolved footprint; independent of image TRS. */
     SpatialEntityFacade setShadowPivot(float x, float y);
-
-    /**
-     * Returns whether the entity currently satisfies the Runtime conditions for
-     * Spatial actor render ordering.
-     */
     boolean participatesInRenderOrder();
 }

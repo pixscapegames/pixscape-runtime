@@ -154,7 +154,51 @@ public class LightGameplayApiTest {
     }
 
     @Test
-    public void activeSpatialRectangleAndPivotReusePreparedState() {
+    public void configuredDimensionsMustStayFiniteAndStrictlyPositiveWithoutMutatingSettings() {
+        int entity = world.create();
+        DimensionsComponent size = world.getMapper(DimensionsComponent.class).create(entity);
+        size.width = size.height = 100;
+        world.process();
+        SpatialEntityFacade spatial = engine.api().entities().requireEntityId(entity).spatial();
+        var settings = world.getMapper(games.pixscape.runtime.component.spatial.SpatialRepresentationComponent.class);
+        for (boolean existing : new boolean[]{false, true}) {
+            if (existing) {
+                spatial.setRectangle(1, 2, 30, 40);
+            }
+            var before = existing ? settings.get(entity).rectangles.staticRectangle.copy() : null;
+            for (float invalid : new float[]{0f, -0f, -1f, Float.NaN, Float.POSITIVE_INFINITY,
+                    Float.NEGATIVE_INFINITY, Float.MIN_VALUE}) {
+                // MIN_VALUE is positive in pixels, but becomes zero after normalization by 100.
+                Assert.assertThrows(IllegalArgumentException.class, () -> spatial.setRectangle(0, 0, invalid, 10));
+                Assert.assertThrows(IllegalArgumentException.class, () -> spatial.setRectangle(0, 0, 10, invalid));
+                if (existing) {
+                    Assert.assertTrue(before.same(settings.get(entity).rectangles.staticRectangle));
+                } else {
+                    Assert.assertFalse(settings.has(entity));
+                }
+            }
+        }
+    }
+
+    @Test
+    public void positiveConfiguredZoneOutsideImageProducesEmptyCasterGeometry() {
+        int entity = spatialActor();
+        SpatialEntityFacade spatial = engine.api().entities().requireEntityId(entity).spatial();
+        spatial.setRectangle(200, 0, 10, 10);
+        var rectangle = world.getMapper(games.pixscape.runtime.component.spatial.SpatialRepresentationComponent.class)
+                .get(entity).rectangles.staticRectangle;
+        rectangle.validate();
+        world.process();
+        Assert.assertEquals(10, spatial.rectangleWidth(), .00001f);
+        Assert.assertEquals(10, spatial.rectangleHeight(), .00001f);
+        Assert.assertEquals("A positive zone entirely outside the image has an empty intersection",
+                0, queue.lighting.entities.get(entity).actorShadowRectangle.vertexCount);
+        spatial.setRectangle(0, 0, 100, 100);
+        world.process();
+        Assert.assertEquals(6, queue.lighting.entities.get(entity).actorShadowRectangle.vertexCount);
+    }
+
+    private int spatialActor() {
         int e = world.create();
         world.getMapper(TransformComponent.class).create(e);
         games.pixscape.runtime.component.spatial.SpatialFootprintComponent foot = world.getMapper(games.pixscape.runtime.component.spatial.SpatialFootprintComponent.class).create(e);
@@ -173,7 +217,17 @@ public class LightGameplayApiTest {
         dynamic.y3[slot] = 100;
         dynamic.x4[slot] = 50;
         dynamic.y4[slot] = 0;
+        games.pixscape.runtime.component.DimensionsComponent size = world.getMapper(games.pixscape.runtime.component.DimensionsComponent.class).create(e);
+        size.width = size.height = 100;
         world.process();
+        return e;
+    }
+
+    @Test
+    public void activeSpatialRectangleAndPivotReusePreparedState() {
+        int e = spatialActor();
+        var height = world.getMapper(games.pixscape.runtime.component.spatial.SpatialRepresentationComponent.class).get(e);
+        var rectangle = height.rectangles.staticRectangle;
         EntityRef ref = engine.api().entities().requireEntityId(e);
         games.pixscape.runtime.render.lighting.ActorShadowRectangleCaster caster = queue.lighting.entities.get(e).actorShadowRectangle;
         int updates = caster.updates;
@@ -184,20 +238,24 @@ public class LightGameplayApiTest {
         Assert.assertSame(caster, queue.lighting.entities.get(e).actorShadowRectangle);
         Assert.assertSame(vertices, caster.vertices);
         Assert.assertEquals(updates + 1, caster.updates);
-        Assert.assertEquals(-4, caster.vertices[2], 0);
+        float minZ = Float.POSITIVE_INFINITY;
+        for (int i = 0; i < caster.vertexCount; i++) {
+            minZ = Math.min(minZ, caster.vertices[i * 8 + 2]);
+        }
+        Assert.assertEquals(-4, minZ, .0001f);
         ref.spatial().setRectangle(-30, 4, 60, 80).setShadowPivot(7, 8);
         world.process();
         Assert.assertEquals("Equal setters do not rebuild the shadow rectangle", updates + 1, caster.updates);
         Assert.assertSame(rectangle, height.rectangles.staticRectangle);
-        Assert.assertEquals(60, ref.spatial().rectangleWidth(), 0);
-        Assert.assertEquals(-30, ref.spatial().rectangleX(), 0);
-        Assert.assertEquals(4, ref.spatial().rectangleY(), 0);
-        Assert.assertEquals(80, ref.spatial().height(), 0);
-        Assert.assertEquals(7, ref.spatial().shadowPivotX(), 0);
-        Assert.assertEquals(8, ref.spatial().shadowPivotY(), 0);
-        Assert.assertThrows(IllegalArgumentException.class, () -> ref.spatial().setRectangle(0, 0, 0, 10));
-        Assert.assertEquals(-30, rectangle.x, 0);
-        Assert.assertEquals(60, rectangle.width, 0);
+        Assert.assertEquals(60, ref.spatial().rectangleWidth(), .00001f);
+        Assert.assertEquals(-30, ref.spatial().rectangleX(), .00001f);
+        Assert.assertEquals(4, ref.spatial().rectangleY(), .00001f);
+        Assert.assertEquals(80, ref.spatial().rectangleHeight(), .00001f);
+        Assert.assertEquals(7, ref.spatial().shadowPivotX(), .00001f);
+        Assert.assertEquals(8, ref.spatial().shadowPivotY(), .00001f);
+        Assert.assertThrows(IllegalArgumentException.class, () -> ref.spatial().setRectangle(0, 0, -1, 10));
+        Assert.assertEquals(-.3f, rectangle.x, .00001f);
+        Assert.assertEquals(.6f, rectangle.width, .00001f);
         Assert.assertThrows(IllegalArgumentException.class, () -> ref.spatial().setShadowPivot(9, Float.NaN));
         Assert.assertEquals(7, rectangle.pivotX, 0);
         Assert.assertEquals(0, dirty.geometryEntities().size);

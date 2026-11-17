@@ -14,7 +14,7 @@ import games.pixscape.runtime.physics.PhysicsShapeIdState;
  */
 public class SceneMetaRuntime implements PhysicsShapeIdState {
 
-    public static final int CURRENT_SCENE_SCHEMA_VERSION = 6;
+    public static final int CURRENT_SCENE_SCHEMA_VERSION = 7;
 
     public int sceneSchemaVersion = CURRENT_SCENE_SCHEMA_VERSION;
     public String name;
@@ -140,7 +140,7 @@ public class SceneMetaRuntime implements PhysicsShapeIdState {
     }
 
     public static void validateSceneSchemaVersion(int sceneSchemaVersion, String sceneName) {
-        if (sceneSchemaVersion != 3 && sceneSchemaVersion != 4 && sceneSchemaVersion != CURRENT_SCENE_SCHEMA_VERSION) {
+        if (sceneSchemaVersion != CURRENT_SCENE_SCHEMA_VERSION) {
             throw new IllegalArgumentException("Scene '" + sceneName
                     + "' requires sceneSchemaVersion " + CURRENT_SCENE_SCHEMA_VERSION
                     + ", found " + sceneSchemaVersion + ".");

@@ -2,7 +2,6 @@ package games.pixscape.runtime.system;
 
 import com.artemis.Aspect;
 import com.artemis.BaseSystem;
-import com.artemis.ComponentMapper;
 import com.artemis.EntitySubscription;
 import com.artemis.utils.IntBag;
 import com.badlogic.gdx.graphics.OrthographicCamera;
@@ -10,7 +9,6 @@ import com.badlogic.gdx.math.Vector2;
 import games.pixscape.runtime.component.*;
 import games.pixscape.runtime.component.light.ConeLightComponent;
 import games.pixscape.runtime.component.light.PointLightComponent;
-import games.pixscape.runtime.component.physics.PhysicsBodyComponent;
 import games.pixscape.runtime.profiling.ProfiledSystem;
 import games.pixscape.runtime.profiling.SystemProfilePhases;
 import games.pixscape.runtime.profiling.SystemProfiler;
@@ -22,8 +20,8 @@ import games.pixscape.runtime.render.LayerStateSOA;
 
 /**
  * Computes display-space {@code offsetX/offsetY} for each renderable entity.
- * Authored Physics bodies use scene Physics parallax; other entities use their owning layer
- * parallax.
+ * A composition containing an authored Body uses scene Physics parallax, including its lights.
+ * Bodyless compositions use their effective layer parallax.
  * <p>
  * Pipeline:
  * - {@link RenderSpriteSyncSystem} and {@link LayerStateBuildSystem} build the dynamic render state
@@ -35,7 +33,6 @@ public final class ParallaxDisplaySystem extends BaseSystem implements ProfiledS
     private final DynamicEntityRenderState renderState;
     private final LayerDisplayOffsetResolver displayOffsetResolver;
     private EntitySubscription spriteSubscription;
-    private ComponentMapper<PhysicsBodyComponent> mPhysicsBody;
 
     private final Vector2 tmpOffset = new Vector2();
     private SystemProfiler profiler = SystemProfilers.DISABLED;
@@ -102,7 +99,9 @@ public final class ParallaxDisplaySystem extends BaseSystem implements ProfiledS
     }
 
     private void processSystemInternal() {
-        if (renderState == null || displayOffsetResolver == null) return;
+        if (renderState == null || displayOffsetResolver == null) {
+            return;
+        }
 
         for (int renderSlot = 0, n = renderState.activeCount; renderSlot < n; renderSlot++) {
             if (!renderState.enabled[renderSlot]) {
@@ -115,12 +114,7 @@ public final class ParallaxDisplaySystem extends BaseSystem implements ProfiledS
 
             int layerIdx = renderState.layerIndex[renderSlot];
             int entityId = renderState.entityIdForSlot(renderSlot);
-            boolean physical = entityId >= 0 && mPhysicsBody.has(entityId);
-            if (physical) {
-                displayOffsetResolver.resolvePhysics(tmpOffset);
-            } else {
-                displayOffsetResolver.resolveEntity(world, entityId, layerIdx, tmpOffset);
-            }
+            displayOffsetResolver.resolveEntity(world, entityId, layerIdx, tmpOffset);
 
             renderState.offsetX[renderSlot] = tmpOffset.x;
             renderState.offsetY[renderSlot] = tmpOffset.y;

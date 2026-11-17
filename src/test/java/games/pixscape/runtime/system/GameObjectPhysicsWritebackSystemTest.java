@@ -788,6 +788,91 @@ public class GameObjectPhysicsWritebackSystemTest {
         Assert.assertTrue(observed[0]);
     }
 
+    @Test
+    public void pointConversionsUsePublishedHierarchyAndPausedNativePose() throws Exception {
+        int parent = entity(1, true, -1, false);
+        int body = entity(2, true, 1, true);
+        int child = entity(3, false, 2, false);
+        transform(parent).x = 90;
+        transform(parent).originX = 8;
+        transform(parent).rotationRad = .2f;
+        transform(child).x = 15;
+        transform(child).y = 9;
+        transform(child).scaleX = -2;
+        transform(child).scaleY = .5f;
+        identities.rebuild();
+        world.process();
+        authority.setMode(PhysicsPoseAuthority.Mode.RUNTIME_PHYSICS);
+        sync.setStepEnabled(false);
+        nativeBody(body).setTransform(4f, 5f, .3f);
+        world.process();
+        games.pixscape.runtime.engine.PixscapeEngine engine = new games.pixscape.runtime.engine.PixscapeEngine();
+        java.lang.reflect.Field field = engine.getClass().getDeclaredField("world");
+        field.setAccessible(true);
+        field.set(engine, world);
+        games.pixscape.runtime.api.TransformFacade point = engine.api().entities().ofEntityId(child).transform();
+        Vector2 out = new Vector2();
+        Assert.assertSame(out, point.localToWorld(7, 11, out));
+        WorldTransformState poses = worldState();
+        Assert.assertEquals(poses.m00[child] * 7 + poses.m01[child] * 11 + poses.m02[child], out.x, EPSILON);
+        Assert.assertEquals(400, poses.x[body], EPSILON);
+        Assert.assertEquals(500, poses.y[body], EPSILON);
+        Assert.assertSame(out, point.worldToLocal(out.x, out.y, out));
+        Assert.assertEquals(7, out.x, EPSILON);
+        Assert.assertEquals(11, out.y, EPSILON);
+        transform(parent).x += 300;
+        world.process();
+        Assert.assertEquals(400, worldState().x[body], EPSILON);
+        Assert.assertEquals(500, worldState().y[body], EPSILON);
+        for (int call = 0; call < 10000; call++) {
+            point.localToWorld(7, 11, out);
+            point.worldToLocal(out.x, out.y, out);
+        }
+        int rebuilds = world.getSystem(GameObjectHierarchySystem.class).rebuildCount();
+        Assert.assertEquals(7, out.x, EPSILON);
+        Assert.assertEquals(11, out.y, EPSILON);
+        Assert.assertThrows(IllegalArgumentException.class, () -> point.localToWorld(Float.NaN, 0, out));
+        transform(child).scaleX = 0;
+        world.process();
+        out.set(12, 13);
+        Assert.assertThrows(IllegalStateException.class, () -> point.worldToLocal(0, 0, out));
+        Assert.assertEquals(12, out.x, 0);
+        Assert.assertEquals(13, out.y, 0);
+        Assert.assertEquals(rebuilds, world.getSystem(GameObjectHierarchySystem.class).rebuildCount());
+        world.delete(child);
+        world.process();
+        Assert.assertThrows(IllegalStateException.class, () -> point.localToWorld(0, 0, out));
+    }
+
+    @Test
+    public void reparentKeepsNativeBodiesAndCrossingJointWithoutSimulationStep() {
+        int root = entity(1, true, -1, true);
+        int child = entity(2, false, 1, true);
+        int destination = entity(3, true, -1, false);
+        transform(child).x = 200;
+        transform(destination).x = 700;
+        int joint = distanceJoint(root, child, 2);
+        identities.rebuild();
+        world.process();
+        authority.setMode(PhysicsPoseAuthority.Mode.RUNTIME_PHYSICS);
+        sync.setStepEnabled(false);
+        nativeBody(child).setTransform(3, 2, .4f);
+        world.process();
+        Body before = nativeBody(child);
+        Joint connection = world.getMapper(PhysicsRuntimeJointComponent.class).get(joint).joint;
+        games.pixscape.runtime.hierarchy.GameObjectHierarchyMutation.reparent(world, child, destination);
+        Assert.assertEquals(3, world.getMapper(GameObjectMemberComponent.class).get(child).parentStableId);
+        Assert.assertEquals(300, worldState().x[child], EPSILON);
+        Assert.assertEquals(200, worldState().y[child], EPSILON);
+        world.process();
+        Assert.assertSame(before, nativeBody(child));
+        Assert.assertSame(connection, world.getMapper(PhysicsRuntimeJointComponent.class).get(joint).joint);
+        Assert.assertEquals(3, before.getPosition().x, EPSILON);
+        Assert.assertEquals(2, before.getPosition().y, EPSILON);
+        Assert.assertEquals(root, world.getMapper(PhysicsJointComponent.class).get(joint).aEid);
+        Assert.assertEquals(child, world.getMapper(PhysicsJointComponent.class).get(joint).bEid);
+    }
+
     private int entity(int stableId, boolean gameObject, int parentStableId, boolean physics) {
         int entityId = world.create();
         world.getMapper(PixscapeIdentityComponent.class).create(entityId).stableId = stableId;

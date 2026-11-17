@@ -180,13 +180,8 @@ public final class GameObjectAssetLoader {
         if (entity.spatialFootprint != null) {
             entity.spatialFootprint.validate();
         }
-        if (entity.spatialRepresentation != null) {
-            if (entity.spatialRepresentation.rectangles == null)
-                throw new IllegalArgumentException("Spatial actor rectangles are missing: " + entity.sourceEntityId);
+        if (entity.spatialRepresentation != null && entity.spatialRepresentation.rectangles != null) {
             entity.spatialRepresentation.rectangles.validate();
-            if (entity.spatialFootprint == null) {
-                throw failure(file, "Spatial representation requires an authored footprint.");
-            }
         }
     }
 

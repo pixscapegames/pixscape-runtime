@@ -132,7 +132,7 @@ public class SceneJsonToleranceTest {
 
     private static SceneMetaRuntime meta() {
         SceneMetaRuntime meta = new SceneMetaRuntime();
-        meta.sceneSchemaVersion = 3;
+        meta.sceneSchemaVersion = SceneMetaRuntime.CURRENT_SCENE_SCHEMA_VERSION;
         meta.nextEntityStableId = 3;
         meta.nextPhysicsShapeId = 1;
         return meta;
@@ -167,7 +167,7 @@ public class SceneJsonToleranceTest {
         World world = new World(new WorldConfiguration().setSystem(new WorldSerializationManager()));
         try {
             SceneMetaRuntime meta = new SceneMetaRuntime();
-            meta.sceneSchemaVersion = 3;
+            meta.sceneSchemaVersion = SceneMetaRuntime.CURRENT_SCENE_SCHEMA_VERSION;
             meta.nextEntityStableId = 3;
             meta.nextPhysicsShapeId = 1;
             SceneLoader.loadScene(world, file, true, meta);

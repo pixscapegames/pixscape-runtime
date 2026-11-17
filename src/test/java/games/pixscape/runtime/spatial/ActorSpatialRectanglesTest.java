@@ -43,36 +43,41 @@ public class ActorSpatialRectanglesTest {
         assertEquals(0, stat.clips.size);
     }
 
-    @Test
-    public void fixedEnvelopeIgnoresShadowPivot() {
-        ActorSpatialRectangleData r = new ActorSpatialRectangleData();
-        r.x = 4;
-        r.y = -3;
-        r.width = 40;
-        r.height = 70;
-        float[] bounds = new float[4];
-        ActorSpatialRectanglePlacement.influenceBounds(r, 100, 200, bounds, 0);
-        assertArrayEquals(new float[]{104, 197, 144, 267}, bounds, 0);
-        r.pivotX = 93;
-        r.pivotY = -50;
-        ActorSpatialRectanglePlacement.influenceBounds(r, 100, 200, bounds, 0);
-        assertArrayEquals(new float[]{104, 197, 144, 267}, bounds, 0);
-    }
-
     @Test(expected = com.badlogic.gdx.utils.SerializationException.class)
     public void obsoleteYawFormatIsNotSilentlyLoaded() {
         new Json().fromJson(ActorSpatialRectangleData.class, "{orientation:45}");
     }
 
-    @Test(expected = IllegalArgumentException.class)
-    public void emptyVolumeSetIsNotALegacyFallback() {
+    @Test
+    public void missingOptionalSettingsMeanTheFullImage() {
         new ActorSpatialRectangles().validate();
     }
 
-    @Test(expected = IllegalArgumentException.class)
-    public void invalidDimensionsAreRejected() {
-        ActorSpatialRectangleData v = new ActorSpatialRectangleData();
-        v.width = Float.NaN;
-        v.validate();
+    @Test
+    public void configuredDimensionsMustBeFiniteAndStrictlyPositiveForStaticAndClipSettings() {
+        for (float invalid : new float[]{0f, -0f, -1f, Float.NaN, Float.POSITIVE_INFINITY, Float.NEGATIVE_INFINITY}) {
+            for (boolean width : new boolean[]{false, true}) {
+                ActorSpatialRectangleData zone = new ActorSpatialRectangleData();
+                if (width) {
+                    zone.width = invalid;
+                } else {
+                    zone.height = invalid;
+                }
+                assertThrows(IllegalArgumentException.class, zone::validate);
+                ActorSpatialRectangles settings = new ActorSpatialRectangles();
+                assertThrows(IllegalArgumentException.class, () -> settings.put(8, "walk", zone));
+                assertEquals(0, settings.clips.size);
+                settings.staticRectangle = zone;
+                assertThrows(IllegalArgumentException.class, settings::validate);
+            }
+        }
+    }
+
+    @Test
+    public void positiveZoneOutsideImageRemainsValidAuthoredData() {
+        ActorSpatialRectangleData zone = new ActorSpatialRectangleData();
+        zone.x = 2;
+        zone.width = zone.height = .5f;
+        zone.validate();
     }
 }

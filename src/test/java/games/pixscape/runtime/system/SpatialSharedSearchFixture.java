@@ -80,7 +80,6 @@ final class SpatialSharedSearchFixture implements AutoCloseable {
             int layer = world.create();
             LayerComponent component = world.getMapper(LayerComponent.class).create(layer);
             component.layerIndex = m;
-            component.spatialEnabled = true;
         }
         for (int m = 0; m < count; m++) {
             owners[m] = addMap(m);
@@ -91,7 +90,7 @@ final class SpatialSharedSearchFixture implements AutoCloseable {
             world.getMapper(TransformComponent.class).create(actor);
             world.getMapper(EntityIndexComponent.class).create(actor).layerIndex = count;
             SpatialRepresentationComponent height = world.getMapper(SpatialRepresentationComponent.class).create(actor);
-            SpatialRectangleTestData.setHeight(height, 64);
+            SpatialRectangleTestData.setImageHeight(height, 64);
 
             SpatialFootprintComponent footprint = world.getMapper(SpatialFootprintComponent.class).create(actor);
             footprint.altitude = 32 * (a % count);
@@ -155,6 +154,7 @@ final class SpatialSharedSearchFixture implements AutoCloseable {
             TransformComponent t = world.getMapper(TransformComponent.class).get(actors[a]);
             t.x = 16 + a % 8 * 32;
             t.y = 108 + a % 8 * 16 + frame % 128 * .5f + 32 * (a % owners.length);
+            SpatialRectangleTestData.imageQuad(ecs, ecs.renderSlotForEntity(actors[a]), t.x - 512, t.y, 1024, 1024);
         }
     }
 

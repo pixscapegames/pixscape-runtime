@@ -363,6 +363,38 @@ public class GameObjectRenderCompositionTest {
         Assert.assertEquals(6f, state.maxY[root], 0.0001f);
     }
 
+    @Test
+    public void restoredStableIdentitiesOnRecycledIdsRebuildChildOrder() {
+        Fixture fixture = new Fixture(16);
+        try {
+            int root = fixture.gameObject(10, -1, 0, 0);
+            int childSlot = fixture.member(11, 10, 0, 0);
+            int siblingSlot = fixture.member(12, 10, 0, 1);
+            for (int cycle = 0; cycle < 4; cycle++) {
+                fixture.process();
+                int child = fixture.entityForSlot(childSlot);
+                int sibling = fixture.entityForSlot(siblingSlot);
+                Assert.assertEquals(child, fixture.composition.state().orderedFirstChildEntityId[root]);
+                Assert.assertEquals(sibling, fixture.composition.state().orderedNextSiblingEntityId[child]);
+                fixture.assertEcsOrder(childSlot, siblingSlot);
+                fixture.world.delete(sibling);
+                fixture.world.delete(child);
+                fixture.world.delete(root);
+                fixture.ecsState.releaseSlotForEntity(sibling);
+                fixture.ecsState.releaseSlotForEntity(child);
+                fixture.process();
+                Assert.assertEquals(-1, fixture.composition.state().orderedFirstChildEntityId[root]);
+                if (cycle < 3) {
+                    root = fixture.gameObject(10, -1, 0, 0);
+                    childSlot = fixture.member(11, 10, 0, 0);
+                    siblingSlot = fixture.member(12, 10, 0, 1);
+                }
+            }
+        } finally {
+            fixture.world.dispose();
+        }
+    }
+
     private static final class Fixture {
         final DynamicEntityRenderState ecsState;
         final TiledRenderState tiledState;

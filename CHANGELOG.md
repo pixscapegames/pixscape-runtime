@@ -3,12 +3,13 @@
 ## [0.2.5-SNAPSHOT]
 
 ### Breaking changes
-* Spatial actors now use authored `SpatialFootprintComponent` and `SpatialRepresentationComponent`, independent of physics. New scenes use schema 6 and Game Objects/fragments schema 5; obsolete actor footprints are rejected without migration.
-* Tiled map containers and ordered tile, image and object layers introduced in schema 4 remain supported. Compatible schema 3 scenes are converted on load, with one map per existing tile grid.
+* Scenes now require schema 7 and Game Object definitions/fragments schema 6. Occlusion zones are stored in normalized image-local coordinates. Older formats are rejected; no historical reader, conversion or migration is provided.
+* Removed ordinary-layer spatial activation and the global `SpatialAPI`/`PixscapeAPI.spatial()` entry point. Spatial participation now follows an entity's own or nearest ancestor's footprint, independently of layers and physics; per-entity spatial access remains available.
 * Renamed tile-layer APIs: `TiledMapRef` becomes `TiledLayerRef`, `map()` becomes `layer()`, `TiledMapFacade` becomes `TiledLayerFacade`, and `TiledMapLayerData` becomes `TiledLayerData`.
 
 ### Added
-* Added independent footprint radius/offset APIs and entity-relative occlusion rectangles; shadow pivot offsets retain their footprint-relative role.
+* Added independent footprint radius/offset APIs and optional image-local occlusion zones; shadow pivot offsets retain their footprint-relative role.
+* Added `gameObjects().reparent(child, parent)` to change or remove a parent while preserving resolved world poses and native Body/joint connections. Compatible visual parents gain Game Object capability; invalid operations are rejected before mutation.
 * Added a session-only composition visibility filter for editor integration, without changing authored visibility or physics.
 * Added prepared Game Object factories and explicit rigid placement of physics-backed compositions.
 * Added read-only tile custom properties and `findAllByTiledLayerName(...)` for Tiled-layer contents.
@@ -17,6 +18,9 @@
 
 ### Changed
 * Game Object roots can render their own visuals. Physics-backed entities support visual scaling without resizing their collision shapes.
+* Multiple representations can share an invisible ancestor's footprint; a descendant's own footprint takes precedence. Bodies do not interrupt spatial ownership, and each representation retains independent sorting and shadow geometry.
+* Occlusion zones follow visual rotation, signed scale, flips and deformation through clipping against the visual's actual triangles. Missing settings use the full image; custom settings remain dormant when no footprint is resolved. Configured dimensions must be finite and strictly positive, even when the resulting clipped geometry is empty.
+* Any authored Body selects scene physics parallax for its entire composition, including visual siblings and lights. Removing the last Body restores layer parallax.
 * Compatible spatial contexts share anchor searches; isolated and incompatible contexts retain individual searches.
 * Game Object composition retains unchanged sibling order and sorts only affected parent groups, while continuing to resolve frame-dependent visibility and bounds.
 * Tiled animation visits the map's indexed animated chunks instead of searching every chunk; animation mutations and grid replacement maintain membership.
@@ -27,6 +31,8 @@
 * Physics body synchronization now processes ECS membership changes and explicitly dirty bodies instead of scanning every authored and native body on every frame. Native body removal uses an ownership index instead of searching the Box2D world. Full reconciliation remains at initialization and physics reactivation.
 
 ### Fixed
+* Repeated deletion and restoration of the same Game Object identities on recycled ECS IDs now rebuilds published child order, keeping descendants visible after undo/redo.
+* Spatial rectangle API setters reject zero, negative, non-finite and normalization-underflow dimensions before changing or creating settings. Valid zones outside the image may still produce empty derived geometry.
 * Stabilized the Game Object placement allocation test by completing JVM warm-up before strict measurements.
 * Contradictory spatial actor constraints now prioritize occlusion, preserving compatible placements, tile order and corner geometry.
 * Removing physics bodies now cleans up their joints consistently.

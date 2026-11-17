@@ -195,6 +195,17 @@ public final class GameObjectHierarchySystem extends BaseSystem {
         return topology;
     }
 
+    /** Cold authoring/API boundary; publishes topology and capabilities without processing or stepping. */
+    public void publishAuthoredHierarchyMutation() {
+        topologyDirty = true;
+        rebuildTopology();
+        resolveAllFromCurrentAuthoredTransforms();
+        GameObjectCompositionSystem composition = world.getSystem(GameObjectCompositionSystem.class);
+        if (composition != null) {
+            composition.prepareRuntimeAvailability();
+        }
+    }
+
     public WorldTransformState worldTransforms() {
         return worldTransforms;
     }
@@ -253,6 +264,10 @@ public final class GameObjectHierarchySystem extends BaseSystem {
      * Unpublishes one failed, newly allocated entity without visiting existing hierarchies.
      */
     public void discardPreparedSpawn(int entityId) {
+        GameObjectCompositionSystem composition = world.getSystem(GameObjectCompositionSystem.class);
+        if (composition != null) {
+            composition.discardEntity(entityId);
+        }
         if (entityId < topology.getEntityCapacity()) {
             topology.unlinkDeletedEntity(entityId);
             worldTransforms.clear(entityId);

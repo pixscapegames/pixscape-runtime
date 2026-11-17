@@ -96,12 +96,10 @@ public class PublishedExportLoadTest {
     private static boolean unsupportedSpatialFormat(Throwable error) {
         for (Throwable cause = error; cause != null; cause = cause.getCause()) {
             String message = cause.getMessage();
-            if (message != null && (message.contains("has no authored rectangles; reconfigure the actor")
-                    || message.contains("Spatial actor spatial rectangles are missing:")
-                    || message.contains("Obsolete physics-owned Spatial footprint")
-                    || message.contains("requires sceneSchemaVersion 6, found 5")
-                    || message.contains("unsupported schemaVersion 3; expected 5")
-                    || message.contains("unsupported schemaVersion 4; expected 5"))) return true;
+            if (message != null && (message.contains("requires sceneSchemaVersion 7, found ")
+                    || (message.contains("unsupported schemaVersion ") && message.contains("; expected 6")))) {
+                return true;
+            }
         }
         return false;
     }

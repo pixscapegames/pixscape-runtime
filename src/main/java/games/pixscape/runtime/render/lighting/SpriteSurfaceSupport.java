@@ -9,6 +9,12 @@ public final class SpriteSurfaceSupport {
 
     public static void sheet(float[] vertices, float[] q, float u, float v, float altitude, float dx, float dy) {
         float sx = q[0] + u * (q[6] - q[0]) + v * (q[2] - q[0]), sy = q[1] + u * (q[7] - q[1]) + v * (q[3] - q[1]);
+        sheetAtAnchor(vertices, q, sx, sy, altitude, dx, dy);
+    }
+
+    /** Uses the supplied projected anchor directly, including on non-affine image quads. */
+    public static void sheetAtAnchor(float[] vertices, float[] q, float sx, float sy,
+                                     float altitude, float dx, float dy) {
         float x = LightingCoordinates.worldX(sx, sy, altitude), y = LightingCoordinates.worldY(sx, sy, altitude), den = dx - dy;
         if (Math.abs(den) < .000001f) throw new IllegalArgumentException("Sheet direction projects to zero width");
         float nx = -dy, ny = dx, len = (float) Math.sqrt(nx * nx + ny * ny);

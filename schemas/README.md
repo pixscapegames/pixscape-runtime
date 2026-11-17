@@ -14,10 +14,10 @@ match the generator without changing them.
 | File | In-file format version | Scope |
 | --- | --- | --- |
 | `project/1.schema.json` | project `"1"` | Export entry point and scene metadata |
-| `scene/6.schema.json` | scene `6` | Artemis envelope; its observed `metadata.version: 1` is a distinct serializer marker |
-| `components/6.schema.json` | scene `6` | 50 supported Runtime component type IDs, including layer names, surface lighting and non-pooled shader parameters |
+| `scene/7.schema.json` | scene `7` | Artemis envelope; its observed `metadata.version: 1` is a distinct serializer marker |
+| `components/7.schema.json` | scene `7` | 50 supported Runtime component type IDs, including layer names, surface lighting and non-pooled shader parameters |
 | `common/1.schema.json` | shared definitions `1` | LibGDX arrays, properties, physics and Spatial payloads |
-| `game-object/5.schema.json` | Game Object `5` | Independent definition and local entity/joint IDs |
+| `game-object/6.schema.json` | Game Object `6` | Independent definition and local entity/joint IDs |
 | `animations/unversioned.schema.json` | none | Sprite animation registry; no version field is emitted |
 | `tiled-animations/1.schema.json` | registry `"1"` | Tiled animation frames/durations |
 | `tileset-profiles/1.schema.json` | profile `1` | Tileset dimensions, projection and tile IDs |
@@ -51,10 +51,10 @@ Objects, HUD, registries, tileset profiles, atlas page paths and particle
 effect paths. For scene components it resolves each document's
 `componentIdentifiers`, expands each entity's archetype and validates explicit
 payloads against the matching fully qualified type ID. The nonstandard
-`x-pixscape-components` mapping in `components/6.schema.json` provides that
+`x-pixscape-components` mapping in `components/7.schema.json` provides that
 link; the short aliases are **not** global identifiers. The validator also
 rejects a Layer/EntityIndex combination inherited entirely from an archetype.
-The self-test checks eight representative invalid fixtures, including wrong
+The self-test checks representative invalid fixtures, including nonpositive or nonfinite configured zone dimensions, wrong
 versions, a stale Layer field, null primitive, `"NaN"` on an unrelated field,
 a plain array in place of `IntArray`, unresolved alias, inherited Layer/content
 conflict and a displaced Game Object root.
@@ -117,4 +117,4 @@ come from components and archetypes; Game Object definition transform fields
 have different initial values. The root of a Game Object definition is at
 `(0,0)`, has local `zIndex = 0`, and does not carry `layerIndex`.
 
-Spatial actors use an authored circular `SpatialFootprintComponent` (pixels and altitude) plus `SpatialRepresentationComponent` (static/clip rectangles). Collisions own independent geometry; `useSpatialFootprint` is rejected even when false. Rectangle x/y are relative to the resolved entity origin; shadow pivot offsets remain relative to the footprint. Old `SpatialHeightComponent` and physics `spatialFootprint` markers are rejected, with no automatic footprint migration.
+A representation uses its own or its nearest ancestor's authored `SpatialFootprintComponent`, independently of Body and layers. Optional `SpatialRepresentationComponent` settings select normalized image-local zones, clipped against the actual deformed visual triangles. Configured width and height must be finite and strictly positive. Only the resulting geometry may be empty after clipping or deformation. Missing static/clip settings mean the full image; dormant custom settings persist. Shadow pivot offsets remain projected pixels relative to the footprint. Collisions keep independent geometry. Only scene 7 and Game Object 6 formats are accepted; no migration is provided.

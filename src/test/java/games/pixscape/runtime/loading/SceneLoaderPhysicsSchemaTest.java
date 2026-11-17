@@ -21,6 +21,29 @@ import java.io.OutputStream;
 
 public class SceneLoaderPhysicsSchemaTest {
     @Test
+    public void zeroConfiguredZoneDimensionsAreRejectedBeforeSceneMutation() throws Exception {
+        for (boolean width : new boolean[]{false, true}) {
+            FileHandle file = writeScene(world -> {
+                var settings = world.getMapper(games.pixscape.runtime.component.spatial.SpatialRepresentationComponent.class)
+                        .create(world.create());
+                settings.rectangles = new games.pixscape.runtime.spatial.ActorSpatialRectangles();
+                var zone = new games.pixscape.runtime.spatial.ActorSpatialRectangleData();
+                if (width) {
+                    zone.width = 0;
+                } else {
+                    zone.height = 0;
+                }
+                settings.rectangles.staticRectangle = zone;
+            });
+            try {
+                assertRejectedWithoutMutation(file, "positive finite dimensions");
+            } finally {
+                file.delete();
+            }
+        }
+    }
+
+    @Test
     public void disabledPhysicsAcceptsSceneWithoutBodiesOrJoints() throws Exception {
         FileHandle file = writeScene(new WorldSetup() {
             @Override
@@ -276,49 +299,6 @@ public class SceneLoaderPhysicsSchemaTest {
     }
 
     @Test
-    public void obsoleteFootprintIsRejectedBeforeReplacingTheCurrentScene() throws Exception {
-        FileHandle file = writeScene(new WorldSetup() {
-            @Override public void apply(World world) {
-                int actor = world.create();
-                world.getMapper(games.pixscape.runtime.component.spatial.SpatialFootprintComponent.class).create(actor);
-            }
-        });
-        file.writeString(file.readString("UTF-8").replace("SpatialFootprintComponent", "SpatialPhysicsFootprintComponent"), false, "UTF-8");
-        World target = world();
-        try {
-            int existing = target.create();
-            target.process();
-            SceneMetaRuntime meta = new SceneMetaRuntime();
-            meta.physicsEnabled = false;
-            IllegalArgumentException failure = Assert.assertThrows(IllegalArgumentException.class,
-                    () -> SceneLoader.loadScene(target, file, true, meta));
-            Assert.assertTrue(failure.getMessage().contains("Obsolete physics-owned Spatial footprint"));
-            Assert.assertTrue(target.getEntityManager().isActive(existing));
-        } finally {
-            target.dispose();
-            file.delete();
-        }
-    }
-
-    @Test
-    public void removedCollisionSourceFieldIsRejectedBeforeSceneReplacement() throws Exception {
-        FileHandle file = writeScene(world -> { });
-        file.writeString("{\"useSpatialFootprint\":false," + file.readString("UTF-8").substring(1), false, "UTF-8");
-        World target = world();
-        try {
-            int existing = target.create();
-            target.process();
-            IllegalArgumentException failure = Assert.assertThrows(IllegalArgumentException.class,
-                    () -> SceneLoader.loadScene(target, file, true, new SceneMetaRuntime()));
-            Assert.assertTrue(failure.getMessage().contains("Obsolete useSpatialFootprint"));
-            Assert.assertTrue(target.getEntityManager().isActive(existing));
-        } finally {
-            target.dispose();
-            file.delete();
-        }
-    }
-
-    @Test
     public void oldRectangleOriginIsRejectedBeforeSceneReplacement() throws Exception {
         FileHandle file = writeScene(world -> world.getMapper(
                 games.pixscape.runtime.component.spatial.SpatialRepresentationComponent.class).create(world.create()));
@@ -330,7 +310,7 @@ public class SceneLoaderPhysicsSchemaTest {
             meta.sceneSchemaVersion = 4;
             IllegalArgumentException failure = Assert.assertThrows(IllegalArgumentException.class,
                     () -> SceneLoader.loadScene(target, file, true, meta));
-            Assert.assertTrue(failure.getMessage().contains("Obsolete footprint-relative rectangle"));
+            Assert.assertTrue(failure.getMessage().contains("requires sceneSchemaVersion 7"));
             Assert.assertTrue(target.getEntityManager().isActive(existing));
         } finally {
             target.dispose();

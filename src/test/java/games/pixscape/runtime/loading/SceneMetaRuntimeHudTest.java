@@ -28,7 +28,7 @@ public class SceneMetaRuntimeHudTest {
     @Test
     public void legacySceneMetadataWithoutHudLoadsWithNoDefaultHud() {
         SceneMetaRuntime restored = SceneMetaRuntime.fromJson(
-                new JsonReader().parse("{\"sceneSchemaVersion\":3,"
+                new JsonReader().parse("{\"sceneSchemaVersion\":7,"
                         + "\"nextEntityStableId\":1,\"nextPhysicsShapeId\":1}"),
                 "legacy");
 
@@ -60,7 +60,7 @@ public class SceneMetaRuntimeHudTest {
     }
 
     private static String parseHudReference(String value) {
-        String serialized = "{\"sceneSchemaVersion\":3,"
+        String serialized = "{\"sceneSchemaVersion\":7,"
                 + "\"nextEntityStableId\":1,\"nextPhysicsShapeId\":1,"
                 + "\"defaultHudScreenId\":" + value + "}";
         return SceneMetaRuntime.fromJson(

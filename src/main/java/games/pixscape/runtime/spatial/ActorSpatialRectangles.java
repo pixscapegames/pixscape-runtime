@@ -33,8 +33,6 @@ public final class ActorSpatialRectangles {
     }
 
     public void validate() {
-        if (staticRectangle == null && clips.size == 0)
-            throw new IllegalArgumentException("Spatial actor rectangles are missing; reconfigure the actor");
         if (staticRectangle != null) staticRectangle.validate();
         for (IntMap.Entry<ObjectMap<String, ActorSpatialRectangleData>> asset : clips) {
             if (asset.key <= 0 || asset.value == null || asset.value.size == 0)

@@ -1,20 +1,20 @@
 package games.pixscape.runtime.spatial;
 
 /**
- * Fixed projected-pixel rectangle relative to the resolved owner origin (x/y).
- * Visual scale and rotation do not resize or rotate this axis-aligned envelope.
- * Height is also the actor's spatial height. Shadow pivotX/pivotY retain their
- * projected-pixel offsets from the resolved footprint, independently of this rectangle.
+ * Reference-image zone in normalized local coordinates, before texture flips and deformation.
+ * The default covers the full image. Shadow pivotX/pivotY are independent projected-pixel
+ * offsets from the resolved footprint. Sorting height is derived from transformed geometry.
  */
 public final class ActorSpatialRectangleData {
-    public float width = 32f, height = 64f;
-    public float x = -16f, y;
+    public float width = 1f, height = 1f;
+    public float x, y;
     public float pivotX, pivotY;
 
     public void validate() {
         if (!finite(width) || !finite(height) || width <= 0 || height <= 0
-                || !finite(x) || !finite(y) || !finite(pivotX) || !finite(pivotY))
+                || !finite(x) || !finite(y) || !finite(pivotX) || !finite(pivotY)) {
             throw new IllegalArgumentException("Actor spatial rectangle requires positive finite dimensions and finite local placement/pivot");
+        }
     }
 
     private static boolean finite(float v) {

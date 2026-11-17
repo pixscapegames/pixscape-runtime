@@ -44,6 +44,7 @@ public final class DynamicEntityRenderState {
     public byte[] repeatFlags;
     public int[] runtimeOrder;
     public long[] sortKey;
+    private games.pixscape.runtime.spatial.ActorSpatialGeometry[] actorSpatialGeometry;
 
     public DynamicEntityRenderState() {
     }
@@ -96,6 +97,7 @@ public final class DynamicEntityRenderState {
         repeatFlags = new byte[renderCapacity];
         runtimeOrder = new int[renderCapacity];
         sortKey = new long[renderCapacity];
+        actorSpatialGeometry = new games.pixscape.runtime.spatial.ActorSpatialGeometry[renderCapacity];
 
         for (int i = 0; i < renderCapacity; i++) {
             renderSlotToEntityId[i] = NO_SLOT;
@@ -260,6 +262,7 @@ public final class DynamicEntityRenderState {
         repeatFlags = grow(repeatFlags, next);
         runtimeOrder = grow(runtimeOrder, next);
         sortKey = grow(sortKey, next);
+        actorSpatialGeometry = java.util.Arrays.copyOf(actorSpatialGeometry, next);
 
         for (int i = renderCapacity; i < next; i++) {
             renderSlotToEntityId[i] = NO_SLOT;
@@ -281,6 +284,19 @@ public final class DynamicEntityRenderState {
 
     public int getGrowthCount() {
         return growthCount;
+    }
+
+    /** Shared derived image-zone preparation; repeated consumers reuse unchanged triangles. */
+    public games.pixscape.runtime.spatial.ActorSpatialGeometry prepareActorSpatialGeometry(
+            int slot, games.pixscape.runtime.spatial.ActorSpatialRectangleData rectangle) {
+        games.pixscape.runtime.spatial.ActorSpatialGeometry geometry = actorSpatialGeometry[slot];
+        if (geometry == null) {
+            geometry = new games.pixscape.runtime.spatial.ActorSpatialGeometry();
+            actorSpatialGeometry[slot] = geometry;
+        }
+        geometry.update(rectangle, x1[slot], y1[slot], x2[slot], y2[slot],
+                x3[slot], y3[slot], x4[slot], y4[slot], u1[slot] > u2[slot], v1[slot] > v2[slot]);
+        return geometry;
     }
 
     private void clearEntityMappings() {
@@ -325,6 +341,7 @@ public final class DynamicEntityRenderState {
         repeatFlags[to] = repeatFlags[from];
         runtimeOrder[to] = runtimeOrder[from];
         sortKey[to] = sortKey[from];
+        actorSpatialGeometry[to] = actorSpatialGeometry[from];
     }
 
     private void clearSlot(int slot) {
@@ -364,6 +381,7 @@ public final class DynamicEntityRenderState {
         repeatFlags[slot] = RenderRepeatFlags.NONE;
         runtimeOrder[slot] = 0;
         sortKey[slot] = 0L;
+        actorSpatialGeometry[slot] = null;
     }
 
     private static int[] grow(int[] source, int next) {

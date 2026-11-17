@@ -231,6 +231,7 @@ public class SpatialOrthoRoofTest {
             actor.actorCircleY = new float[1];
             actor.actorCircleRadius = new float[]{1};
             actor.actorAltitude = new float[1];
+            actor.actorBottom = actor.actorAltitude.clone();
             actor.actorHeight = new float[]{24};
             actor.influenceBounds = new float[4];
         }
@@ -239,6 +240,7 @@ public class SpatialOrthoRoofTest {
             actor.actorCircleX[0] = x;
             actor.actorCircleY[0] = y;
             actor.actorAltitude[0] = z;
+            actor.actorBottom[0] = z;
             actor.influenceBounds[0] = x - 12;
             actor.influenceBounds[1] = y;
             actor.influenceBounds[2] = x + 12;

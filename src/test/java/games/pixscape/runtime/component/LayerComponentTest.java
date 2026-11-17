@@ -15,13 +15,11 @@ public class LayerComponentTest {
             int first = world.create();
             LayerComponent layer = layers.create(first);
             layer.layerIndex = 12;
-            layer.spatialEnabled = true;
 
             layers.remove(first);
             LayerComponent restored = layers.create(world.create());
 
             Assert.assertEquals(0, restored.layerIndex);
-            Assert.assertFalse(restored.spatialEnabled);
         } finally {
             world.dispose();
         }

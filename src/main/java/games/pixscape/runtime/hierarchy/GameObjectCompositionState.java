@@ -10,6 +10,10 @@ public final class GameObjectCompositionState {
 
     public int[] effectiveLayer;
     public int[] tiledLayerOwner;
+    /** Nearest footprint owner, including self; -1 is a published absence. */
+    public int[] spatialOwner;
+    /** Authored Body count on each top-level composition root. */
+    public int[] physicsBodyCount;
     public boolean[] hierarchyVisible;
     public int[] orderedFirstChildEntityId;
     public int[] orderedNextSiblingEntityId;
@@ -34,6 +38,9 @@ public final class GameObjectCompositionState {
         effectiveLayer = Arrays.copyOf(effectiveLayer, next);
         tiledLayerOwner = Arrays.copyOf(tiledLayerOwner, next);
         Arrays.fill(tiledLayerOwner, old, next, -1);
+        spatialOwner = Arrays.copyOf(spatialOwner, next);
+        Arrays.fill(spatialOwner, old, next, -1);
+        physicsBodyCount = Arrays.copyOf(physicsBodyCount, next);
         hierarchyVisible = Arrays.copyOf(hierarchyVisible, next);
         orderedFirstChildEntityId = Arrays.copyOf(orderedFirstChildEntityId, next);
         orderedNextSiblingEntityId = Arrays.copyOf(orderedNextSiblingEntityId, next);
@@ -52,11 +59,32 @@ public final class GameObjectCompositionState {
         return entityCapacity;
     }
 
+    public int spatialOwner(int entity) {
+        return entity >= 0 && entity < entityCapacity ? spatialOwner[entity] : -1;
+    }
+
+    public void clearEntity(int entity) {
+        if (entity < 0 || entity >= entityCapacity) {
+            return;
+        }
+        spatialOwner[entity] = -1;
+        physicsBodyCount[entity] = 0;
+        effectiveLayer[entity] = -1;
+        tiledLayerOwner[entity] = -1;
+        hierarchyVisible[entity] = false;
+        boundsResolved[entity] = false;
+        orderedFirstChildEntityId[entity] = -1;
+        orderedNextSiblingEntityId[entity] = -1;
+    }
+
     private void setCapacity(int capacity) {
         entityCapacity = capacity;
         effectiveLayer = new int[capacity];
         tiledLayerOwner = new int[capacity];
         Arrays.fill(tiledLayerOwner, -1);
+        spatialOwner = new int[capacity];
+        Arrays.fill(spatialOwner, -1);
+        physicsBodyCount = new int[capacity];
         hierarchyVisible = new boolean[capacity];
         orderedFirstChildEntityId = new int[capacity];
         orderedNextSiblingEntityId = new int[capacity];

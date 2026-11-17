@@ -86,7 +86,7 @@ public class SpatialWallContinuationTest {
                     f.assertOrder(0);
                     Assert.assertEquals(0, f.spatial.unresolvedConstraintCount());
                     Assert.assertEquals(0, f.spatial.actorOrderingFallbackCount());
-                    Assert.assertEquals(height, f.height.rectangles.staticRectangle.height, 0);
+                    Assert.assertEquals(height, f.height.rectangles.staticRectangle.height * (f.large ? 1024 : 512), 0);
                     Assert.assertEquals(height > 128 ? 2 : 0, f.upperRuntime().relations.relationCount);
                     for (int i = 0; i < f.upperRuntime().relations.relationCount; i++)
                         Assert.assertEquals(SpatialFaceRelationSolver.ACTOR_BEHIND_FACE, f.upperRuntime().relations.relationType[i]);
@@ -121,7 +121,7 @@ public class SpatialWallContinuationTest {
                     f.process();
                     f.assertOrder(2);
                     Assert.assertEquals(0, f.spatial.unresolvedConstraintCount());
-                    Assert.assertEquals(129, f.height.rectangles.staticRectangle.height, 0);
+                    Assert.assertEquals(129, f.height.rectangles.staticRectangle.height * (f.large ? 1024 : 512), 0);
                     Assert.assertEquals(z + 544, f.transform.y, 0);
                 }
             Assert.assertEquals(1, f.cache().rebuildCount());
@@ -146,7 +146,7 @@ public class SpatialWallContinuationTest {
                         f.assertOrder(z < 127 || (z == 127 && authoredHeight == 250) ? 0 : 1);
                         Assert.assertEquals(0, f.spatial.unresolvedConstraintCount());
                         Assert.assertEquals(0, f.spatial.actorOrderingFallbackCount());
-                        Assert.assertEquals(authoredHeight, f.height.rectangles.staticRectangle.height, 0);
+                        Assert.assertEquals(authoredHeight, f.height.rectangles.staticRectangle.height * (f.large ? 1024 : 512), 0);
                         Assert.assertEquals(z + 624, f.transform.y, 0);
                     }
             }
@@ -405,10 +405,17 @@ public class SpatialWallContinuationTest {
         try (Fixture f = new Fixture(true)) {
             f.pose(true, 0, 129);
             for (int i = 0; i < 20000; i++) f.process();
-            long thread = Thread.currentThread().threadId(), before = bean.getThreadAllocatedBytes(thread);
-            for (int i = 0; i < 5000; i++) f.process();
-            long allocated = bean.getThreadAllocatedBytes(thread) - before;
-            Assert.assertEquals(0, allocated);
+            long thread = Thread.currentThread().threadId();
+            long minimum = Long.MAX_VALUE;
+            // Separate transient JVM/JIT bookkeeping from recurring frame allocations.
+            for (int window = 0; window < 5; window++) {
+                long before = bean.getThreadAllocatedBytes(thread);
+                for (int i = 0; i < 5000; i++) {
+                    f.process();
+                }
+                minimum = Math.min(minimum, bean.getThreadAllocatedBytes(thread) - before);
+            }
+            Assert.assertEquals(0, minimum);
             Assert.assertEquals(1, f.cache().rebuildCount());
         }
     }
@@ -458,7 +465,6 @@ public class SpatialWallContinuationTest {
             int layerEntity = world.create();
             LayerComponent layer = world.getMapper(LayerComponent.class).create(layerEntity);
             layer.layerIndex = 0;
-            layer.spatialEnabled = true;
             actor = world.create();
             transform = world.getMapper(TransformComponent.class).create(actor);
             world.getMapper(EntityIndexComponent.class).create(actor).layerIndex = 0;
@@ -516,16 +522,13 @@ public class SpatialWallContinuationTest {
             transform.x = 240;
             transform.y = (behind ? 624 : 544) + altitude;
             world.getMapper(games.pixscape.runtime.component.spatial.SpatialFootprintComponent.class).get(actor).altitude = altitude;
-            games.pixscape.runtime.spatial.SpatialRectangleTestData.setHeight(height, authoredHeight);
+            SpatialRectangleTestData.setImageZone(height, authoredHeight, large ? 1024 : 512, large ? 1024 : 512, large ? 512 : 256, 0);
             quad();
         }
 
         void quad() {
-            float halfWidth = large ? 200 : 45, spriteHeight = large ? 440 : 80;
-            ecs.x1[slot] = ecs.x4[slot] = transform.x - halfWidth;
-            ecs.x2[slot] = ecs.x3[slot] = transform.x + halfWidth;
-            ecs.y1[slot] = ecs.y2[slot] = transform.y - 8;
-            ecs.y3[slot] = ecs.y4[slot] = transform.y + spriteHeight;
+            float imageSize = large ? 1024 : 512;
+            SpatialRectangleTestData.imageQuad(ecs, slot, transform.x - imageSize / 2, transform.y, imageSize, imageSize);
         }
 
         void process() {

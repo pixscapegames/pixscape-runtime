@@ -53,7 +53,6 @@ public final class LightingGeometrySystem extends BaseSystem {
     private ComponentMapper<games.pixscape.runtime.component.spatial.SpatialFootprintComponent> footprints;
     private ComponentMapper<games.pixscape.runtime.component.TransformComponent> transforms;
     private final games.pixscape.runtime.spatial.SpatialActorGeometry.Footprint actorPose = new games.pixscape.runtime.spatial.SpatialActorGeometry.Footprint();
-    private final float[] rectangleAnchor = new float[3], rectangleUV = new float[2];
     @com.artemis.annotations.SkipWire
     private games.pixscape.runtime.service.AtlasRuntimeService atlasService;
     @com.artemis.annotations.SkipWire
@@ -154,9 +153,7 @@ public final class LightingGeometrySystem extends BaseSystem {
             if (e < 0 || dynamic.light[slot] != 0) continue;
             SurfaceLightingComponent a = surfaces.getSafe(e, null);
             games.pixscape.runtime.component.spatial.SpatialRepresentationComponent h = heights.getSafe(e, null);
-            if (h != null) {
-                if (h.rectangles == null)
-                    throw new LightingAdmissionException("Spatial actor " + e + " has no rectangles");
+            if (h != null && h.rectangles != null) {
                 h.rectangles.validate();
             }
             if ((a == null || a.description == null) && frame.entities.get(e) == null) {
@@ -176,8 +173,10 @@ public final class LightingGeometrySystem extends BaseSystem {
             }
             shadowExclusionIdentities.idForActor(e);
             LightingSurface prepared = frame.entities.get(e);
-            if (h != null && prepared != null && prepared.actorShadowRectangle == null)
+            int owner = composition == null ? (footprints.has(e) ? e : -1) : composition.spatialOwner(e);
+            if (owner >= 0 && prepared != null && prepared.actorShadowRectangle == null) {
                 prepared.actorShadowRectangle = new ActorShadowRectangleCaster();
+            }
         }
     }
 
@@ -378,39 +377,34 @@ public final class LightingGeometrySystem extends BaseSystem {
     private void publishActorShadowRectangle(int e, LightingSurface surface, AssetRefComponent ref) {
         surface.shadowVertices = null;
         surface.shadowVertexCount = 0;
-        games.pixscape.runtime.component.spatial.SpatialRepresentationComponent h = heights.getSafe(e, null);
-        if (h == null) return; // Non-spatial sprites keep their native surface, not a legacy actor profile.
-        games.pixscape.runtime.component.AnimationComponent animation = actorAnimations.getSafe(e, null);
-        games.pixscape.runtime.spatial.ActorSpatialRectangleData rectangle = h.rectangles == null ? null : h.rectangles.get(
-                ref == null ? 0 : ref.assetId, animation == null ? null : animation.currentClip);
-        if (rectangle == null)
-            throw new LightingAdmissionException("Spatial actor " + e + " has no rectangle for its active representation");
-        games.pixscape.runtime.component.spatial.SpatialFootprintComponent foot = footprints.getSafe(e, null);
-        games.pixscape.runtime.component.TransformComponent t = transforms.getSafe(e, null);
-        if (t == null)
-            throw new LightingAdmissionException("Spatial actor " + e + " has no transform for its footprint anchor");
-        GameObjectHierarchySystem hierarchy = world.getSystem(GameObjectHierarchySystem.class);
-        games.pixscape.runtime.hierarchy.WorldTransformState state = hierarchy == null ? null : hierarchy.worldTransforms();
-        if (!games.pixscape.runtime.service.SpatialActorPose.resolve(e, t, foot, state, actorPose)) {
-            throw new LightingAdmissionException("Spatial actor " + e + " has no valid authored footprint");
+        int owner = composition == null ? (footprints.has(e) ? e : -1) : composition.spatialOwner(e);
+        if (owner < 0) {
+            return;
         }
-        boolean resolved = state != null && state.isResolved(e);
-        float ownerX = resolved ? state.x[e] : t.x;
-        float ownerY = resolved ? state.y[e] : t.y;
-        games.pixscape.runtime.spatial.ActorSpatialRectanglePlacement.anchor(ownerX, ownerY,
-                0f, 0f, 0f, actorPose.bottom, rectangleAnchor);
-        if (surface.actorShadowRectangle == null) surface.actorShadowRectangle = new ActorShadowRectangleCaster();
-        surface.actorShadowRectangle.update(rectangle, rectangleAnchor[0], rectangleAnchor[1], rectangleAnchor[2],
-                actorPose.footX - ownerX, actorPose.footY - ownerY, corners);
+        games.pixscape.runtime.component.spatial.SpatialRepresentationComponent h = heights.getSafe(e, null);
+        games.pixscape.runtime.component.AnimationComponent animation = actorAnimations.getSafe(e, null);
+        games.pixscape.runtime.spatial.ActorSpatialRectangleData rectangle = h == null || h.rectangles == null
+                ? null : h.rectangles.get(ref == null ? 0 : ref.assetId,
+                        animation == null ? null : animation.currentClip);
+        games.pixscape.runtime.component.spatial.SpatialFootprintComponent foot = footprints.getSafe(owner, null);
+        games.pixscape.runtime.component.TransformComponent transform = transforms.getSafe(owner, null);
+        GameObjectHierarchySystem hierarchy = world.getSystem(GameObjectHierarchySystem.class);
+        games.pixscape.runtime.hierarchy.WorldTransformState poses = hierarchy == null ? null : hierarchy.worldTransforms();
+        if (!games.pixscape.runtime.service.SpatialActorPose.resolve(owner, transform, foot, poses, actorPose)) {
+            throw new LightingAdmissionException("Spatial owner " + owner + " has no valid authored footprint");
+        }
+        int slot = dynamic.renderSlotForEntity(e);
+        games.pixscape.runtime.spatial.ActorSpatialGeometry geometry = dynamic.prepareActorSpatialGeometry(slot, rectangle);
+        if (surface.actorShadowRectangle == null) {
+            surface.actorShadowRectangle = new ActorShadowRectangleCaster();
+        }
+        surface.actorShadowRectangle.update(geometry, actorPose.footX, actorPose.footY, actorPose.bottom,
+                rectangle == null ? 0f : rectangle.pivotX, rectangle == null ? 0f : rectangle.pivotY);
         surface.shadowVertices = surface.actorShadowRectangle.vertices;
         surface.shadowVertexCount = surface.actorShadowRectangle.vertexCount;
         if (surface.imageQuad) {
-            // Receiver stays on the footprint anchor; editing the caster must not move received lighting.
-            games.pixscape.runtime.spatial.ActorSpatialRectanglePlacement.anchor(actorPose.footX, actorPose.footY,
-                    0f, 0f, 0f, actorPose.bottom, rectangleAnchor);
-            float x = rectangleAnchor[0], y = rectangleAnchor[1], z = rectangleAnchor[2];
-            SilhouetteImageMapping.imageUV(corners, LightingCoordinates.screenX(x, y), LightingCoordinates.screenY(x, y, z), rectangleUV, 0);
-            SpriteSurfaceSupport.sheet(surface.vertices, corners, rectangleUV[0], rectangleUV[1], z, 1, -1);
+            SpriteSurfaceSupport.sheetAtAnchor(surface.vertices, corners, actorPose.footX, actorPose.footY,
+                    actorPose.bottom, 1f, -1f);
         }
     }
 

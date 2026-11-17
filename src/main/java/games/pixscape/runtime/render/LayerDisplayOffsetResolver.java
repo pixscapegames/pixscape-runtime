@@ -16,6 +16,12 @@ public interface LayerDisplayOffsetResolver {
     default void resolveEntity(com.artemis.World world, int entityId, int layerIndex, Vector2 out) {
         games.pixscape.runtime.system.GameObjectCompositionSystem composition =
                 world.getSystem(games.pixscape.runtime.system.GameObjectCompositionSystem.class);
+        if (composition != null && composition.usesPhysicsParallax(entityId)
+                || composition == null && entityId >= 0
+                && world.getMapper(games.pixscape.runtime.component.physics.PhysicsBodyComponent.class).has(entityId)) {
+            resolvePhysics(out);
+            return;
+        }
         if (composition != null && entityId >= 0 && entityId < composition.state().getEntityCapacity()) {
             int owner = composition.state().tiledLayerOwner[entityId];
             games.pixscape.runtime.component.LayerParallaxComponent parallax = owner >= 0

@@ -1,7 +1,7 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "$id": "https://pixscape.games/schemas/pixscape/components/6.schema.json",
-  "title": "Pixscape scene component payloads (scene schema 6)",
+  "$id": "https://pixscape.games/schemas/pixscape/components/7.schema.json",
+  "title": "Pixscape scene component payloads (scene schema 7)",
   "description": "Resolve each document's componentIdentifiers first; these definitions are selected by fully qualified type ID, never by a globally fixed alias.",
   "x-pixscape-components": {
     "games.pixscape.runtime.component.PixscapeIdentityComponent": "PixscapeIdentityComponent",
@@ -75,10 +75,6 @@
         "layerIndex": {
           "type": "integer",
           "default": 0
-        },
-        "spatialEnabled": {
-          "type": "boolean",
-          "default": false
         }
       },
       "not": {

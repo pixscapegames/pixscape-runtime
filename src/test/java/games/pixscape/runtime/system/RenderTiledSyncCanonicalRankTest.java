@@ -150,7 +150,6 @@ public class RenderTiledSyncCanonicalRankTest {
         identity.name = "canonical-rank-layer";
         LayerComponent layer = entity.edit().create(LayerComponent.class);
         layer.layerIndex = 3;
-        layer.spatialEnabled = spatial;
         Entity mapEntity = world.createEntity();
         mapEntity.edit().create(EntityIndexComponent.class).layerIndex = 3;
         PixscapeIdentityComponent mapIdentity = mapEntity.edit()

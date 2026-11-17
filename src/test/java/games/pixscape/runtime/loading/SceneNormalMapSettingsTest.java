@@ -10,7 +10,7 @@ import static org.junit.Assert.assertTrue;
 public class SceneNormalMapSettingsTest {
     @Test
     public void defaultsCopiesAndJsonPreserveOneSceneWideValue() {
-        String required = "{sceneSchemaVersion:3,nextEntityStableId:1,nextPhysicsShapeId:1}";
+        String required = "{sceneSchemaVersion:7,nextEntityStableId:1,nextPhysicsShapeId:1}";
         assertTrue(SceneMetaRuntime.fromJson(new JsonReader().parse(required), "default").useNormalMaps);
         SceneMetaRuntime first = new SceneMetaRuntime(), second = new SceneMetaRuntime();
         first.useNormalMaps = false;

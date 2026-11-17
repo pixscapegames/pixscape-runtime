@@ -119,7 +119,7 @@ final class SpatialCornerFixture implements AutoCloseable {
         draw.addTiledSlot(ref);
         if (tiled.cornerSplits.containsKey(ref)) draw.add(RenderSourceDomain.SOURCE_TILED_FRONT, ref);
         if (original == 1) draw.addEcsSlot(slot);
-        actors.collect(draw, ecs, new boolean[]{true}, world.getEntityManager(),
+        actors.collect(draw, ecs, world.getEntityManager(),
                 world.getMapper(EntityIndexComponent.class), world.getMapper(TransformComponent.class),
                 world.getMapper(SpatialRepresentationComponent.class), world.getMapper(SpatialFootprintComponent.class));
         snapshot.build(draw, ecs.getRenderCapacity(), actors);

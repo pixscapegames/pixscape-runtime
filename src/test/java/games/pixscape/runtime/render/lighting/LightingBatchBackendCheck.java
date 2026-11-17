@@ -84,6 +84,7 @@ public final class LightingBatchBackendCheck {
                     assertDeformedImageVertices(htmlBatch);
                     assertReceiverProvenance(nativeBatch);
                     assertReceiverProvenance(htmlBatch);
+                    assertClippedActorVertices(nativeBatch, htmlBatch);
                 } catch (Throwable error) {
                     failure[0] = error;
                 } finally {
@@ -96,6 +97,41 @@ public final class LightingBatchBackendCheck {
             }
         }, cfg);
         if (failure[0] != null) throw new AssertionError("Backend vertex equivalence failed", failure[0]);
+    }
+
+    private static void assertClippedActorVertices(LightingBatch nativeBatch, LightingBatch htmlBatch) throws Exception {
+        games.pixscape.runtime.spatial.ActorSpatialGeometry geometry = new games.pixscape.runtime.spatial.ActorSpatialGeometry();
+        games.pixscape.runtime.spatial.ActorSpatialRectangleData zone = new games.pixscape.runtime.spatial.ActorSpatialRectangleData();
+        zone.x = .1f;
+        zone.y = .2f;
+        zone.width = .7f;
+        zone.height = .5f;
+        Field data = LightingBatch.class.getDeclaredField("data");
+        data.setAccessible(true);
+        Field count = LightingBatch.class.getDeclaredField("vertices");
+        count.setAccessible(true);
+        ActorShadowRectangleCaster caster = new ActorShadowRectangleCaster();
+        LightingSurface surface = new LightingSurface(new float[48]);
+        surface.actor = true;
+        surface.twoSided = true;
+        for (int flip = 0; flip < 4; flip++) {
+            geometry.update(zone, 0, 0, -20, 100, 120, 140, 80, -10, (flip & 1) != 0, (flip & 2) != 0);
+            caster.update(geometry, 20, 30, 15, -7, 12);
+            caster.faceLight(-40, 90);
+            surface.shadowVertices = caster.lightVertices;
+            surface.shadowVertexCount = caster.vertexCount;
+            Assert.assertTrue("Cross-diagonal zone requires more than a quad", caster.vertexCount > 6);
+            for (LightingBatch batch : new LightingBatch[]{nativeBatch, htmlBatch}) {
+                batch.abort();
+                batch.begin(null, null, true);
+                batch.draw(surface, 17, .1f, .2f, .8f, .9f, Color.WHITE.toFloatBits(), 0, null, 0, 0, true, true);
+                Assert.assertEquals(caster.vertexCount, count.getInt(batch));
+            }
+            float[] a = (float[]) data.get(nativeBatch), b = (float[]) data.get(htmlBatch);
+            for (int i = 0; i < caster.vertexCount * SHADOW_STRIDE; i++) {
+                Assert.assertEquals("Clipped vertex field " + i, Float.floatToRawIntBits(a[i]), Float.floatToRawIntBits(b[i]));
+            }
+        }
     }
 
     private static void assertReceiverProvenance(LightingBatch batch) throws Exception {

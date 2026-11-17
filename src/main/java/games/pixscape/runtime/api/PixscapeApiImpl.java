@@ -259,7 +259,6 @@ public final class PixscapeApiImpl implements PixscapeAPI {
     private final ECSAPI ecs;
     private final EntitiesAPI entities;
     private final TiledAPI tiled;
-    private final SpatialAPI spatial;
     private final GameObjectsAPI gameObjects;
     private final AssetsApiImpl assets;
     private final SpritesApiImpl sprites;
@@ -275,7 +274,6 @@ public final class PixscapeApiImpl implements PixscapeAPI {
         this.entities = new EntitiesApiImpl(
                 engine, ecs, sceneLayers, entityReferences);
         this.tiled = new TiledApiImpl(engine, ecs, entities, entityReferences);
-        this.spatial = new SpatialApiImpl(engine, sceneLayers);
         this.assets = new AssetsApiImpl(engine);
         this.sprites = new SpritesApiImpl(engine, entities, assets);
         this.animations = new AnimationsApiImpl(engine, entities, assets, sprites);
@@ -298,11 +296,6 @@ public final class PixscapeApiImpl implements PixscapeAPI {
     @Override
     public TiledAPI tiled() {
         return tiled;
-    }
-
-    @Override
-    public SpatialAPI spatial() {
-        return spatial;
     }
 
     @Override
@@ -1219,6 +1212,62 @@ public final class PixscapeApiImpl implements PixscapeAPI {
             return t != null ? out.set(t.x, t.y) : out.set(0f, 0f);
         }
 
+        private final com.badlogic.gdx.math.Affine2 pointFrame = new com.badlogic.gdx.math.Affine2();
+
+        private void readPointFrame() {
+            World world = handle.world();
+            TransformComponent transform = t(false);
+            if (world == null || transform == null) {
+                throw new IllegalStateException("Point conversion requires a live entity with a transform.");
+            }
+            GameObjectHierarchySystem hierarchy = world.getSystem(GameObjectHierarchySystem.class);
+            games.pixscape.runtime.hierarchy.WorldTransformState poses = hierarchy == null
+                    ? null : hierarchy.worldTransforms();
+            int id = handle.entityId;
+            if (poses != null && poses.isResolved(id)) {
+                pointFrame.m00 = poses.m00[id];
+                pointFrame.m01 = poses.m01[id];
+                pointFrame.m02 = poses.m02[id];
+                pointFrame.m10 = poses.m10[id];
+                pointFrame.m11 = poses.m11[id];
+                pointFrame.m12 = poses.m12[id];
+            } else {
+                if (world.getMapper(GameObjectMemberComponent.class).has(id)
+                        || world.getMapper(PhysicsRuntimeBodyComponent.class).has(id)) {
+                    throw new IllegalStateException("Entity pose has not been resolved yet.");
+                }
+                games.pixscape.runtime.hierarchy.GameObjectTransformMath.toMemberFrame(transform,
+                        world.getMapper(GameObjectComponent.class).has(id), pointFrame);
+            }
+        }
+
+        @Override
+        public Vector2 localToWorld(float x, float y, Vector2 out) {
+            if (out == null) {
+                throw new IllegalArgumentException("out must not be null");
+            }
+            requireFinite("Local point", x, y);
+            readPointFrame();
+            return out.set(pointFrame.m00 * x + pointFrame.m01 * y + pointFrame.m02,
+                    pointFrame.m10 * x + pointFrame.m11 * y + pointFrame.m12);
+        }
+
+        @Override
+        public Vector2 worldToLocal(float x, float y, Vector2 out) {
+            if (out == null) {
+                throw new IllegalArgumentException("out must not be null");
+            }
+            requireFinite("World point", x, y);
+            readPointFrame();
+            float determinant = pointFrame.m00 * pointFrame.m11 - pointFrame.m01 * pointFrame.m10;
+            if (!Float.isFinite(determinant) || Math.abs(determinant) <= 0.000001f) {
+                throw new IllegalStateException("Entity frame is not invertible.");
+            }
+            float dx = x - pointFrame.m02, dy = y - pointFrame.m12;
+            return out.set((pointFrame.m11 * dx - pointFrame.m01 * dy) / determinant,
+                    (pointFrame.m00 * dy - pointFrame.m10 * dx) / determinant);
+        }
+
         @Override
         public float rotationRad() {
             TransformComponent t = t(false);
@@ -1435,37 +1484,11 @@ public final class PixscapeApiImpl implements PixscapeAPI {
         }
     }
 
-    static final class SpatialApiImpl implements SpatialAPI {
-        private final PixscapeEngine engine;
-        private final SceneLayerResolver sceneLayers;
-
-        SpatialApiImpl(PixscapeEngine engine, SceneLayerResolver sceneLayers) {
-            this.engine = engine;
-            this.sceneLayers = sceneLayers;
-        }
-
-        @Override
-        public boolean isLayerEnabled(int layerIndex) {
-            World world = engine.getWorld();
-            if (world == null) return false;
-            sceneLayers.bind(world);
-            return sceneLayers.isLayerSpatialEnabled(layerIndex);
-        }
-
-        @Override
-        public SpatialAPI setLayerEnabled(int layerIndex, boolean enabled) {
-            World world = engine.getWorld();
-            if (world == null) return this;
-            sceneLayers.bind(world);
-            sceneLayers.setLayerSpatialEnabled(layerIndex, enabled);
-            return this;
-        }
-    }
-
     static final class SpatialEntityFacadeImpl implements SpatialEntityFacade {
         private final PixscapeEngine engine;
         private final SceneLayerResolver sceneLayers;
         private final EntityHandle handle;
+        private EntityRef cachedOwner;
 
         SpatialEntityFacadeImpl(PixscapeEngine engine, SceneLayerResolver sceneLayers, EntityHandle handle) {
             this.engine = engine;
@@ -1474,28 +1497,57 @@ public final class PixscapeApiImpl implements PixscapeAPI {
         }
 
         @Override
-        public boolean enabled() {
-            return comp(false) != null && footprint(false) != null;
+        public boolean hasOwnFootprint() {
+            return footprint(false) != null;
         }
 
         @Override
-        public SpatialEntityFacade enable() {
-            if (handle.world() == null) {
-                return this;
-            }
-            footprint(true);
-            activeRectangle(comp(true), true);
-            return this;
-        }
-
-        @Override
-        public SpatialEntityFacade disable() {
+        public EntityRef resolvedOwner() {
             World world = handle.world();
-            if (world == null) return this;
-            world.getMapper(games.pixscape.runtime.component.spatial.SpatialFootprintComponent.class).remove(handle.entityId);
-            ComponentMapper<SpatialRepresentationComponent> mapper = world.getMapper(SpatialRepresentationComponent.class);
-            if (mapper.has(handle.entityId)) mapper.remove(handle.entityId);
+            if (world == null) {
+                return null;
+            }
+            GameObjectCompositionSystem composition = world.getSystem(GameObjectCompositionSystem.class);
+            int owner = composition != null ? composition.spatialOwner(handle.entityId)
+                    : hasOwnFootprint() ? handle.entityId : -1;
+            if (owner < 0) {
+                cachedOwner = null;
+                return null;
+            }
+            if (cachedOwner == null || cachedOwner.entityId() != owner || !cachedOwner.exists()) {
+                cachedOwner = engine.api().entities().ofEntityId(owner);
+            }
+            return cachedOwner;
+        }
+
+        @Override
+        public SpatialEntityFacade addFootprint() {
+            if (handle.world() != null && !hasOwnFootprint()) {
+                footprint(true);
+                footprintChanged();
+            }
             return this;
+        }
+
+        @Override
+        public SpatialEntityFacade removeFootprint() {
+            World world = handle.world();
+            if (world != null && hasOwnFootprint()) {
+                requireFootprintPublication(world);
+                world.getMapper(games.pixscape.runtime.component.spatial.SpatialFootprintComponent.class)
+                        .remove(handle.entityId);
+                publishFootprintOwnership(world);
+                footprintChanged();
+            }
+            return this;
+        }
+
+        private void footprintChanged() {
+            World world = handle.world();
+            DirtyTrackerSystem dirty = world.getSystem(DirtyTrackerSystem.class);
+            if (dirty != null) {
+                dirty.order(handle.entityId);
+            }
         }
 
         @Override
@@ -1505,73 +1557,59 @@ public final class PixscapeApiImpl implements PixscapeAPI {
         }
 
         @Override
-        public float height() {
-            SpatialRepresentationComponent c = comp(false);
-            games.pixscape.runtime.spatial.ActorSpatialRectangleData rectangle = activeRectangle(c, false);
-            return rectangle == null ? 0f : rectangle.height;
-        }
-
-        @Override
         public SpatialEntityFacade setAltitude(float altitude) {
             if (handle.world() == null) return this;
             requireFinite("Spatial altitude", altitude);
             footprint(true).altitude = altitude;
-            return this;
-        }
-
-        @Override
-        public SpatialEntityFacade setHeight(float height) {
-            if (handle.world() == null) return this;
-            requireFinite("Spatial height", height);
-            if (height <= 0f) throw new IllegalArgumentException("Spatial rectangle height must be positive");
-            SpatialRepresentationComponent c = comp(true);
-            if (c != null) activeRectangle(c, true).height = height;
-            return this;
-        }
-
-        @Override
-        public SpatialEntityFacade setVolume(float altitude, float height) {
-            if (handle.world() == null) return this;
-            requireFinite("Spatial volume", altitude, height);
-            if (height <= 0f) throw new IllegalArgumentException("Spatial rectangle height must be positive");
-            SpatialRepresentationComponent c = comp(true);
-            if (c != null) {
-                footprint(true).altitude = altitude;
-                activeRectangle(c, true).height = height;
-            }
+            footprintChanged();
             return this;
         }
 
         @Override
         public boolean participatesInRenderOrder() {
             World world = handle.world();
-            if (world == null) return false;
+            if (world == null) {
+                return false;
+            }
             SpatialRenderOrderSystem system = world.getSystem(SpatialRenderOrderSystem.class);
-            EntityIndexComponent index = world.getMapper(EntityIndexComponent.class)
-                    .getSafe(handle.entityId, null);
-            if (system == null || index == null) return false;
-            sceneLayers.bind(world);
-            return system.participatesInRenderOrder(
-                    handle.entityId,
-                    sceneLayers.isActorSpatialLayerEnabled(index.layerIndex));
+            return system != null && system.participatesInRenderOrder(handle.entityId);
+        }
+
+        private float imageSize(boolean width) {
+            World world = handle.world();
+            if (world == null) {
+                return 0f;
+            }
+            DimensionsComponent size = world.getMapper(DimensionsComponent.class).getSafe(handle.entityId, null);
+            float result = size == null ? 0f : width ? size.width : size.height;
+            if (!Float.isFinite(result) || result <= 0f) {
+                throw new IllegalStateException("Spatial rectangle requires positive image dimensions.");
+            }
+            return result;
+        }
+
+        @Override
+        public float rectangleHeight() {
+            games.pixscape.runtime.spatial.ActorSpatialRectangleData rectangle = activeRectangle(comp(false), false);
+            return (rectangle == null ? 1f : rectangle.height) * imageSize(false);
         }
 
         @Override
         public float rectangleWidth() {
             games.pixscape.runtime.spatial.ActorSpatialRectangleData rectangle = activeRectangle(comp(false), false);
-            return rectangle == null ? 0f : rectangle.width;
+            return (rectangle == null ? 1f : rectangle.width) * imageSize(true);
         }
 
         @Override
         public float rectangleX() {
             games.pixscape.runtime.spatial.ActorSpatialRectangleData rectangle = activeRectangle(comp(false), false);
-            return rectangle == null ? 0f : rectangle.x;
+            return rectangle == null ? 0f : rectangle.x * imageSize(true);
         }
 
         @Override
         public float rectangleY() {
             games.pixscape.runtime.spatial.ActorSpatialRectangleData rectangle = activeRectangle(comp(false), false);
-            return rectangle == null ? 0f : rectangle.y;
+            return rectangle == null ? 0f : rectangle.y * imageSize(false);
         }
 
         @Override
@@ -1586,23 +1624,30 @@ public final class PixscapeApiImpl implements PixscapeAPI {
             return rectangle == null ? 0f : rectangle.pivotY;
         }
 
-        private games.pixscape.runtime.spatial.ActorSpatialRectangleData requireActiveRectangle() {
-            games.pixscape.runtime.spatial.ActorSpatialRectangleData rectangle = activeRectangle(comp(false), false);
-            if (rectangle == null)
-                throw new IllegalStateException("Entity " + handle.entityId + " has no prepared active Spatial rectangle.");
-            return rectangle;
-        }
-
         @Override
         public SpatialEntityFacade setRectangle(float x, float y, float width, float height) {
-            if (handle.world() == null) return this;
+            if (handle.world() == null) {
+                return this;
+            }
             requireFinite("Spatial rectangle placement", x, y);
             requireFinite("Spatial rectangle size", width, height);
-            if (width <= 0f || height <= 0f)
-                throw new IllegalArgumentException("Spatial rectangle dimensions must be positive.");
-            games.pixscape.runtime.spatial.ActorSpatialRectangleData rectangle = requireActiveRectangle();
-            if (rectangle.x == x && rectangle.y == y && rectangle.width == width && rectangle.height == height)
+            if (width <= 0f || height <= 0f) {
+                throw new IllegalArgumentException("Spatial rectangle dimensions must be strictly positive.");
+            }
+            float imageWidth = imageSize(true), imageHeight = imageSize(false);
+            x /= imageWidth;
+            y /= imageHeight;
+            width /= imageWidth;
+            height /= imageHeight;
+            requireFinite("Normalized Spatial rectangle position", x, y);
+            requireFinite("Normalized Spatial rectangle size", width, height);
+            if (width <= 0f || height <= 0f) {
+                throw new IllegalArgumentException("Normalized Spatial rectangle dimensions must remain strictly positive.");
+            }
+            games.pixscape.runtime.spatial.ActorSpatialRectangleData rectangle = activeRectangle(comp(true), true);
+            if (rectangle.x == x && rectangle.y == y && rectangle.width == width && rectangle.height == height) {
                 return this;
+            }
             rectangle.x = x;
             rectangle.y = y;
             rectangle.width = width;
@@ -1614,7 +1659,7 @@ public final class PixscapeApiImpl implements PixscapeAPI {
         public SpatialEntityFacade setShadowPivot(float x, float y) {
             if (handle.world() == null) return this;
             requireFinite("Spatial shadow pivot", x, y);
-            games.pixscape.runtime.spatial.ActorSpatialRectangleData rectangle = requireActiveRectangle();
+            games.pixscape.runtime.spatial.ActorSpatialRectangleData rectangle = activeRectangle(comp(true), true);
             if (rectangle.pivotX == x && rectangle.pivotY == y) return this;
             rectangle.pivotX = x;
             rectangle.pivotY = y;
@@ -1645,11 +1690,30 @@ public final class PixscapeApiImpl implements PixscapeAPI {
             }
             ComponentMapper<games.pixscape.runtime.component.spatial.SpatialFootprintComponent> mapper =
                     world.getMapper(games.pixscape.runtime.component.spatial.SpatialFootprintComponent.class);
-            return create ? mapper.create(handle.entityId) : mapper.getSafe(handle.entityId, null);
+            if (create && !mapper.has(handle.entityId)) {
+                requireFootprintPublication(world);
+                games.pixscape.runtime.component.spatial.SpatialFootprintComponent result = mapper.create(handle.entityId);
+                publishFootprintOwnership(world);
+                return result;
+            }
+            return mapper.getSafe(handle.entityId, null);
+        }
+
+        private void requireFootprintPublication(World world) {
+            GameObjectHierarchySystem hierarchy = world.getSystem(GameObjectHierarchySystem.class);
+            if (hierarchy != null) {
+                hierarchy.topologyForRemoval();
+            }
+        }
+
+        private void publishFootprintOwnership(World world) {
+            GameObjectCompositionSystem composition = world.getSystem(GameObjectCompositionSystem.class);
+            if (composition != null) {
+                composition.refreshSpatialOwners(handle.entityId);
+            }
         }
 
         @Override
-
         public float footprintRadius() {
 
             games.pixscape.runtime.component.spatial.SpatialFootprintComponent value = footprint(false);
@@ -1671,17 +1735,16 @@ public final class PixscapeApiImpl implements PixscapeAPI {
             if (handle.world() == null) {
                 return this;
             }
-            games.pixscape.runtime.component.spatial.SpatialFootprintComponent candidate = footprint(false) == null
-                    ? new games.pixscape.runtime.component.spatial.SpatialFootprintComponent() : footprint(false).copy();
-            candidate.localOffsetXPx = offsetX;
-            candidate.localOffsetYPx = offsetY;
-            candidate.radiusPx = radius;
-            candidate.validate();
-            footprint(true).set(candidate);
-            DirtyTrackerSystem dirty = handle.world().getSystem(DirtyTrackerSystem.class);
-            if (dirty != null) {
-                dirty.order(handle.entityId);
+            requireFinite("Spatial footprint offset", offsetX, offsetY);
+            requireFinite("Spatial footprint radius", radius);
+            if (radius <= 0f) {
+                throw new IllegalArgumentException("Spatial footprint radius must be positive.");
             }
+            games.pixscape.runtime.component.spatial.SpatialFootprintComponent value = footprint(true);
+            value.localOffsetXPx = offsetX;
+            value.localOffsetYPx = offsetY;
+            value.radiusPx = radius;
+            footprintChanged();
             return this;
         }
 
@@ -4480,6 +4543,19 @@ public final class PixscapeApiImpl implements PixscapeAPI {
 
         GameObjectsApiImpl(PixscapeEngine engine) {
             this.engine = engine;
+        }
+
+        @Override
+        public void reparent(EntityRef child, EntityRef parent) {
+            World world = engine.getWorld();
+            if (!(child instanceof EntityRefImpl) || !child.exists()
+                    || ((EntityRefImpl) child).handle.world() != world
+                    || parent != null && (!(parent instanceof EntityRefImpl) || !parent.exists()
+                    || ((EntityRefImpl) parent).handle.world() != world)) {
+                throw new IllegalArgumentException("Reparenting requires references from the active World.");
+            }
+            games.pixscape.runtime.hierarchy.GameObjectHierarchyMutation.reparent(world,
+                    child.entityId(), parent == null ? -1 : parent.entityId());
         }
 
         @Override

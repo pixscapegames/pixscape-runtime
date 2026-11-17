@@ -26,7 +26,6 @@ final class SceneLayerResolver {
     private EntitySubscription.SubscriptionListener listener;
     private final IntMap<IntArray> byLayerIndex = new IntMap<IntArray>();
     private final IntSet layerEntityIds = new IntSet();
-    private int lastSpatialLookupVisitCount;
     private EntitySubscription members;
     private EntitySubscription namedLayers;
     private EntitySubscription tiledLayers;
@@ -149,48 +148,9 @@ final class SceneLayerResolver {
         return entityId >= 0 && layerEntityIds.contains(entityId);
     }
 
-    boolean isLayerSpatialEnabled(int layerIndex) {
-        IntArray matches = byLayerIndex.get(layerIndex);
-        lastSpatialLookupVisitCount = 0;
-        if (matches == null) return false;
-        for (int i = 0, n = matches.size; i < n; i++) {
-            lastSpatialLookupVisitCount++;
-            LayerComponent layer = layers.getSafe(matches.get(i), null);
-            if (layer != null && layer.spatialEnabled) return true;
-        }
-        return false;
-    }
-
-    boolean isActorSpatialLayerEnabled(int layerIndex) {
-        IntArray matches = byLayerIndex.get(layerIndex);
-        lastSpatialLookupVisitCount = 0;
-        if (matches == null) return false;
-        for (int i = 0, n = matches.size; i < n; i++) {
-            lastSpatialLookupVisitCount++;
-            LayerComponent layer = layers.getSafe(matches.get(i), null);
-            if (layer != null && layer.spatialEnabled) {
-                return true;
-            }
-        }
-        return false;
-    }
-
-    void setLayerSpatialEnabled(int layerIndex, boolean enabled) {
-        IntArray matches = byLayerIndex.get(layerIndex);
-        if (matches == null) return;
-        for (int i = 0, n = matches.size; i < n; i++) {
-            LayerComponent layer = layers.getSafe(matches.get(i), null);
-            if (layer != null) layer.spatialEnabled = enabled;
-        }
-    }
-
     int matchingLayerCount(int layerIndex) {
         IntArray matches = byLayerIndex.get(layerIndex);
         return matches != null ? matches.size : 0;
-    }
-
-    int lastSpatialLookupVisitCount() {
-        return lastSpatialLookupVisitCount;
     }
 
     /**

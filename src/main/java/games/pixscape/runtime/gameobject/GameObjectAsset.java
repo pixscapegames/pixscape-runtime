@@ -17,7 +17,7 @@ import java.util.Map;
  */
 public final class GameObjectAsset {
     public static final String EXTENSION = ".gameobject";
-    public static final int SCHEMA_VERSION = 5;
+    public static final int SCHEMA_VERSION = 6;
 
     public int schemaVersion = SCHEMA_VERSION;
     public int rootSourceEntityId = -1;
@@ -53,7 +53,7 @@ public final class GameObjectAsset {
         public games.pixscape.runtime.component.SurfaceLightingComponent surfaceLighting;
         public ConeLightData coneLight;
         /**
-         * Authored Spatial vertical volume; derived Spatial footprint cache is intentionally absent.
+         * Optional normalized image-zone and shadow-pivot settings, independent of footprint ownership.
          */
         public SpatialRepresentationData spatialRepresentation;
         public games.pixscape.runtime.component.spatial.SpatialFootprintComponent spatialFootprint;
