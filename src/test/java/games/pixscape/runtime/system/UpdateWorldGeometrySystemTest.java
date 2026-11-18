@@ -10,6 +10,43 @@ import org.junit.Test;
 public class UpdateWorldGeometrySystemTest {
 
     @Test
+    public void authoredContourBoundsRetainNegativeCoordinatesOriginsAndOpenPolylineData() {
+        for (boolean open : new boolean[]{false, true}) {
+            DirtyTrackerSystem dirty = new DirtyTrackerSystem(16);
+            World world = new World(new WorldConfigurationBuilder().with(dirty, new UpdateWorldGeometrySystem()).build());
+            try {
+                int e = world.create();
+                TransformComponent t = world.getMapper(TransformComponent.class).create(e);
+                t.x = 50; t.y = 70; t.originX = 7; t.originY = -3;
+                t.scaleX = 2; t.scaleY = 3; t.refreshCaches();
+                DimensionsComponent d = world.getMapper(DimensionsComponent.class).create(e);
+                d.width = 40; d.height = 30;
+                world.getMapper(OrientedBoundsComponent.class).create(e);
+                AABBComponent a = world.getMapper(AABBComponent.class).create(e);
+                float[] points = {-10,5,30,-25,10,0};
+                if (open) {
+                    world.getMapper(PolylineComponent.class).create(e).setVertices(points);
+                } else {
+                    world.getMapper(PolygonComponent.class).create(e).setVertices(points);
+                }
+                world.process(); dirty.geometry(e, GeometryDirty.ALL); world.process();
+                Assert.assertEquals(16, a.minX, .001f);
+                Assert.assertEquals(94, a.maxY, .001f);
+                Assert.assertEquals(96, a.maxX, .001f);
+                Assert.assertEquals(4, a.minY, .001f);
+                Assert.assertArrayEquals(points, open ? world.getMapper(PolylineComponent.class).get(e).vertices
+                        : world.getMapper(PolygonComponent.class).get(e).vertices, 0);
+                t.x += 10;
+                dirty.geometry(e, GeometryDirty.POSITION); world.process();
+                Assert.assertEquals(26, a.minX, .001f);
+                Assert.assertEquals(40, d.width, 0);
+            } finally {
+                world.dispose();
+            }
+        }
+    }
+
+    @Test
     public void quadDirtyRecomputesDeformedAabbWithoutChangingObb() {
         DirtyTrackerSystem dirty = new DirtyTrackerSystem(16);
         UpdateWorldGeometrySystem geometry = new UpdateWorldGeometrySystem();

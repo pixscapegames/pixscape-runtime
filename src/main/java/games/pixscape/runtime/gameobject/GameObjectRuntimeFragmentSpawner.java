@@ -471,6 +471,12 @@ public final class GameObjectRuntimeFragmentSpawner {
             dimensions.width = data.dimensions.width;
             dimensions.height = data.dimensions.height;
         }
+        if (data.polygonVertices != null) {
+            world.getMapper(PolygonComponent.class).create(entityId).setVertices(data.polygonVertices);
+        }
+        if (data.polylineVertices != null) {
+            world.getMapper(PolylineComponent.class).create(entityId).setVertices(data.polylineVertices);
+        }
         if (data.quadDeform != null) {
             QuadDeformComponent quad = world.getMapper(QuadDeformComponent.class).create(entityId);
             quad.blX = data.quadDeform.blX;

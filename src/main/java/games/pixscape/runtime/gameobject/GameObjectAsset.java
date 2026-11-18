@@ -42,6 +42,9 @@ public final class GameObjectAsset {
         public VisibilityData visibility;
         public BoundsFlagsData boundsFlags;
         public DimensionsData dimensions;
+        /** Ordered local XY pairs; null means the corresponding authored component is absent. */
+        public float[] polygonVertices;
+        public float[] polylineVertices;
         public QuadDeformData quadDeform;
         public RenderMaterialData renderMaterial;
         public AssetRefData assetRef;

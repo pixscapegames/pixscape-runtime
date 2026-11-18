@@ -23,6 +23,43 @@ import org.junit.Test;
 
 public class GameObjectHierarchySpawnTest {
     @Test
+    public void authoredContoursSurviveSerializedFragmentAndIndependentRuntimeSpawns() {
+        GameObjectAsset asset = hierarchy();
+        float[] closed = {0, 0, 20, 20, 0, 20, 20, 0};
+        float[] open = {-10, 5, 20, -7, 40, 12};
+        asset.entities.get(1).polygonVertices = closed.clone();
+        asset.entities.get(3).polylineVertices = open.clone();
+        GameObjectAssetLoader loader = new GameObjectAssetLoader();
+        GameObjectAsset loaded = loader.fromJson(loader.toJson(asset));
+        GameObjectRuntimeFragment fragment = GameObjectRuntimeFragment.fromAsset(loaded, "contours.gameobject");
+        World world = new World(new WorldConfigurationBuilder().with(new DirtyTrackerSystem(64)).build());
+        IdentityRegistry identities = new IdentityRegistry();
+        try {
+            GameObjectRuntimeFragmentSpawner spawner = new GameObjectRuntimeFragmentSpawner(
+                    identities, new SceneMetaRuntime(), new AtlasRuntimeService());
+            SpawnResult first = spawner.spawn(world, fragment, 10, 20);
+            SpawnResult second = spawner.spawn(world, fragment, 30, 40);
+            world.process();
+            PolygonComponent polygon = world.getMapper(PolygonComponent.class).get(first.createdEntityIds().get(1));
+            PolylineComponent line = world.getMapper(PolylineComponent.class).get(first.createdEntityIds().get(3));
+            Assert.assertArrayEquals(closed, polygon.vertices, 0f);
+            Assert.assertArrayEquals(open, line.vertices, 0f);
+            Assert.assertFalse(world.getMapper(PolygonComponent.class).has(first.createdEntityIds().get(3)));
+            polygon.vertices[0] = 999;
+            line.vertices[0] = 999;
+            Assert.assertArrayEquals(closed, world.getMapper(PolygonComponent.class)
+                    .get(second.createdEntityIds().get(1)).vertices, 0f);
+            Assert.assertArrayEquals(open, world.getMapper(PolylineComponent.class)
+                    .get(second.createdEntityIds().get(3)).vertices, 0f);
+            Assert.assertArrayEquals(closed, loaded.entities.get(1).polygonVertices, 0f);
+            Assert.assertArrayEquals(open, loaded.entities.get(3).polylineVertices, 0f);
+        } finally {
+            identities.bind(null, null);
+            world.dispose();
+        }
+    }
+
+    @Test
     public void unpublishedOldSpatialFragmentsAndAssetsAreRejectedWithoutConversion() {
         GameObjectRuntimeFragment fragment = new GameObjectRuntimeFragment();
         fragment.schemaVersion = 4;

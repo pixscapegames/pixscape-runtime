@@ -32,6 +32,8 @@ public final class UpdateWorldGeometrySystem extends BaseSystem implements Profi
     private ComponentMapper<OrientedBoundsComponent> mB;
     private ComponentMapper<AABBComponent> mA;
     private ComponentMapper<QuadDeformComponent> mQuad;
+    private ComponentMapper<PolygonComponent> mPolygon;
+    private ComponentMapper<PolylineComponent> mPolyline;
 
     private final float[] tmpCorners = new float[8];
     private SystemProfiler profiler = SystemProfilers.DISABLED;
@@ -93,16 +95,34 @@ public final class UpdateWorldGeometrySystem extends BaseSystem implements Profi
             float worldScaleX = resolved ? worldState.scaleX[e] : t.scaleX;
             float worldScaleY = resolved ? worldState.scaleY[e] : t.scaleY;
 
+            float localMinX = 0f, localMinY = 0f, width = d.width, height = d.height;
+            PolygonComponent polygon = mPolygon.getSafe(e, null);
+            PolylineComponent polyline = mPolyline.getSafe(e, null);
+            float[] vertices = polygon != null ? polygon.vertices : polyline != null ? polyline.vertices : null;
+            if (vertices != null && vertices.length >= 2 && (vertices.length & 1) == 0) {
+                localMinX = vertices[0];
+                localMinY = vertices[1];
+                float maxX = localMinX, maxY = localMinY;
+                for (int v = 2; v < vertices.length; v += 2) {
+                    localMinX = Math.min(localMinX, vertices[v]);
+                    localMinY = Math.min(localMinY, vertices[v + 1]);
+                    maxX = Math.max(maxX, vertices[v]);
+                    maxY = Math.max(maxY, vertices[v + 1]);
+                }
+                width = maxX - localMinX;
+                height = maxY - localMinY;
+            }
+
             // 1) ROTATION / SCALE / SIZE => axes + half-extents (+ caches)
             if ((sub & GeometryDirty.AXES_MASK) != 0) {
-                OrientedBoundsHelper.setAxesAndExtents(b, d.width, d.height,
+                OrientedBoundsHelper.setAxesAndExtents(b, width, height,
                         worldRotation, worldScaleX, worldScaleY);
             }
 
             // 2) POSITION/ORIGIN/(ROTATION/SCALE)/SIZE => center + AABB
             if ((sub & GeometryDirty.AABB_MASK) != 0) {
 
-                OrientedBoundsHelper.setCenter(b, d.width, d.height, t.originX, t.originY,
+                OrientedBoundsHelper.setCenter(b, width, height, t.originX - localMinX, t.originY - localMinY,
                         worldX, worldY, worldScaleX, worldScaleY);
 
                 QuadGeometryHelper.toWorldCorners(

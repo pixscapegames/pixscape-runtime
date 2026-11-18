@@ -31,6 +31,8 @@
 * Physics body synchronization now processes ECS membership changes and explicitly dirty bodies instead of scanning every authored and native body on every frame. Native body removal uses an ownership index instead of searching the Box2D world. Full reconciliation remains at initialization and physics reactivation.
 
 ### Fixed
+* Derived polygon/polyline bounds now include authored local minima, preserving negative and offset vertices during Studio editing without normalizing contours or changing stored geometry.
+* Game Object definitions and runtime instances now retain authored polygon and open-polyline vertices, with independent arrays for each instance and no contour normalization or physics conversion.
 * Physics bootstrap stabilization no longer rewrites authored distance-joint lengths while restoring design poses, keeping ECS configuration and the native joint consistent at scene readiness.
 * Repeated deletion and restoration of the same Game Object identities on recycled ECS IDs now rebuilds published child order, keeping descendants visible after undo/redo.
 * Spatial rectangle API setters reject zero, negative, non-finite and normalization-underflow dimensions before changing or creating settings. Valid zones outside the image may still produce empty derived geometry.
