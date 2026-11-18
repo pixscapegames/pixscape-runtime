@@ -1,5 +1,7 @@
 package games.pixscape.runtime.hierarchy;
 
+import games.pixscape.runtime.tiled.TiledEntityRole;
+
 import com.artemis.World;
 import com.artemis.utils.IntBag;
 import com.badlogic.gdx.physics.box2d.Body;
@@ -257,6 +259,7 @@ public final class GameObjectPlacement {
                 GameObjectTransformMath.worldToLocal(parentWorld, node.afterWorld,
                         world.getMapper(GameObjectComponent.class).has(entity), node.afterLocal);
             }
+            TiledEntityRole.requireTransform(world, entity, node.afterLocal);
             node.physical = world.getMapper(PhysicsBodyComponent.class).has(entity);
             if (node.physical) {
                 Body body = requireBody(entity);

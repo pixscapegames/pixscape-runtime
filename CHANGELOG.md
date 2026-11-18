@@ -8,6 +8,7 @@
 * Renamed tile-layer APIs: `TiledMapRef` becomes `TiledLayerRef`, `map()` becomes `layer()`, `TiledMapFacade` becomes `TiledLayerFacade`, and `TiledMapLayerData` becomes `TiledLayerData`.
 
 ### Added
+* Tiled map/layer roles now enforce structural ownership, translation-only map/tile transforms and exclusion from actor footprints and Game Object assets. Object layers retain ordinary object composition; tile-layer managed collisions and volumes remain supported. Invalid scene state is diagnosed without migration or repair.
 * Added independent footprint radius/offset APIs and optional image-local occlusion zones; shadow pivot offsets retain their footprint-relative role.
 * Added `gameObjects().reparent(child, parent)` to change or remove a parent while preserving resolved world poses and native Body/joint connections. Compatible visual parents gain Game Object capability; invalid operations are rejected before mutation.
 * Added a session-only composition visibility filter for editor integration, without changing authored visibility or physics.

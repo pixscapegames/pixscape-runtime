@@ -16,6 +16,18 @@ public class GameObjectAssetLoaderTest {
     private final GameObjectAssetLoader loader = new GameObjectAssetLoader();
 
     @Test
+    public void tiledStructuralMetadataCannotBeLoadedAsAGameObjectAsset() {
+        for (String kind : new String[]{"TILED_MAP", "TILED_LAYER"}) {
+            String json = "{schemaVersion:6,rootSourceEntityId:1,entities:["
+                    + "{sourceEntityId:1,transform:{scaleX:1,scaleY:1},gameObject:{},meta:{kind:"
+                    + kind + "}}]}";
+            IllegalArgumentException failure = Assert.assertThrows(IllegalArgumentException.class,
+                    () -> loader.fromJson(json));
+            Assert.assertTrue(failure.getMessage().contains("Tiled maps and layers"));
+        }
+    }
+
+    @Test
     public void serializedZoneRejectsZeroConfiguredDimensionsButAllowsPositiveOutsideImage() {
         String prefix = "{schemaVersion:6,rootSourceEntityId:1,entities:["
                 + "{sourceEntityId:1,transform:{scaleX:1,scaleY:1},gameObject:{},"

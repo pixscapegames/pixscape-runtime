@@ -1199,7 +1199,8 @@ public class PixscapeEnginePhysicsLifecycleTest {
                     TransformComponent.class).create(owner);
             transform.x = 24f;
             transform.y = -12f;
-            transform.rotationRad = 0.25f;
+            // Tiled grids support translation only; their managed collision owner follows that pose.
+            transform.rotationRad = 0f;
 
             TiledLayerComponent tiled = source.getMapper(
                     TiledLayerComponent.class).create(owner);

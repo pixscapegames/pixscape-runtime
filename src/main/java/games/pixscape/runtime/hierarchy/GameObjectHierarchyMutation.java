@@ -1,5 +1,7 @@
 package games.pixscape.runtime.hierarchy;
 
+import games.pixscape.runtime.tiled.TiledEntityRole;
+
 import com.artemis.World;
 import games.pixscape.runtime.component.*;
 import games.pixscape.runtime.component.physics.PhysicsBodyComponent;
@@ -16,6 +18,10 @@ public final class GameObjectHierarchyMutation {
     }
 
     public static void reparent(World world, int child, int parent) {
+        TiledEntityRole.requireGenericMember(world, child);
+        if (parent >= 0) {
+            TiledEntityRole.requireObjectParent(world, parent);
+        }
         GameObjectHierarchySystem hierarchy = world.getSystem(GameObjectHierarchySystem.class);
         if (hierarchy == null) {
             throw new IllegalStateException("Composition mutation requires a published hierarchy.");
@@ -117,7 +123,9 @@ public final class GameObjectHierarchyMutation {
                 || world.getMapper(PixscapeIdentityComponent.class).get(entity).stableId <= 0
                 || world.getMapper(ParticleEmitterComponent.class).has(entity)
                 || world.getMapper(TiledMapComponent.class).has(entity)
-                || world.getMapper(TiledMapLayerComponent.class).has(entity)
+                || (world.getMapper(TiledMapLayerComponent.class).has(entity)
+                    && TiledEntityRole.of(world, entity)
+                    != TiledEntityRole.OBJECT_LAYER)
                 || world.getMapper(TiledLayerComponent.class).has(entity)
                 || world.getMapper(SpatialBlocksComponent.class).has(entity)
                 || world.getMapper(SpatialShapesComponent.class).has(entity)

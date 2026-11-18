@@ -54,7 +54,7 @@ After exporting a TMX import from Studio, data-only objects can be queried by
 their exact, case-sensitive layer name, without tags or Game Objects:
 
 ```java
-for (EntityRef point : api.entities().findAllByLayerName("spawn-points")) {
+for (EntityRef point : api.entities().findAllByTiledLayerName("spawn-points")) {
     int role = point.properties().getInt("role", -1);
     float x = point.transform().x();
     float y = point.transform().y();
@@ -62,7 +62,15 @@ for (EntityRef point : api.entities().findAllByLayerName("spawn-points")) {
 }
 ```
 
-The array is an unordered snapshot of direct `EntityIndexComponent` members
+Tiled object-layer lookup returns its direct objects; tile/image-layer lookup
+returns their existing content entity. Duplicate names combine contents. Maps
+and their layers retain structural ownership and cannot be Game Object assets.
+Map/tile transforms support translation only; object/image layers keep their
+existing specialized transforms. Structural roles reject actor footprints while
+managed tile collisions remain available through `TiledLayerRef.layer()`.
+
+For ordinary scene layers, `findAllByLayerName(...)` remains separate.
+Its array is an unordered snapshot of direct `EntityIndexComponent` members
 in the current World. Homonymous layers are combined without duplicates;
 layer entities and Game Object members are excluded, and no hierarchy is traversed. Null, absent and
 empty layers yield an empty array. References do not follow recycled IDs.

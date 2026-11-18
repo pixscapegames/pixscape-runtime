@@ -1,5 +1,7 @@
 package games.pixscape.runtime.api;
 
+import games.pixscape.runtime.tiled.TiledEntityRole;
+
 import com.artemis.*;
 import com.artemis.utils.IntBag;
 import com.badlogic.gdx.files.FileHandle;
@@ -1350,6 +1352,9 @@ public final class PixscapeApiImpl implements PixscapeAPI {
         public TransformFacade setRotationRad(float radians) {
             if (handle.world() == null) return this;
             requireFinite("Transform rotation", radians);
+            TransformComponent current = t(false);
+            TiledEntityRole.requireTransform(handle.world(), handle.entityId,
+                    radians, scaleX(), scaleY(), current == null ? 0f : current.originX, current == null ? 0f : current.originY);
             requirePhysicsMutationAllowed(handle);
             TransformComponent t = t(true);
             if (t != null && t.rotationRad != radians) {
@@ -1363,6 +1368,10 @@ public final class PixscapeApiImpl implements PixscapeAPI {
         public TransformFacade rotateByRad(float radians) {
             if (handle.world() == null) return this;
             requireFinite("Transform rotation delta", radians);
+            TransformComponent current = t(false);
+            TiledEntityRole.requireTransform(handle.world(), handle.entityId,
+                    rotationRad() + radians, scaleX(), scaleY(),
+                    current == null ? 0f : current.originX, current == null ? 0f : current.originY);
             requirePhysicsMutationAllowed(handle);
             if (radians != 0f) {
                 TransformComponent t = t(true);
@@ -1385,6 +1394,9 @@ public final class PixscapeApiImpl implements PixscapeAPI {
         public TransformFacade setScale(float sx, float sy) {
             if (handle.world() == null) return this;
             requireFinite("Transform scale", sx, sy);
+            TransformComponent current = t(false);
+            TiledEntityRole.requireTransform(handle.world(), handle.entityId,
+                    rotationRad(), sx, sy, current == null ? 0f : current.originX, current == null ? 0f : current.originY);
             requireScaleMutationAllowed(sx, sy);
             TransformComponent t = t(true);
             if (t != null && (t.scaleX != sx || t.scaleY != sy)) {
@@ -1409,6 +1421,8 @@ public final class PixscapeApiImpl implements PixscapeAPI {
         public TransformFacade setOrigin(float ox, float oy) {
             if (handle.world() == null) return this;
             requireFinite("Transform origin", ox, oy);
+            TiledEntityRole.requireTransform(handle.world(), handle.entityId,
+                    rotationRad(), scaleX(), scaleY(), ox, oy);
             requirePhysicsMutationAllowed(handle);
             TransformComponent t = t(true);
             if (t != null && (t.originX != ox || t.originY != oy)) {
@@ -1687,6 +1701,9 @@ public final class PixscapeApiImpl implements PixscapeAPI {
             World world = handle.world();
             if (world == null) {
                 return null;
+            }
+            if (create) {
+                TiledEntityRole.requireActorCapability(world, handle.entityId, "Footprint");
             }
             ComponentMapper<games.pixscape.runtime.component.spatial.SpatialFootprintComponent> mapper =
                     world.getMapper(games.pixscape.runtime.component.spatial.SpatialFootprintComponent.class);

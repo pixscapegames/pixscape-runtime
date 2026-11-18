@@ -136,6 +136,9 @@ public final class GameObjectAssetLoader {
 
     private static void validateAuthoredEntity(
             GameObjectAsset.GameObjectEntityData entity, FileHandle file) {
+        if (entity.meta != null && ("TILED_MAP".equals(entity.meta.kind) || "TILED_LAYER".equals(entity.meta.kind))) {
+            throw failure(file, "Tiled maps and layers cannot be stored in Game Object assets");
+        }
         if (entity.transform == null) {
             throw failure(file, "sourceEntityId " + entity.sourceEntityId
                     + " requires an authored Transform");

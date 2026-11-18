@@ -1,5 +1,7 @@
 package games.pixscape.runtime.hierarchy;
 
+import games.pixscape.runtime.tiled.TiledEntityRole;
+
 import com.artemis.ComponentMapper;
 import com.artemis.World;
 import com.artemis.utils.IntBag;
@@ -11,6 +13,7 @@ import games.pixscape.runtime.component.spatial.SpatialBlocksComponent;
 import games.pixscape.runtime.component.spatial.SpatialShapesComponent;
 import games.pixscape.runtime.render.SortKey64;
 import games.pixscape.runtime.service.IdentityRegistry;
+import games.pixscape.runtime.component.spatial.SpatialFootprintComponent;
 
 /**
  * Cold-boundary validator for authored Game Object hierarchy relations.
@@ -82,6 +85,33 @@ public final class GameObjectHierarchyValidator {
         for (int i = 0, n = entities.size(); i < n; i++) {
             int entityId = data[i];
             if (!world.getEntityManager().isActive(entityId)) continue;
+            TiledEntityRole role = TiledEntityRole.of(world, entityId);
+            if (role != TiledEntityRole.NONE) {
+                TransformComponent pose = transforms.getSafe(entityId, null);
+                if (pose != null) {
+                    try {
+                        TiledEntityRole.requireTransform(world, entityId, pose);
+                    } catch (IllegalArgumentException ex) {
+                        throw failure(entityId, ex.getMessage());
+                    }
+                }
+                if (world.getMapper(SpatialFootprintComponent.class).has(entityId)) {
+                    throw failure(entityId, "Tiled maps and layers cannot own actor footprints");
+                }
+                if (physicsBodies.has(entityId) && role != TiledEntityRole.TILE_LAYER) {
+                    throw failure(entityId, "Tiled maps and non-tile layers cannot own generic Bodies");
+                }
+                if (world.getMapper(TiledMapLayerComponent.class).has(entityId) && !members.has(entityId)) {
+                    throw failure(entityId, "Tiled layer requires a Tiled map parent");
+                }
+                if (gameObjects.has(entityId) && role != TiledEntityRole.MAP && role != TiledEntityRole.OBJECT_LAYER) {
+                    throw failure(entityId, "Tile and image layers cannot be promoted to composition parents");
+                }
+                if (gameObjects.has(entityId) && gameObjects.get(entityId).sourceAssetId != null
+                        && !gameObjects.get(entityId).sourceAssetId.isEmpty()) {
+                    throw failure(entityId, "Tiled structures cannot be Game Object asset instances");
+                }
+            }
             TiledMapComponent map = world.getMapper(TiledMapComponent.class).getSafe(entityId, null);
             if (map != null) {
                 map.validate();
@@ -230,6 +260,7 @@ public final class GameObjectHierarchyValidator {
                     "parent stableId " + member.parentStableId + " does not resolve to an active entity");
         }
         requireActive(parentEntityId, "parent");
+        TiledEntityRole.requireStructuralRelation(world, memberEntityId, parentEntityId);
         if (!gameObjects.has(parentEntityId)) {
             throw failure(memberEntityId,
                     "parent stableId " + member.parentStableId + " is not a Game Object");
