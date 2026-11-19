@@ -231,6 +231,59 @@ public class RenderSpriteDirtyUnionTest {
     }
 
     @Test
+    public void requestedFlipComposesOnceWithBaseUvsScaleRepeatAndDeformation() throws Exception {
+        int e = sprite();
+        world.getMapper(AssetRefComponent.class).create(e);
+        world.getMapper(TintComponent.class).create(e);
+        games.pixscape.runtime.engine.PixscapeEngine engine = new games.pixscape.runtime.engine.PixscapeEngine();
+        Field engineWorld = engine.getClass().getDeclaredField("world");
+        engineWorld.setAccessible(true);
+        engineWorld.set(engine, world);
+        world.process();
+        games.pixscape.runtime.api.SpriteFacade visual = engine.api().entities().ofEntityId(e).sprite();
+        TransformComponent transform = world.getMapper(TransformComponent.class).get(e);
+        TextureRegionComponent uv = world.getMapper(TextureRegionComponent.class).get(e);
+        // AnimationSystem supplies the clip orientation in the base region.
+        uv.u1 = .8f;
+        uv.u2 = .2f;
+        uv.v1 = .1f;
+        uv.v2 = .9f;
+        transform.scaleX = -2f;
+        transform.originX = 3f;
+        transform.originY = 7f;
+        visual.setRepeat(true, true);
+        dirty.geometry(e, GeometryDirty.ALL);
+        world.process();
+        int slot = state.renderSlotForEntity(e);
+        float[] before = Arrays.copyOf(geometryAndUv(slot), 8);
+        for (int mask = 0; mask < 4; mask++) {
+            visual.setFlip((mask & 1) != 0, (mask & 2) != 0);
+            sync.prepareRuntimeAvailability();
+            Assert.assertArrayEquals(before, Arrays.copyOf(geometryAndUv(slot), 8), 0f);
+            Assert.assertEquals((mask & 1) == 0 ? .2f : .8f, state.u1[slot], 0f);
+            Assert.assertEquals((mask & 2) == 0 ? .1f : .9f, state.v1[slot], 0f);
+            Assert.assertNotEquals(RenderRepeatFlags.NONE, state.repeatFlags[slot]);
+            float[] rendered = record(e);
+            dirty.clearFrame();
+            visual.setFlip((mask & 1) != 0, (mask & 2) != 0);
+            sync.prepareRuntimeAvailability();
+            assertWork();
+            Assert.assertArrayEquals(rendered, record(e), 0f);
+        }
+        visual.setRepeat(false, false);
+        world.getMapper(QuadDeformComponent.class).create(e).trX = 4;
+        transform.rotationRad = .54f;
+        dirty.geometry(e, GeometryDirty.ALL);
+        world.process();
+        before = Arrays.copyOf(geometryAndUv(slot), 8);
+        visual.setFlip(false, false);
+        sync.prepareRuntimeAvailability();
+        Assert.assertArrayEquals(before, Arrays.copyOf(geometryAndUv(slot), 8), 0f);
+        Assert.assertEquals(.8f, uv.u1, 0f);
+        Assert.assertEquals(.1f, uv.v1, 0f);
+    }
+
+    @Test
     public void stabilizedWorkBufferIsReused() {
         int e = sprite();
         world.process();

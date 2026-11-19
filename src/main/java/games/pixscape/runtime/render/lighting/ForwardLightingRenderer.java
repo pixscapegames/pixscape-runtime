@@ -364,6 +364,17 @@ public class ForwardLightingRenderer {
                 uy = ax * scale;
             }
         }
+        // Match actor normal sampling and tangent directions to the effective color UVs.
+        boolean mirrorNormalX = s != null && s.actor && q.u1[i] > q.u2[i];
+        boolean mirrorNormalY = s != null && s.actor && q.atlasTopV(i) > q.atlasBottomV(i);
+        if (mirrorNormalX) {
+            ex = -ex;
+            ey = -ey;
+        }
+        if (mirrorNormalY) {
+            ux = -ux;
+            uy = -uy;
+        }
         ForwardTopology topology = s == null ? ForwardTopology.NATIVE : s.forwardTopology;
         games.pixscape.runtime.render.TileCornerSplit.Piece piece = q.tilePiece[i];
         if (piece != null) topology = piece.topology;
@@ -404,6 +415,12 @@ public class ForwardLightingRenderer {
             data[out + MATERIAL_OFFSET + 3] = s == null ? 0 : s.receiverLightingMode(source);
             if (preparedNormalMaps) {
                 float pu = source < 0 ? u : immutable != null ? immutable[cached + 6] : pa * physical[source + 3] + pb * physical[source + 11] + pc * physical[source + 19], pv = source < 0 ? v : immutable != null ? immutable[cached + 7] : pa * physical[source + 4] + pb * physical[source + 12] + pc * physical[source + 20];
+                if (mirrorNormalX) {
+                    pu = 1f - pu;
+                }
+                if (mirrorNormalY) {
+                    pv = 1f - pv;
+                }
                 data[out + NORMAL_UV_OFFSET] = normal == null ? 0 : normal.u0 + normal.ux * pu + normal.uy * pv;
                 data[out + NORMAL_UV_OFFSET + 1] = normal == null ? 0 : normal.v0 + normal.vx * pu + normal.vy * pv;
                 data[out + NORMAL_UV_OFFSET + 2] = normal == null ? -1 : 0;

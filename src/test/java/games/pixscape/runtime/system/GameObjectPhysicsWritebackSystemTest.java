@@ -919,6 +919,63 @@ public class GameObjectPhysicsWritebackSystemTest {
     }
 
     @Test
+    public void ownVisualFlipPreservesRotatedCompositionChildrenAndNativeResources() throws Exception {
+        int parent = entity(10, true, -1, false);
+        transform(parent).rotationRad = .4f;
+        transform(parent).originX = 11;
+        transform(parent).x = -200;
+        int root = entity(1, true, 10, true);
+        int child = entity(2, false, 1, true);
+        transform(root).x = 100;
+        transform(root).rotationRad = .6f;
+        transform(root).originX = 7;
+        transform(child).x = 200;
+        transform(child).originY = 9;
+        int joint = distanceJoint(root, child, 2);
+        world.getMapper(DimensionsComponent.class).create(root);
+        world.getMapper(AssetRefComponent.class).create(root);
+        world.getMapper(VisibilityComponent.class).create(root);
+        world.getMapper(TintComponent.class).create(root);
+        identities.rebuild();
+        world.process();
+        authority.setMode(PhysicsPoseAuthority.Mode.RUNTIME_PHYSICS);
+        sync.setStepEnabled(false);
+        Body parentBody = nativeBody(root), childBody = nativeBody(child);
+        parentBody.setLinearVelocity(2, -3);
+        parentBody.setAngularVelocity(.5f);
+        world.process();
+        float x = worldState().x[child], y = worldState().y[child];
+        Vector2 position = parentBody.getPosition().cpy();
+        float angle = parentBody.getAngle();
+        Object fixture = parentBody.getFixtureList().first();
+        Joint connection = world.getMapper(PhysicsRuntimeJointComponent.class).get(joint).joint;
+        games.pixscape.runtime.engine.PixscapeEngine engine = new games.pixscape.runtime.engine.PixscapeEngine();
+        java.lang.reflect.Field field = engine.getClass().getDeclaredField("world");
+        field.setAccessible(true);
+        field.set(engine, world);
+        games.pixscape.runtime.api.SpriteFacade visual = engine.api().entities().ofEntityId(root).sprite();
+        for (int flip = 0; flip < 4; flip++) {
+            visual.setFlip((flip & 1) != 0, (flip & 2) != 0);
+            world.process();
+            Assert.assertSame(parentBody, nativeBody(root));
+            Assert.assertSame(childBody, nativeBody(child));
+            Assert.assertSame(fixture, parentBody.getFixtureList().first());
+            Assert.assertSame(connection, world.getMapper(PhysicsRuntimeJointComponent.class).get(joint).joint);
+            Assert.assertEquals(position.x, parentBody.getPosition().x, 0f);
+            Assert.assertEquals(position.y, parentBody.getPosition().y, 0f);
+            Assert.assertEquals(angle, parentBody.getAngle(), 0f);
+            Assert.assertEquals(2, parentBody.getLinearVelocity().x, 0f);
+            Assert.assertEquals(-3, parentBody.getLinearVelocity().y, 0f);
+            Assert.assertEquals(.5f, parentBody.getAngularVelocity(), 0f);
+            Assert.assertEquals(x, worldState().x[child], EPSILON);
+            Assert.assertEquals(y, worldState().y[child], EPSILON);
+            Assert.assertEquals(7, transform(root).originX, 0f);
+            Assert.assertEquals(9, transform(child).originY, 0f);
+            Assert.assertFalse(world.getMapper(VisualFlipComponent.class).has(child));
+        }
+    }
+
+    @Test
     public void reparentKeepsNativeBodiesAndCrossingJointWithoutSimulationStep() {
         int root = entity(1, true, -1, true);
         int child = entity(2, false, 1, true);

@@ -1851,21 +1851,87 @@ public class PixscapeApiV1Test {
     }
 
     @Test
+    public void visualFlipIsPerInstanceIdempotentAndInertWithoutCapability() throws Exception {
+        PixscapeEngine engine = setupEngineWithWorld();
+        TwoAssetAtlasRuntimeService atlas = new TwoAssetAtlasRuntimeService();
+        setField(engine, "atlasRuntimeService", atlas);
+        World world = engine.getWorld();
+        try {
+            SpriteRef a = engine.api().sprites().spawn(42, 7f, 9f);
+            SpriteRef b = engine.api().sprites().spawn(42, 7f, 9f);
+            SpriteFacade visual = a.entity().sprite();
+            DirtyTrackerSystem dirty = world.getSystem(DirtyTrackerSystem.class);
+            dirty.clearFrame();
+            Assert.assertFalse(visual.flipX());
+            Assert.assertFalse(visual.flipY());
+            visual.setFlip(false, false);
+            Assert.assertFalse(world.getMapper(VisualFlipComponent.class).has(a.entityId()));
+            Assert.assertEquals(0, dirty.coarseBits(a.entityId()));
+            Assert.assertSame(visual, visual.setFlip(true, true));
+            Assert.assertEquals(DirtyBits.MATERIAL, dirty.coarseBits(a.entityId()));
+            VisualFlipComponent state = world.getMapper(VisualFlipComponent.class).get(a.entityId());
+            dirty.clearFrame();
+            for (int i = 0; i < 100; i++) {
+                visual.setFlip(true, true);
+            }
+            Assert.assertSame(state, world.getMapper(VisualFlipComponent.class).get(a.entityId()));
+            Assert.assertEquals(0, dirty.coarseBits(a.entityId()));
+            Assert.assertFalse(b.entity().sprite().flipX());
+            Assert.assertFalse(b.entity().sprite().flipY());
+            visual.setAssetId(43).setAsset(42, "main");
+            world.process();
+            java.lang.reflect.Method rebuild = PixscapeEngine.class
+                    .getDeclaredMethod("rebuildSceneAssets", String.class);
+            rebuild.setAccessible(true);
+            rebuild.invoke(engine, "main");
+            Assert.assertTrue(visual.flipX());
+            Assert.assertTrue(visual.flipY());
+            Assert.assertEquals(0f, atlas.bindingA.firstRegion().getU(), 0f);
+            Assert.assertEquals(.5f, atlas.bindingA.firstRegion().getU2(), 0f);
+            int bare = world.create();
+            world.process();
+            SpriteFacade missing = engine.api().entities().ofEntityId(bare).sprite();
+            missing.setFlip(true, true);
+            Assert.assertFalse(missing.flipX());
+            Assert.assertFalse(missing.flipY());
+            Assert.assertFalse(world.getMapper(VisualFlipComponent.class).has(bare));
+            world.delete(a.entityId());
+            world.process();
+            visual.setFlip(true, true);
+            Assert.assertFalse(visual.flipX());
+            Assert.assertFalse(visual.flipY());
+            SpriteRef fresh = engine.api().sprites().spawn(42, 0, 0);
+            Assert.assertFalse(fresh.entity().sprite().flipX());
+            Assert.assertFalse(fresh.entity().sprite().flipY());
+        } finally {
+            world.dispose();
+        }
+    }
+
+    @Test
     public void longRunningLoopPreservesPauseResumeClipSwitchAndRestart() throws Exception {
         FixedFramesAtlasRuntimeService atlas = new FixedFramesAtlasRuntimeService(3);
         PixscapeEngine engine = new PixscapeEngine();
+        DynamicEntityRenderState rendered = new DynamicEntityRenderState(4);
         World world = new World(new WorldConfigurationBuilder()
-                .with(new DirtyTrackerSystem(64),
-                        new AnimationSystem(engine.getAnimationRegistry(), atlas)).build());
+                .with(new DirtyTrackerSystem(64), new UpdateWorldGeometrySystem(),
+                        new AnimationSystem(engine.getAnimationRegistry(), atlas),
+                        new RenderSpriteSyncSystem(rendered)).build());
         setField(engine, "world", world);
         try {
             int entity = createAnimatedSprite(engine, world, "forward", 0, 2,
-                    animationClip("reverse", 2, 0, false));
+                    animationClip("reverse", 2, 0, true));
+            world.getMapper(TransformComponent.class).get(entity).scaleX = -1;
             AnimationFacade animation = engine.api().entities().ofEntityId(entity).animation();
+            SpriteFacade visual = engine.api().entities().ofEntityId(entity).sprite();
+            visual.setFlip(true, true);
             AnimationComponent component = world.getMapper(AnimationComponent.class).get(entity);
             animation.setLoop(true).setStateTime(100344.64f);
             world.setDelta(0f);
             world.process();
+            int slot = rendered.renderSlotForEntity(entity);
+            Assert.assertTrue(rendered.u1[slot] < rendered.u2[slot]); // Requested X cancels signed scale.
+            Assert.assertTrue(rendered.v1[slot] > rendered.v2[slot]);
             animation.pause();
             double pausedTime = component.stateTime;
             int pausedFrame = component.frame;
@@ -1885,6 +1951,7 @@ public class PixscapeApiV1Test {
             world.process();
             Assert.assertEquals(2, animation.frame());
             Assert.assertEquals(0d, component.stateTime, 0d);
+            Assert.assertTrue(rendered.u1[slot] > rendered.u2[slot]); // Clip X remains after cancellation.
             world.setDelta(0.5f);
             world.process();
             Assert.assertEquals(1, animation.frame());
@@ -1898,6 +1965,10 @@ public class PixscapeApiV1Test {
             for (int i = 0; i < 4; i++) world.process();
             Assert.assertEquals(2, animation.frame());
             Assert.assertTrue(animation.isFinished());
+            Assert.assertTrue(visual.flipX());
+            Assert.assertTrue(visual.flipY());
+            Assert.assertTrue(rendered.u1[slot] < rendered.u2[slot]);
+            Assert.assertTrue(rendered.v1[slot] > rendered.v2[slot]);
         } finally {
             world.dispose();
         }
@@ -1979,6 +2050,8 @@ public class PixscapeApiV1Test {
         AnimationComponent state = world.getMapper(AnimationComponent.class).get(entity);
         AssetRefComponent asset = world.getMapper(AssetRefComponent.class).get(entity);
         AnimationFacade animation = engine.api().entities().ofEntityId(entity).animation();
+        SpriteFacade visual = engine.api().entities().ofEntityId(entity).sprite();
+        visual.setFlip(true, false);
 
         state.playing = false;
         state.loop = false;
@@ -1990,6 +2063,8 @@ public class PixscapeApiV1Test {
 
         animation.setAnimation("idle-animation");
         assertAnimationState(asset, state, 42, "idle", 6f, false, false, 0f, -1);
+        Assert.assertTrue(visual.flipX());
+        Assert.assertFalse(visual.flipY());
     }
 
     @Test

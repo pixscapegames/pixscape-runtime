@@ -317,6 +317,18 @@ final class LightingBatch {
                 uy = ax * scale;
             }
         }
+        // Actor UV mirrors affect both the sampled normal and its tangent basis.
+        // Tiled retains its existing geometry/binding orientation.
+        boolean mirrorNormalX = surface.actor && u1 > u2;
+        boolean mirrorNormalY = surface.actor && v1 > v2;
+        if (mirrorNormalX) {
+            ex = -ex;
+            ey = -ey;
+        }
+        if (mirrorNormalY) {
+            ux = -ux;
+            uy = -uy;
+        }
         int packed = NumberUtils.floatToIntColor(color);
         float r = (packed & 255) / 255f, g = ((packed >>> 8) & 255) / 255f, b = ((packed >>> 16) & 255) / 255f, a = ((packed >>> 24) & 255) / 255f;
         float[] source = shadow && surface.shadowVertices != null ? surface.shadowVertices : !shadow && surface.receiverVertices != null ? surface.receiverVertices : surface.vertices;
@@ -373,8 +385,10 @@ final class LightingBatch {
             data[o + 3] = u1 + u * (u2 - u1);
             data[o + 4] = v2 + v * (v1 - v2);
             if (mapped) {
-                data[o + 18] = normalSlot < 0 ? 0 : normal.u0 + normal.ux * u + normal.uy * v;
-                data[o + 19] = normalSlot < 0 ? 0 : normal.v0 + normal.vx * u + normal.vy * v;
+                float nu = mirrorNormalX ? 1f - u : u;
+                float nv = mirrorNormalY ? 1f - v : v;
+                data[o + 18] = normalSlot < 0 ? 0 : normal.u0 + normal.ux * nu + normal.uy * nv;
+                data[o + 19] = normalSlot < 0 ? 0 : normal.v0 + normal.vx * nu + normal.vy * nv;
                 data[o + 20] = normalSlot;
                 data[o + 21] = ex;
                 data[o + 22] = ey;

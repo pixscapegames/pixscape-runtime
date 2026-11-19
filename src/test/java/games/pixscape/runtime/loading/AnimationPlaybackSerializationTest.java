@@ -8,6 +8,7 @@ import com.artemis.managers.WorldSerializationManager;
 import com.badlogic.gdx.files.FileHandle;
 import com.badlogic.gdx.utils.Json;
 import games.pixscape.runtime.component.AnimationComponent;
+import games.pixscape.runtime.component.VisualFlipComponent;
 import games.pixscape.runtime.gameobject.GameObjectAsset;
 import org.junit.Assert;
 import org.junit.Rule;
@@ -19,6 +20,39 @@ import java.io.ByteArrayOutputStream;
 public class AnimationPlaybackSerializationTest {
     @Rule
     public final TemporaryFolder temporaryFolder = new TemporaryFolder();
+
+    @Test
+    public void visualFlipIsExcludedFromSceneAndGenericJsonSerialization() throws Exception {
+        World source = serializationWorld();
+        World target = serializationWorld();
+        try {
+            int entity = source.create();
+            source.getMapper(AnimationComponent.class).create(entity).currentClip = "idle";
+            VisualFlipComponent flip = source.getMapper(VisualFlipComponent.class).create(entity);
+            flip.flipX = flip.flipY = true;
+            String generic = new Json().toJson(flip);
+            Assert.assertFalse(generic.contains("flipX"));
+            Assert.assertFalse(generic.contains("flipY"));
+            source.process();
+            WorldSerializationManager serialization = source.getSystem(WorldSerializationManager.class);
+            serialization.setSerializer(new JsonArtemisSerializer(source));
+            SaveFileFormat request = new SaveFileFormat();
+            request.entities.add(entity);
+            ByteArrayOutputStream out = new ByteArrayOutputStream();
+            serialization.save(out, request);
+            Assert.assertFalse(out.toString("UTF-8").contains("VisualFlipComponent"));
+            FileHandle file = new FileHandle(temporaryFolder.newFile("visual-flip.json"));
+            file.writeBytes(out.toByteArray(), false);
+            SaveFileFormat loaded = SceneLoader.loadScene(target, file, true,
+                    new SceneMetaRuntime("test", file.path()));
+            Assert.assertFalse(target.getMapper(VisualFlipComponent.class).has(loaded.entities.get(0)));
+            Assert.assertEquals("idle", target.getMapper(AnimationComponent.class)
+                    .get(loaded.entities.get(0)).currentClip);
+        } finally {
+            source.dispose();
+            target.dispose();
+        }
+    }
 
     @Test
     public void sceneRoundTripPreservesSubFloatPlaybackPrecision() throws Exception {

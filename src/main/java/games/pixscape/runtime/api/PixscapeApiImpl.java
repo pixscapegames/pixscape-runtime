@@ -2011,6 +2011,29 @@ public final class PixscapeApiImpl implements PixscapeAPI {
         }
 
         @Override
+        public boolean flipX() {
+            VisualFlipComponent flip = comp(VisualFlipComponent.class, false);
+            return flip != null && flip.flipX;
+        }
+
+        @Override
+        public boolean flipY() {
+            VisualFlipComponent flip = comp(VisualFlipComponent.class, false);
+            return flip != null && flip.flipY;
+        }
+
+        @Override
+        public SpriteFacade setFlip(boolean x, boolean y) {
+            VisualFlipComponent flip = comp(VisualFlipComponent.class, x || y);
+            if (flip != null && (flip.flipX != x || flip.flipY != y)) {
+                flip.flipX = x;
+                flip.flipY = y;
+                markMaterial();
+            }
+            return this;
+        }
+
+        @Override
         public boolean repeatsX() {
             RenderRepeatComponent repeat = comp(RenderRepeatComponent.class, false);
             return repeat != null && repeat.repeatX;

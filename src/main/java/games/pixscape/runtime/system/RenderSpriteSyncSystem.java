@@ -50,6 +50,7 @@ public final class RenderSpriteSyncSystem extends BaseSystem implements Profiled
     private ComponentMapper<TransformComponent> mTransform;
     private ComponentMapper<ShaderParamsComponent> mShaderParams;
     private ComponentMapper<AnimationComponent> mAnimation;
+    private ComponentMapper<VisualFlipComponent> mVisualFlip;
 
     private EntitySubscription spriteSub;
     private EntitySubscription physicsBodySub;
@@ -306,8 +307,9 @@ public final class RenderSpriteSyncSystem extends BaseSystem implements Profiled
                     float u2 = tr.u2;
                     float v2 = tr.v2;
 
-                    boolean flipX = worldScaleX < 0f;
-                    boolean flipY = worldScaleY < 0f;
+                    VisualFlipComponent flip = mVisualFlip.getSafe(e, null);
+                    boolean flipX = (worldScaleX < 0f) ^ (flip != null && flip.flipX);
+                    boolean flipY = (worldScaleY < 0f) ^ (flip != null && flip.flipY);
 
                     if (flipX) {
                         float tmp = u1;

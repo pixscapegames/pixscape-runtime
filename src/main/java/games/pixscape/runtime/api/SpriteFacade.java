@@ -87,6 +87,32 @@ public interface SpriteFacade {
      */
     SpriteFacade setSize(float width, float height);
 
+    /** Returns the requested horizontal flip, or false for a stale or non-visual entity. */
+    boolean flipX();
+
+    /** Returns the requested vertical flip, or false for a stale or non-visual entity. */
+    boolean flipY();
+
+    /**
+     * Sets this instance's own visual orientation around the normalized image center.
+     * Animations use the same facade through {@link AnimationRef#sprite()} or
+     * {@code animation.entity().sprite()}.
+     *
+     * <p>This Runtime-only state is not saved in scenes or assets. It survives image,
+     * animation and atlas binding changes, and composes with clip flips and signed scale.
+     * It mirrors texture content inside the existing quad, including deformed quads;
+     * transforms, geometry, children, geometric picking and physics remain unchanged.
+     * Spatial occlusion rectangles and visual shadows follow the effective image UVs.</p>
+     *
+     * <p>Repeated identical calls do not invalidate rendering. Stale references and
+     * entities without a complete visual capability are inert.</p>
+     *
+     * @param x requested horizontal flip
+     * @param y requested vertical flip
+     * @return this facade for chaining
+     */
+    SpriteFacade setFlip(boolean x, boolean y);
+
     /**
      * Returns whether horizontal repeat is configured for this sprite.
      */

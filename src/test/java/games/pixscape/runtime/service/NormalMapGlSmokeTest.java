@@ -10,6 +10,14 @@ import com.badlogic.gdx.graphics.*;
 import com.badlogic.gdx.graphics.g2d.TextureAtlas;
 import com.badlogic.gdx.utils.Array;
 import com.badlogic.gdx.utils.BufferUtils;
+import games.pixscape.runtime.component.*;
+import games.pixscape.runtime.component.spatial.*;
+import games.pixscape.runtime.engine.PixscapeEngine;
+import games.pixscape.runtime.api.SpriteFacade;
+import games.pixscape.runtime.render.DynamicEntityRenderState;
+import games.pixscape.runtime.render.TiledRenderState;
+import games.pixscape.runtime.spatial.*;
+import games.pixscape.runtime.system.*;
 import games.pixscape.runtime.component.light.PointLightComponent;
 import games.pixscape.runtime.render.FrameRenderQueue;
 import games.pixscape.runtime.render.LayerStateSOA;
@@ -20,7 +28,6 @@ import games.pixscape.runtime.render.batch.TextureArrayMeshBatch;
 import games.pixscape.runtime.render.batch.performance.RenderStats;
 import games.pixscape.runtime.render.batch.performance.RenderStatsSink;
 import games.pixscape.runtime.render.lighting.*;
-import games.pixscape.runtime.system.RenderSubmitSystem;
 import org.junit.Assert;
 import org.junit.Test;
 
@@ -46,19 +53,22 @@ public class NormalMapGlSmokeTest {
                     ShaderRegistry.initDefaults();
                     TextureRegistry.clear();
                     Gdx.gl.glClearColor(0, 0, 0, 0);
+                    verifyVisualFlipContentAndSpatialPublication();
                     cp = new Pixmap(1, 1, Pixmap.Format.RGBA8888);
                     cp.setColor(Color.WHITE);
                     cp.fill();
                     color = new Texture(cp);
-                    Pixmap np = new Pixmap(4, 1, Pixmap.Format.RGBA8888);
+                    Pixmap np = new Pixmap(6, 1, Pixmap.Format.RGBA8888);
                     np.drawPixel(0, 0, 0x8080ffff);
                     np.drawPixel(1, 0, 0xff8080ff);
                     np.drawPixel(2, 0, 0x80ff80ff);
                     np.drawPixel(3, 0, 0xda80daff);
+                    np.drawPixel(4, 0, 0x008080ff);
+                    np.drawPixel(5, 0, 0x800080ff);
                     Texture normal = new Texture(np);
                     np.dispose();
                     TextureAtlas ca = new TextureAtlas(), na = new TextureAtlas();
-                    for (int i = 0; i < 4; i++) {
+                    for (int i = 0; i < 6; i++) {
                         TextureAtlas.AtlasRegion c = ca.addRegion("color__a" + (i + 1), color, 0, 0, 1, 1);
                         c.originalWidth = c.originalHeight = 1;
                         TextureAtlas.AtlasRegion n = na.addRegion("normal__a" + (i + 1), normal, i, 0, 1, 1);
@@ -98,6 +108,7 @@ public class NormalMapGlSmokeTest {
                     q.lighting.diagnostic = 2;
                     submit.prepareComposition();
                     submit.setEnabled(true);
+                    verifyNormalUvMirrors(world, q, s, normals);
                     float[][] expected = {{-.57735f, -.57735f, .57735f}, {.7071f, -.7071f, 0}, {.40825f, .40825f, .81650f}};
                     for (boolean actor : new boolean[]{false, true})
                         for (int id = 1; id <= 3; id++)
@@ -322,6 +333,7 @@ public class NormalMapGlSmokeTest {
             submit.prepareComposition();
             Assert.assertTrue(submit.isForwardEffective());
             submit.setEnabled(true);
+            verifyForwardNormalUvMirrors(world, queue, receiver, normals, light);
             verifyActorShadows(world, submit, queue, normals, receiver, other, light);
         } finally {
             queue.shader[0] = previousShader;
@@ -329,6 +341,347 @@ public class NormalMapGlSmokeTest {
             batch.close();
             bundle.textureArray.dispose();
         }
+    }
+
+    private static void verifyNormalUvMirrors(World world, FrameRenderQueue queue,
+                                               LightingSurface surface, NormalMapAtlas normals) {
+        int diagnostic = queue.lighting.diagnostic;
+        NormalMapBinding previous = surface.normalMap;
+        boolean actor = surface.actor;
+        surface.actor = true;
+        queue.lighting.diagnostic = 2;
+        try {
+            verifyAsymmetricNormalSampling(world, queue, surface);
+            for (int flip = 0; flip < 4; flip++) {
+                boolean x = (flip & 1) != 0, y = (flip & 2) != 0;
+                replaceQuadUvs(queue, x ? 1 : 0, y ? 1 : 0, x ? 0 : 1, y ? 0 : 1);
+                surface.normalMap = normals.resolve(2);
+                renderBytes(world, Gdx.graphics.getBackBufferWidth(), Gdx.graphics.getBackBufferHeight());
+                assertPixel(new float[]{x ? -.7071f : .7071f, x ? .7071f : -.7071f, 0});
+                surface.normalMap = normals.resolve(3);
+                renderBytes(world, Gdx.graphics.getBackBufferWidth(), Gdx.graphics.getBackBufferHeight());
+                assertPixel(new float[]{y ? -.40825f : .40825f, y ? -.40825f : .40825f,
+                        y ? -.8165f : .8165f});
+            }
+        } finally {
+            replaceQuadUvs(queue, 0, 0, 1, 1);
+            queue.lighting.diagnostic = diagnostic;
+            surface.normalMap = previous;
+            surface.actor = actor;
+        }
+    }
+
+    private static void verifyForwardNormalUvMirrors(World world, FrameRenderQueue queue,
+                                                      LightingSurface surface, NormalMapAtlas normals,
+                                                      LightingFrame.Light light) {
+        NormalMapBinding previous = surface.normalMap;
+        int quality = light.quality;
+        light.quality = 0;
+        int width = Gdx.graphics.getBackBufferWidth(), height = Gdx.graphics.getBackBufferHeight();
+        try {
+            verifyAsymmetricNormalSampling(world, queue, surface);
+            for (int axis = 0; axis < 2; axis++) {
+                surface.normalMap = normals.resolve(axis == 0 ? 2 : 3);
+                byte[] original = renderBytes(world, width, height);
+                replaceQuadUvs(queue, axis == 0 ? 1 : 0, axis == 1 ? 1 : 0,
+                        axis == 0 ? 0 : 1, axis == 1 ? 0 : 1);
+                byte[] mirrored = renderBytes(world, width, height);
+                replaceQuadUvs(queue, 0, 0, 1, 1);
+                surface.normalMap = normals.resolve(axis == 0 ? 5 : 6);
+                byte[] reference = renderBytes(world, width, height);
+                int changed = 0;
+                for (int i = 0; i < reference.length; i++) {
+                    Assert.assertEquals("Forward mirrored normal axis=" + axis,
+                            reference[i] & 255, mirrored[i] & 255, 2);
+                    if (Math.abs((original[i] & 255) - (mirrored[i] & 255)) > 3) {
+                        changed++;
+                    }
+                }
+                Assert.assertTrue("Normal mirror must change the illuminated pixels on axis " + axis, changed > 0);
+            }
+        } finally {
+            replaceQuadUvs(queue, 0, 0, 1, 1);
+            surface.normalMap = previous;
+            light.quality = quality;
+        }
+    }
+
+    private static void verifyAsymmetricNormalSampling(World world, FrameRenderQueue queue,
+                                                        LightingSurface surface) {
+        int[] normals = {0xff8080ff, 0x80ff80ff, 0x8080ffff, 0xda80daff};
+        Pixmap pixels = new Pixmap(2, 2, Pixmap.Format.RGBA8888);
+        for (int i = 0; i < 4; i++) {
+            pixels.drawPixel(i % 2, i / 2, normals[i]);
+        }
+        Texture texture = new Texture(pixels);
+        pixels.dispose();
+        TextureAtlas.AtlasRegion region = new TextureAtlas.AtlasRegion(texture, 0, 0, 2, 2);
+        NormalMapBinding original = new NormalMapBinding(region, region);
+        NormalMapBinding previous = surface.normalMap;
+        int width = Gdx.graphics.getBackBufferWidth(), height = Gdx.graphics.getBackBufferHeight();
+        try {
+            for (int flip = 1; flip < 4; flip++) {
+                boolean x = (flip & 1) != 0, y = (flip & 2) != 0;
+                surface.normalMap = original;
+                replaceQuadUvs(queue, x ? 1 : 0, y ? 1 : 0, x ? 0 : 1, y ? 0 : 1);
+                byte[] actual = renderBytes(world, width, height);
+                Pixmap bakedPixels = new Pixmap(2, 2, Pixmap.Format.RGBA8888);
+                for (int row = 0; row < 2; row++) {
+                    for (int col = 0; col < 2; col++) {
+                        int rgba = normals[(y ? 1 - row : row) * 2 + (x ? 1 - col : col)];
+                        // Independent image-space reflection of the encoded normal vector.
+                        if (x) {
+                            rgba ^= 0xff000000;
+                        }
+                        if (y) {
+                            rgba ^= 0x00ff0000;
+                        }
+                        bakedPixels.drawPixel(col, row, rgba);
+                    }
+                }
+                Texture baked = new Texture(bakedPixels);
+                bakedPixels.dispose();
+                try {
+                    TextureAtlas.AtlasRegion bakedRegion = new TextureAtlas.AtlasRegion(baked, 0, 0, 2, 2);
+                    surface.normalMap = new NormalMapBinding(bakedRegion, bakedRegion);
+                    replaceQuadUvs(queue, 0, 0, 1, 1);
+                    byte[] reference = renderBytes(world, width, height);
+                    for (int i = 0; i < actual.length; i++) {
+                        Assert.assertEquals("Asymmetric normal sampling, flip=" + flip,
+                                reference[i] & 255, actual[i] & 255, 1);
+                    }
+                } finally {
+                    baked.dispose();
+                }
+            }
+        } finally {
+            surface.normalMap = previous;
+            replaceQuadUvs(queue, 0, 0, 1, 1);
+            texture.dispose();
+        }
+    }
+
+    private static void replaceQuadUvs(FrameRenderQueue q, float u1, float v1, float u2, float v2) {
+        q.size = 0;
+        q.addQuad(q.textureHandle[0], q.shader[0], q.blend[0], q.layerIndex[0],
+                q.paramsId[0], q.customParamsId[0], q.sortKey[0],
+                q.x1[0], q.y1[0], q.x2[0], q.y2[0], q.x3[0], q.y3[0], q.x4[0], q.y4[0],
+                u1, v1, u2, v2, q.colorPacked[0], q.repeatFlags[0],
+                q.sourceDomain[0], q.sourceSlot[0], q.sourceEntity[0]);
+    }
+
+    private static void verifyVisualFlipContentAndSpatialPublication() throws Exception {
+        Pixmap pixels = new Pixmap(2, 2, Pixmap.Format.RGBA8888);
+        int[] colors = {0xff0000ff, 0x00ff00ff, 0x0000ffff, 0x00000000};
+        for (int i = 0; i < 4; i++) {
+            pixels.drawPixel(i % 2, i / 2, colors[i]);
+        }
+        Texture texture = new Texture(pixels);
+        pixels.dispose();
+        texture.setFilter(Texture.TextureFilter.Nearest, Texture.TextureFilter.Nearest);
+        DynamicEntityRenderState dynamic = new DynamicEntityRenderState(4);
+        FrameRenderQueue queue = new FrameRenderQueue(4);
+        LayerStateSOA layers = new LayerStateSOA(1);
+        layers.enabled[0] = true;
+        OrthographicCamera camera = new OrthographicCamera(64, 32);
+        camera.position.set(32, 16, 0);
+        camera.update();
+        MultiTextureMeshBatch batch = new MultiTextureMeshBatch(64);
+        RenderSpriteSyncSystem sync = new RenderSpriteSyncSystem(dynamic);
+        LightingGeometrySystem lighting = new LightingGeometrySystem(dynamic, new TiledRenderState(4), queue, layers);
+        RenderSubmitSystem submit = new RenderSubmitSystem(layers, queue, camera, 1, 1, 1,
+                batch, new RenderStats(), new RenderStatsSink(100));
+        World world = new World(new WorldConfigurationBuilder().with(new DirtyTrackerSystem(16),
+                new UpdateWorldGeometrySystem(), sync, lighting, submit).build());
+        try {
+            submit.setEnabled(false);
+            int entity = world.create();
+            TransformComponent transform = world.getMapper(TransformComponent.class).create(entity);
+            world.getMapper(DimensionsComponent.class).create(entity).width = 64;
+            world.getMapper(DimensionsComponent.class).get(entity).height = 32;
+            world.getMapper(AssetRefComponent.class).create(entity).assetId = 1;
+            world.getMapper(EntityIndexComponent.class).create(entity);
+            world.getMapper(VisibilityComponent.class).create(entity);
+            world.getMapper(TintComponent.class).create(entity);
+            world.getMapper(OrientedBoundsComponent.class).create(entity);
+            world.getMapper(AABBComponent.class).create(entity);
+            TextureRegionComponent uv = world.getMapper(TextureRegionComponent.class).create(entity);
+            uv.valid = true;
+            uv.u2 = uv.v2 = 1;
+            RenderMaterialComponent material = world.getMapper(RenderMaterialComponent.class).create(entity);
+            material.textureHandle = TextureRegistry.handleOf(texture);
+            material.shaderIdx = ShaderRegistry.indexOf(ShaderMode.MULTI_TEXTURE.defaultShaderName());
+            material.blendModeId = 1;
+            SpatialFootprintComponent footprint = world.getMapper(SpatialFootprintComponent.class).create(entity);
+            footprint.radiusPx = 7;
+            footprint.localOffsetXPx = 32;
+            footprint.altitude = 3;
+            ActorSpatialRectangleData rectangle = new ActorSpatialRectangleData();
+            rectangle.x = .125f;
+            rectangle.y = .125f;
+            rectangle.width = .625f;
+            rectangle.height = .625f;
+            rectangle.pivotX = 2;
+            rectangle.pivotY = -3;
+            SpatialRepresentationComponent representation = world.getMapper(SpatialRepresentationComponent.class).create(entity);
+            representation.rectangles = new ActorSpatialRectangles();
+            representation.rectangles.staticRectangle = rectangle;
+            world.getMapper(SurfaceLightingComponent.class).create(entity).shadowCaster = true;
+            PixscapeEngine engine = new PixscapeEngine();
+            java.lang.reflect.Field field = PixscapeEngine.class.getDeclaredField("world");
+            field.setAccessible(true);
+            field.set(engine, world);
+            world.process();
+            lighting.setEnabled(false);
+            SpriteFacade visual = engine.api().entities().ofEntityId(entity).sprite();
+            int slot = dynamic.renderSlotForEntity(entity);
+            submit.prepareComposition();
+            submit.setEnabled(true);
+            for (int flip = 0; flip < 4; flip++) {
+                boolean x = (flip & 1) != 0, y = (flip & 2) != 0;
+                visual.setFlip(x, y);
+                sync.prepareRuntimeAvailability();
+                lighting.setEnabled(true);
+                lighting.process();
+                lighting.setEnabled(false);
+                queue.size = 0;
+                queue.addQuad(material.textureHandle, material.shaderIdx, 1, 0, 0, 0, 0,
+                        dynamic.x1[slot], dynamic.y1[slot], dynamic.x2[slot], dynamic.y2[slot],
+                        dynamic.x3[slot], dynamic.y3[slot], dynamic.x4[slot], dynamic.y4[slot],
+                        dynamic.u1[slot], dynamic.v1[slot], dynamic.u2[slot], dynamic.v2[slot],
+                        Color.WHITE.toFloatBits(), (byte) 0, FrameRenderQueue.SOURCE_ECS, slot, entity);
+                int pixelWidth = Gdx.graphics.getBackBufferWidth();
+                int pixelHeight = Gdx.graphics.getBackBufferHeight();
+                byte[] rendered = renderBytes(world, pixelWidth, pixelHeight);
+                for (int row = 0; row < 2; row++) {
+                    for (int col = 0; col < 2; col++) {
+                        int expected = colors[(y ? row : 1 - row) * 2 + (x ? 1 - col : col)];
+                        int at = (((row * 2 + 1) * pixelHeight / 4) * pixelWidth
+                                + (col * 2 + 1) * pixelWidth / 4) * 4;
+                        for (int channel = 0; channel < 4; channel++) {
+                            Assert.assertEquals("flip=" + flip + ", quadrant=" + row + "," + col,
+                                    (expected >>> (24 - channel * 8)) & 255, rendered[at + channel] & 255, 1);
+                        }
+                    }
+                }
+                ActorSpatialGeometry spatial = dynamic.prepareActorSpatialGeometry(slot, rectangle);
+                Assert.assertEquals(x ? 16 : 8, spatial.minX, .0001f);
+                Assert.assertEquals(x ? 56 : 48, spatial.maxX, .0001f);
+                Assert.assertEquals(y ? 8 : 4, spatial.minY, .0001f);
+                Assert.assertEquals(y ? 28 : 24, spatial.maxY, .0001f);
+                LightingFrame.Caster caster = queue.lighting.casters.first();
+                Assert.assertEquals(dynamic.u1[slot], caster.u1, 0f);
+                Assert.assertEquals(dynamic.v1[slot], caster.v1, 0f);
+                Assert.assertNotNull(caster.surface.actorShadowRectangle);
+                Assert.assertEquals(.125f, rectangle.x, 0f);
+                Assert.assertEquals(2, rectangle.pivotX, 0f);
+                Assert.assertEquals(-3, rectangle.pivotY, 0f);
+                Assert.assertEquals(3, footprint.altitude, 0f);
+                Assert.assertEquals(7, footprint.radiusPx, 0f);
+                Assert.assertEquals(32, footprint.localOffsetXPx, 0f);
+                Assert.assertEquals(entity, engine.api().entities().ofEntityId(entity).spatial().resolvedOwner().entityId());
+                Assert.assertEquals(0, transform.x, 0f);
+            }
+            verifySpatialShadowMirrors(world, submit, sync, lighting, queue, dynamic, visual,
+                    material, rectangle, colors);
+        } finally {
+            world.dispose();
+            batch.close();
+            texture.dispose();
+        }
+    }
+
+    private static void verifySpatialShadowMirrors(World world, RenderSubmitSystem submit,
+                                                   RenderSpriteSyncSystem sync, LightingGeometrySystem lighting,
+                                                   FrameRenderQueue queue, DynamicEntityRenderState dynamic,
+                                                   SpriteFacade visual, RenderMaterialComponent material,
+                                                   ActorSpatialRectangleData rectangle, int[] colors) {
+        submit.setEnabled(false);
+        world.getMapper(PointLightComponent.class).create(world.create());
+        int receiver = world.create();
+        world.process();
+        var map = new games.pixscape.runtime.tiled.TiledLayerData(4, 4, 8, 4, 4,
+                games.pixscape.runtime.tiled.TiledProjection.ISO);
+        TiledLayerLightingGeometry ground = new TiledLayerLightingGeometry();
+        ground.ensure(map, null);
+        float[] quad = {0, 0, 0, 32, 64, 32, 64, 0};
+        LightingSurface surface = ground.receiver(map, 0, 0, 1, (byte) 0, quad);
+        LightingFrame.Light light = new LightingFrame.Light();
+        light.x = -32;
+        light.y = -64;
+        light.z = 64;
+        light.radius = 512;
+        light.intensity = light.falloff = light.r = light.g = light.b = 1;
+        light.quality = 1;
+        light.resolution = 512;
+        submit.setAmbientLight(0, 0, 0);
+        submit.prepareComposition();
+        submit.setEnabled(true);
+        int originalTexture = material.textureHandle;
+        float originalX = rectangle.x, originalY = rectangle.y;
+        int width = Gdx.graphics.getBackBufferWidth(), height = Gdx.graphics.getBackBufferHeight();
+        byte[] baseline = null;
+        for (int flip = 0; flip < 4; flip++) {
+            boolean x = (flip & 1) != 0, y = (flip & 2) != 0;
+            visual.setFlip(x, y);
+            sync.prepareRuntimeAvailability();
+            byte[] actual = renderSpatialShadow(world, lighting, queue, receiver, surface, light, width, height);
+            if (flip == 0) {
+                baseline = actual;
+            }
+            // Independent positive control: bake the image mirror and author the mirrored zone.
+            Pixmap bakedPixels = new Pixmap(2, 2, Pixmap.Format.RGBA8888);
+            for (int row = 0; row < 2; row++) {
+                for (int col = 0; col < 2; col++) {
+                    bakedPixels.drawPixel(col, row, colors[(y ? 1 - row : row) * 2 + (x ? 1 - col : col)]);
+                }
+            }
+            Texture baked = new Texture(bakedPixels);
+            bakedPixels.dispose();
+            try {
+                rectangle.x = x ? 1 - originalX - rectangle.width : originalX;
+                rectangle.y = y ? 1 - originalY - rectangle.height : originalY;
+                material.textureHandle = TextureRegistry.handleOf(baked);
+                visual.setFlip(false, false);
+                world.getSystem(DirtyTrackerSystem.class).material(dynamic.renderSlotToEntityId[0]);
+                sync.prepareRuntimeAvailability();
+                byte[] reference = renderSpatialShadow(world, lighting, queue, receiver, surface, light, width, height);
+                int changed = 0;
+                for (int i = 0; i < actual.length; i++) {
+                    Assert.assertEquals("Spatial shadow flip=" + flip, reference[i] & 255, actual[i] & 255, 1);
+                    if (Math.abs((baseline[i] & 255) - (actual[i] & 255)) > 3) {
+                        changed++;
+                    }
+                }
+                if (flip != 0) {
+                    Assert.assertTrue("Asymmetric Spatial shadow must move for flip=" + flip, changed > 0);
+                    System.out.println("Spatial flip=" + flip + ": baked reference matches; changed channels=" + changed);
+                }
+            } finally {
+                rectangle.x = originalX;
+                rectangle.y = originalY;
+                material.textureHandle = originalTexture;
+                world.getSystem(DirtyTrackerSystem.class).material(dynamic.renderSlotToEntityId[0]);
+                baked.dispose();
+            }
+        }
+    }
+
+    private static byte[] renderSpatialShadow(World world, LightingGeometrySystem lighting,
+                                              FrameRenderQueue queue, int receiver, LightingSurface surface,
+                                              LightingFrame.Light light, int width, int height) {
+        lighting.setEnabled(true);
+        lighting.process();
+        lighting.setEnabled(false);
+        queue.lighting.entities.put(receiver, surface);
+        queue.lighting.lights.add(light);
+        queue.size = 0;
+        queue.addQuad(games.pixscape.runtime.render.InternalTextures.whiteHandle(),
+                ShaderRegistry.indexOf(ShaderMode.MULTI_TEXTURE.defaultShaderName()), 1, 0, 0, 0, 0,
+                0, 0, 0, 32, 64, 32, 64, 0, 0, 0, 1, 1, Color.WHITE.toFloatBits(),
+                (byte) 0, FrameRenderQueue.SOURCE_ECS, -1, receiver);
+        world.getSystem(RenderSubmitSystem.class).lightingRenderer().prepareFrame(queue.lighting);
+        return renderBytes(world, width, height);
     }
 
     private static void verifyActorShadows(World world, RenderSubmitSystem submit, FrameRenderQueue queue,
