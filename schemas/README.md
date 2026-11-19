@@ -44,7 +44,7 @@ npm run validate -- ../examples/minimal-export
 npm run validate -- C:/path/to/tiled-iso-demo/assets/pixscape-project
 ```
 
-The lockfile pins Ajv 8.17.1. The first validator command compiles all ten
+The lockfile pins Ajv 8.18.0. The first validator command compiles all ten
 Draft 2020-12 schemas and checks local references. With one or more export
 directories, it also parses and checks their project, scenes, declared Game
 Objects, HUD, registries, tileset profiles, atlas page paths and particle
