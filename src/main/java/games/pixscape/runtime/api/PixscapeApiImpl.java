@@ -11,6 +11,7 @@ import com.badlogic.gdx.graphics.g2d.TextureRegion;
 import com.badlogic.gdx.math.Vector2;
 import com.badlogic.gdx.physics.box2d.Body;
 import com.badlogic.gdx.utils.IntArray;
+import com.badlogic.gdx.utils.Array;
 import com.badlogic.gdx.utils.IntMap;
 import games.pixscape.runtime.animation.AnimationClipDef;
 import games.pixscape.runtime.animation.AnimationDef;
@@ -24,6 +25,7 @@ import games.pixscape.runtime.component.physics.PhysicsShapesComponent;
 import games.pixscape.runtime.component.spatial.SpatialBlocksComponent;
 import games.pixscape.runtime.component.spatial.SpatialRepresentationComponent;
 import games.pixscape.runtime.engine.PixscapeEngine;
+import games.pixscape.runtime.hierarchy.GameObjectTopologyState;
 import games.pixscape.runtime.loading.SceneMetaRuntime;
 import games.pixscape.runtime.particle.ParticleEffectPath;
 import games.pixscape.runtime.physics.PreparedPhysicsBodyCandidate;
@@ -868,6 +870,72 @@ public final class PixscapeApiImpl implements PixscapeAPI {
         }
 
         @Override
+        public EntityRef parent() {
+            World world = handle.world();
+            GameObjectTopologyState topology = navigationTopology(world);
+            if (topology == null || TiledEntityRole.of(world, handle.entityId) != TiledEntityRole.NONE) {
+                return null;
+            }
+            int parent = topology.parentEntityId[handle.entityId];
+            return parent >= 0 ? engine.api().entities().ofEntityId(parent) : null;
+        }
+
+        @Override
+        public Array<EntityRef> children(Array<EntityRef> out) {
+            return collectHierarchy(out, false);
+        }
+
+        @Override
+        public Array<EntityRef> descendants(Array<EntityRef> out) {
+            return collectHierarchy(out, true);
+        }
+
+        private GameObjectTopologyState navigationTopology(World world) {
+            if (world == null) {
+                return null;
+            }
+            GameObjectHierarchySystem hierarchy = world.getSystem(GameObjectHierarchySystem.class);
+            return hierarchy != null && handle.entityId < hierarchy.topology().getEntityCapacity()
+                    ? hierarchy.topology() : null;
+        }
+
+        private Array<EntityRef> collectHierarchy(Array<EntityRef> out, boolean recursive) {
+            if (out == null) {
+                throw new IllegalArgumentException("out must not be null");
+            }
+            out.clear();
+            World world = handle.world();
+            GameObjectTopologyState topology = navigationTopology(world);
+            if (topology == null) {
+                return out;
+            }
+            TiledEntityRole role = TiledEntityRole.of(world, handle.entityId);
+            if (role != TiledEntityRole.NONE && role != TiledEntityRole.OBJECT_LAYER) {
+                return out;
+            }
+            int root = handle.entityId;
+            int current = topology.firstChildEntityId[root];
+            while (current >= 0) {
+                if (TiledEntityRole.of(world, current) == TiledEntityRole.NONE) {
+                    out.add(engine.api().entities().ofEntityId(current));
+                    if (recursive && topology.firstChildEntityId[current] >= 0) {
+                        current = topology.firstChildEntityId[current];
+                        continue;
+                    }
+                }
+                // Ascend only within this subtree to find the next sibling, without a visit stack.
+                while (recursive && current != root && topology.nextSiblingEntityId[current] < 0) {
+                    current = topology.parentEntityId[current];
+                }
+                if (current == root) {
+                    break;
+                }
+                current = topology.nextSiblingEntityId[current];
+            }
+            return out;
+        }
+
+        @Override
         public TransformFacade transform() {
             if (transform == null) transform = new TransformFacadeImpl(handle);
             return transform;
@@ -1243,32 +1311,32 @@ public final class PixscapeApiImpl implements PixscapeAPI {
             return t != null ? out.set(t.x, t.y) : out.set(0f, 0f);
         }
 
-        private final com.badlogic.gdx.math.Affine2 pointFrame = new com.badlogic.gdx.math.Affine2();
+        private final com.badlogic.gdx.math.Affine2 coordinateFrame = new com.badlogic.gdx.math.Affine2();
 
-        private void readPointFrame() {
+        private void readCoordinateFrame() {
             World world = handle.world();
             TransformComponent transform = t(false);
             if (world == null || transform == null) {
-                throw new IllegalStateException("Point conversion requires a live entity with a transform.");
+                throw new IllegalStateException("Coordinate conversion requires a live entity with a transform.");
             }
             GameObjectHierarchySystem hierarchy = world.getSystem(GameObjectHierarchySystem.class);
             games.pixscape.runtime.hierarchy.WorldTransformState poses = hierarchy == null
                     ? null : hierarchy.worldTransforms();
             int id = handle.entityId;
             if (poses != null && poses.isResolved(id)) {
-                pointFrame.m00 = poses.m00[id];
-                pointFrame.m01 = poses.m01[id];
-                pointFrame.m02 = poses.m02[id];
-                pointFrame.m10 = poses.m10[id];
-                pointFrame.m11 = poses.m11[id];
-                pointFrame.m12 = poses.m12[id];
+                coordinateFrame.m00 = poses.m00[id];
+                coordinateFrame.m01 = poses.m01[id];
+                coordinateFrame.m02 = poses.m02[id];
+                coordinateFrame.m10 = poses.m10[id];
+                coordinateFrame.m11 = poses.m11[id];
+                coordinateFrame.m12 = poses.m12[id];
             } else {
                 if (world.getMapper(GameObjectMemberComponent.class).has(id)
                         || world.getMapper(PhysicsRuntimeBodyComponent.class).has(id)) {
                     throw new IllegalStateException("Entity pose has not been resolved yet.");
                 }
                 games.pixscape.runtime.hierarchy.GameObjectTransformMath.toMemberFrame(transform,
-                        world.getMapper(GameObjectComponent.class).has(id), pointFrame);
+                        world.getMapper(GameObjectComponent.class).has(id), coordinateFrame);
             }
         }
 
@@ -1278,9 +1346,9 @@ public final class PixscapeApiImpl implements PixscapeAPI {
                 throw new IllegalArgumentException("out must not be null");
             }
             requireFinite("Local point", x, y);
-            readPointFrame();
-            return out.set(pointFrame.m00 * x + pointFrame.m01 * y + pointFrame.m02,
-                    pointFrame.m10 * x + pointFrame.m11 * y + pointFrame.m12);
+            readCoordinateFrame();
+            return out.set(coordinateFrame.m00 * x + coordinateFrame.m01 * y + coordinateFrame.m02,
+                    coordinateFrame.m10 * x + coordinateFrame.m11 * y + coordinateFrame.m12);
         }
 
         @Override
@@ -1289,14 +1357,54 @@ public final class PixscapeApiImpl implements PixscapeAPI {
                 throw new IllegalArgumentException("out must not be null");
             }
             requireFinite("World point", x, y);
-            readPointFrame();
-            float determinant = pointFrame.m00 * pointFrame.m11 - pointFrame.m01 * pointFrame.m10;
+            readCoordinateFrame();
+            float determinant = requireInvertibleFrame();
+            float dx = x - coordinateFrame.m02, dy = y - coordinateFrame.m12;
+            return out.set((coordinateFrame.m11 * dx - coordinateFrame.m01 * dy) / determinant,
+                    (coordinateFrame.m00 * dy - coordinateFrame.m10 * dx) / determinant);
+        }
+
+        private float requireInvertibleFrame() {
+            float determinant = coordinateFrame.m00 * coordinateFrame.m11 - coordinateFrame.m01 * coordinateFrame.m10;
             if (!Float.isFinite(determinant) || Math.abs(determinant) <= 0.000001f) {
                 throw new IllegalStateException("Entity frame is not invertible.");
             }
-            float dx = x - pointFrame.m02, dy = y - pointFrame.m12;
-            return out.set((pointFrame.m11 * dx - pointFrame.m01 * dy) / determinant,
-                    (pointFrame.m00 * dy - pointFrame.m10 * dx) / determinant);
+            return determinant;
+        }
+
+        @Override
+        public Vector2 localVectorToWorld(float x, float y, Vector2 out) {
+            if (out == null) {
+                throw new IllegalArgumentException("out must not be null");
+            }
+            requireFinite("Local vector", x, y);
+            readCoordinateFrame();
+            return out.set(coordinateFrame.m00 * x + coordinateFrame.m01 * y,
+                    coordinateFrame.m10 * x + coordinateFrame.m11 * y);
+        }
+
+        @Override
+        public Vector2 worldVectorToLocal(float x, float y, Vector2 out) {
+            if (out == null) {
+                throw new IllegalArgumentException("out must not be null");
+            }
+            requireFinite("World vector", x, y);
+            readCoordinateFrame();
+            float determinant = requireInvertibleFrame();
+            return out.set((coordinateFrame.m11 * x - coordinateFrame.m01 * y) / determinant,
+                    (coordinateFrame.m00 * y - coordinateFrame.m10 * x) / determinant);
+        }
+
+        @Override
+        public float originX() {
+            TransformComponent t = t(false);
+            return t != null ? t.originX : 0f;
+        }
+
+        @Override
+        public float originY() {
+            TransformComponent t = t(false);
+            return t != null ? t.originY : 0f;
         }
 
         @Override

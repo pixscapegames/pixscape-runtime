@@ -6,7 +6,7 @@ import com.badlogic.gdx.math.Vector2;
  * High-level authored transform access for one entity.
  * For standalone entities and top-level Game Objects this is the normal authored world pose.
  * For a Game Object member it is the authored local transform relative to its parent; this
- * point conversions use the latest published resolved world transform.
+ * facade's point/vector conversions use the latest published resolved world transform.
  * Setters establish a standalone authored transform when it is absent.
  * Non-finite position, rotation, scale, origin, and delta values are rejected before mutation.
  * Scale is visual: it changes rendered geometry and propagates through the existing hierarchy,
@@ -66,6 +66,28 @@ public interface TransformFacade {
 
     /** Inverse of localToWorld; additionally rejects singular frames. Failures leave out intact. */
     Vector2 worldToLocal(float x, float y, Vector2 out);
+
+    /**
+     * Converts a local displacement vector to world units through the same published frame as
+     * {@link #localToWorld}. Applies rotation and scale only, including permitted signed/nonuniform
+     * scale; translation and origin offsets have no effect. Does not normalize. Units are Pixscape
+     * pixels, not Box2D meters. Uses the published physical pose even when simulation is paused;
+     * no extra native pose read or recursive resolution. Returns the caller's out without temporary
+     * allocation. Null out/nonfinite inputs or an unavailable frame reject without changing out.
+     */
+    Vector2 localVectorToWorld(float x, float y, Vector2 out);
+
+    /**
+     * Inverse linear conversion of {@link #localVectorToWorld}, using the same singularity policy
+     * as {@link #worldToLocal}. Rejection preserves out; translation/origin are excluded.
+     */
+    Vector2 worldVectorToLocal(float x, float y, Vector2 out);
+
+    /** Authored local origin in pixels; zero for an absent transform or stale reference. */
+    float originX();
+
+    /** Authored local origin in pixels; zero for an absent transform or stale reference. */
+    float originY();
 
     float rotationRad();
 

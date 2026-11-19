@@ -874,6 +874,51 @@ public class GameObjectPhysicsWritebackSystemTest {
     }
 
     @Test
+    public void vectorConversionsReadPublishedNativeFrameWhileSimulationIsPaused() throws Exception {
+        int parent = entity(1, true, -1, false);
+        int body = entity(2, true, 1, true);
+        int child = entity(3, false, 2, false);
+        transform(parent).rotationRad = .4f;
+        transform(parent).originX = 8;
+        transform(child).x = 15;
+        transform(child).y = 9;
+        transform(child).scaleX = -2;
+        transform(child).scaleY = .5f;
+        identities.rebuild();
+        world.process();
+        authority.setMode(PhysicsPoseAuthority.Mode.RUNTIME_PHYSICS);
+        sync.setStepEnabled(false);
+        nativeBody(body).setTransform(4, 5, (float) (Math.PI / 2));
+        world.process();
+        games.pixscape.runtime.engine.PixscapeEngine engine = new games.pixscape.runtime.engine.PixscapeEngine();
+        java.lang.reflect.Field field = engine.getClass().getDeclaredField("world");
+        field.setAccessible(true);
+        field.set(engine, world);
+        var facade = engine.api().entities().ofEntityId(child).transform();
+        Vector2 out = new Vector2();
+        Assert.assertSame(out, facade.localVectorToWorld(3, 4, out));
+        // R(90) * diag(-2,.5) * (3,4) = (-2,-6), independent of Body position and parent frame.
+        Assert.assertEquals(-2, out.x, EPSILON);
+        Assert.assertEquals(-6, out.y, EPSILON);
+        facade.worldVectorToLocal(-2, -6, out);
+        Assert.assertEquals(3, out.x, EPSILON);
+        Assert.assertEquals(4, out.y, EPSILON);
+        facade.localToWorld(3, 4, out);
+        Assert.assertEquals(389, out.x, EPSILON);
+        Assert.assertEquals(509, out.y, EPSILON);
+        nativeBody(body).setTransform(9, 10, 0);
+        facade.localVectorToWorld(3, 4, out);
+        Assert.assertEquals(-2, out.x, EPSILON); // No extra native read before publication.
+        Assert.assertEquals(-6, out.y, EPSILON);
+        world.process();
+        facade.localVectorToWorld(3, 4, out);
+        Assert.assertEquals(-6, out.x, EPSILON);
+        Assert.assertEquals(2, out.y, EPSILON);
+        Assert.assertEquals(9, nativeBody(body).getPosition().x, EPSILON);
+        Assert.assertEquals(10, nativeBody(body).getPosition().y, EPSILON);
+    }
+
+    @Test
     public void reparentKeepsNativeBodiesAndCrossingJointWithoutSimulationStep() {
         int root = entity(1, true, -1, true);
         int child = entity(2, false, 1, true);

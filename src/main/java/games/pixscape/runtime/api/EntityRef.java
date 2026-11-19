@@ -1,5 +1,7 @@
 package games.pixscape.runtime.api;
 
+import com.badlogic.gdx.utils.Array;
+
 /**
  * Entity handle that bridges stableId identity and runtime ECS access.
  *
@@ -33,6 +35,48 @@ public interface EntityRef {
      * Returns whether the same captured entity still exists in the same Runtime World.
      */
     boolean exists();
+
+    /**
+     * Current published composition parent, or null for a root, stale reference or absent topology.
+     * O(1); creates an incarnation-bound reference when present, never an identity/component.
+     * Prepared spawn hierarchies are readable immediately; published reparenting is reflected
+     * immediately. Scheduled deletion remains visible until normal publication. No synchronization
+     * or physics step is performed. Structural Tiled ownership (map to layers) is excluded;
+     * ordinary objects may still have their supported Tiled object layer as parent.
+     */
+    EntityRef parent();
+
+    /** Independent snapshot; see {@link #children(Array)} for traversal and allocation rules. */
+    default Array<EntityRef> children() {
+        return children(new Array<EntityRef>());
+    }
+
+    /**
+     * Clears and fills the caller's container with direct composition children, returning out.
+     * O(number of children), plus clearing the previous out entries, using published sibling links;
+     * no World scan or sort. Sibling order
+     * is topology order, not render/z order, and may change on publication/rebuild. The container
+     * is not retained. It may grow and each returned EntityRef/handle is newly captured; this is
+     * not a zero-allocation API. No intermediate snapshot is allocated. Stale references or
+     * absent topology produce an empty result. Tiled map/layer ownership is excluded; an object
+     * layer can expose its ordinary objects. Publication rules match {@link #parent()}.
+     * @throws IllegalArgumentException if out is null
+     */
+    Array<EntityRef> children(Array<EntityRef> out);
+
+    /** Independent snapshot; see {@link #descendants(Array)}. */
+    default Array<EntityRef> descendants() {
+        return descendants(new Array<EntityRef>());
+    }
+
+    /**
+     * Clears and fills out with composition descendants, excluding this entity. Depth-first,
+     * parent-before-child traversal in current sibling-link order; not render order. O(subtree
+     * size), plus clearing the previous out entries, without recursion, a temporary collection
+     * or visits to unrelated subtrees.
+     * Other ownership, publication, absence and allocation rules match {@link #children(Array)}.
+     */
+    Array<EntityRef> descendants(Array<EntityRef> out);
 
     TransformFacade transform();
 

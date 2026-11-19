@@ -21,6 +21,8 @@
 * Renamed tile-layer APIs: `TiledMapRef` becomes `TiledLayerRef`, `map()` becomes `layer()`, `TiledMapFacade` becomes `TiledLayerFacade`, and `TiledMapLayerData` becomes `TiledLayerData`.
 
 ### Added
+* EntityRef exposes the published composition parent, direct children and descendants, including prepared spawns. Navigation offers independent snapshots and reusable caller-owned arrays; spawn-time GameObjectInstance inventories retain their existing semantics.
+* TransformFacade exposes authored origin coordinates and local/world vector conversions using the same published frame and singular-inverse policy as points, without applying translation or origin offsets.
 * Game Object direct, factory and deferred spawns accept an explicit exported scene-layer index. Destination admission is checked before allocation, including footprints on descendants; deferred requests retain the destination entity incarnation and reject removal/replacement.
 * Tiled map/layer roles now enforce structural ownership, translation-only map/tile transforms and exclusion from actor footprints and Game Object assets. Object layers retain ordinary object composition; tile-layer managed collisions and volumes remain supported. Invalid scene state is diagnosed without migration or repair.
 * Added independent footprint radius/offset APIs and authored image-local occlusion zones; shadow pivot offsets retain their footprint-relative role.

@@ -136,6 +136,33 @@ public class GameObjectHierarchySystemTest {
     }
 
     @Test
+    public void navigationExcludesTiledOwnershipButKeepsOrdinaryObjectsInObjectLayers() throws Exception {
+        int map = entity(1, true, -1);
+        TiledMapComponent mapData = world.getMapper(TiledMapComponent.class).create(map);
+        mapData.projection = games.pixscape.runtime.tiled.TiledProjection.ORTHO;
+        mapData.width = mapData.height = 1;
+        mapData.tileWidth = mapData.tileHeight = 32;
+        int objects = entity(2, true, 1);
+        world.getMapper(TiledMapLayerComponent.class).create(objects).kind = TiledMapLayerComponent.Kind.OBJECT;
+        int object = entity(3, false, 2);
+        world.process();
+        games.pixscape.runtime.engine.PixscapeEngine engine = new games.pixscape.runtime.engine.PixscapeEngine();
+        java.lang.reflect.Field field = engine.getClass().getDeclaredField("world");
+        field.setAccessible(true);
+        field.set(engine, world);
+        var entities = engine.api().entities();
+        var mapRef = entities.ofEntityId(map);
+        var layerRef = entities.ofEntityId(objects);
+        Assert.assertNull(mapRef.parent());
+        Assert.assertEquals(0, mapRef.children().size);
+        Assert.assertEquals(0, mapRef.descendants().size);
+        Assert.assertNull(layerRef.parent());
+        Assert.assertEquals(object, layerRef.children().first().entityId());
+        Assert.assertEquals(1, layerRef.descendants().size);
+        Assert.assertEquals(objects, entities.ofEntityId(object).parent().entityId());
+    }
+
+    @Test
     public void emptyHierarchyBuildsAnEmptyTraversal() {
         world.process();
 

@@ -17,11 +17,14 @@ public interface GameObjectInstance {
 
     /**
      * Returns a caller-owned snapshot of this instance's captured hierarchy members.
+     * This is the spawn-time inventory, not current membership after reparenting. Use
+     * {@link EntityRef#children()} or {@link EntityRef#descendants()} for the published live tree.
      */
     EntityRef[] members();
 
     /**
      * Returns the uniquely named member captured at spawn time.
+     * Neither moving a member nor adding another child changes this captured name lookup.
      *
      * @throws IllegalArgumentException if the name is absent or ambiguous in this instance
      */
