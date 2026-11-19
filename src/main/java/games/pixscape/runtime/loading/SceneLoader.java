@@ -179,6 +179,7 @@ public final class SceneLoader {
             identities.rebuild();
             new GameObjectHierarchyValidator(world, identities)
                     .validateEntities(format.entities);
+            games.pixscape.runtime.service.SpatialScenePolicy.validateScene(world, identities, format.entities);
         } catch (IllegalArgumentException ex) {
             throw new IllegalArgumentException(
                     "Scene '" + sceneFile.path() + "' has invalid Game Object hierarchy: "

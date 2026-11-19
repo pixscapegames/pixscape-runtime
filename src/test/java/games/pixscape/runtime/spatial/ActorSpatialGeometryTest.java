@@ -5,6 +5,17 @@ import static org.junit.Assert.*;
 
 public class ActorSpatialGeometryTest {
     @Test
+    public void missingRepresentationCannotBecomeAnImageSizedRectangle() {
+        ActorSpatialGeometry geometry = new ActorSpatialGeometry();
+        try {
+            update(geometry, null, false, false);
+            fail("A missing spatial representation must be reported, not synthesized");
+        } catch (IllegalArgumentException expected) {
+            assertTrue(expected.getMessage().contains("representation"));
+        }
+    }
+
+    @Test
     public void warmedStableAndMovingZonesReuseStorageWithoutRecurringAllocations() {
         java.lang.management.ThreadMXBean base = java.lang.management.ManagementFactory.getThreadMXBean();
         org.junit.Assume.assumeTrue(base instanceof com.sun.management.ThreadMXBean);
@@ -51,7 +62,7 @@ public class ActorSpatialGeometryTest {
         ActorSpatialGeometry geometry = new ActorSpatialGeometry();
         float[] point = new float[2], local = new float[2];
         for (int flip = 0; flip < 4; flip++) {
-            update(geometry, null, (flip & 1) != 0, (flip & 2) != 0);
+            update(geometry, new ActorSpatialRectangleData(), (flip & 1) != 0, (flip & 2) != 0);
             assertEquals(6, geometry.vertexCount);
             for (int x = 0; x <= 10; x++) {
                 for (int y = 0; y <= 10; y++) {
@@ -63,7 +74,7 @@ public class ActorSpatialGeometryTest {
                 }
             }
         }
-        update(geometry, null, false, false);
+        update(geometry, new ActorSpatialRectangleData(), false, false);
         geometry.localToWorld(.5f, .5f, point, 0);
         assertArrayEquals(new float[]{60, 70}, point, .00001f);
     }

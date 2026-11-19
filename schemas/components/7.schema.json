@@ -75,6 +75,10 @@
         "layerIndex": {
           "type": "integer",
           "default": 0
+        },
+        "spatialEnabled": {
+          "type": "boolean",
+          "default": false
         }
       },
       "not": {

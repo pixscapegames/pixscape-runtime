@@ -22,10 +22,13 @@ public final class ActorSpatialGeometry {
                        float x1, float y1, float x2, float y2,
                        float x3, float y3, float x4, float y4,
                        boolean reflectedX, boolean reflectedY) {
-        float rx = rectangle == null ? 0f : rectangle.x;
-        float ry = rectangle == null ? 0f : rectangle.y;
-        float rw = rectangle == null ? 1f : rectangle.width;
-        float rh = rectangle == null ? 1f : rectangle.height;
+        if (rectangle == null) {
+            throw new IllegalArgumentException("Spatial representation is incomplete: define an occlusion rectangle and shadow pivot.");
+        }
+        float rx = rectangle.x;
+        float ry = rectangle.y;
+        float rw = rectangle.width;
+        float rh = rectangle.height;
         if (initialized && x == rx && y == ry && width == rw && height == rh
                 && flipX == reflectedX && flipY == reflectedY
                 && quad[0] == x1 && quad[1] == y1 && quad[2] == x2 && quad[3] == y2

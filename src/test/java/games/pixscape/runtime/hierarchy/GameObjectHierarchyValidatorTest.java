@@ -46,6 +46,25 @@ public class GameObjectHierarchyValidatorTest {
     }
 
     @Test
+    public void inheritedVisualRequiresAnAuthoredRepresentationWithoutRepairingTheScene() {
+        int root = gameObject(1);
+        int middle = member(2, 1, true);
+        int child = member(3, 2, false);
+        world.getMapper(games.pixscape.runtime.component.spatial.SpatialFootprintComponent.class).create(root);
+        world.getMapper(TextureRegionComponent.class).create(child);
+        var representations = world.getMapper(games.pixscape.runtime.component.spatial.SpatialRepresentationComponent.class);
+        Assert.assertTrue(validateAllFailure().getMessage().contains("own authored representation"));
+        Assert.assertFalse(representations.has(child));
+        Assert.assertFalse(representations.has(middle));
+        representations.create(child).rectangles = new games.pixscape.runtime.spatial.ActorSpatialRectangles();
+        representations.get(child).rectangles.put(0, null, new games.pixscape.runtime.spatial.ActorSpatialRectangleData());
+        validateAll();
+        Assert.assertFalse(representations.has(root));
+        Assert.assertFalse(representations.has(middle));
+        Assert.assertFalse(world.getMapper(games.pixscape.runtime.component.spatial.SpatialFootprintComponent.class).has(child));
+    }
+
+    @Test
     public void missingParentIsRejected() {
         int child = member(2, 99, false);
 

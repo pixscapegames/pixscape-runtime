@@ -135,7 +135,7 @@ def c(fields, special=None):
 
 components = {
     "PixscapeIdentityComponent": c({"i": "stableId", "s": "name"}),
-    "LayerComponent": c({"i": "layerIndex"}),
+    "LayerComponent": c({"i": "layerIndex", "b": "spatialEnabled"}),
     "LayerNameComponent": c({"s?": "name"}),
     "EntityIndexComponent": c({"i": "layerIndex zIndex"}),
     "LayerParallaxComponent": c({"n": "factorX factorY"}),

@@ -93,7 +93,7 @@ public class PixscapeApiV1Test {
         SpatialEntityFacade spatial = engine.api().entities().ofEntityId(entity).spatial();
         Assert.assertFalse(spatial.hasOwnFootprint());
         Assert.assertNull(spatial.resolvedOwner());
-        Assert.assertEquals(20f, spatial.rectangleWidth(), 0);
+        Assert.assertThrows(IllegalStateException.class, spatial::rectangleWidth);
         Assert.assertFalse(world.getMapper(SpatialRepresentationComponent.class).has(entity));
         spatial.addFootprint().setAltitude(3f).setRectangle(2, 1, 14, 7);
         Assert.assertEquals(entity, spatial.resolvedOwner().entityId());
@@ -312,7 +312,7 @@ public class PixscapeApiV1Test {
     }
 
     @Test
-    public void tiledSpatialFacadeKeepsMapsIndependentInOrdinaryLayer() throws Exception {
+    public void tiledSpatialFacadeRejectsSecondParticipatingMapWithoutMutation() throws Exception {
         PixscapeEngine engine = setupEngineWithWorld();
         World world = engine.getWorld();
         int host = createAuthoredLayer(engine, 5);
@@ -332,13 +332,13 @@ public class PixscapeApiV1Test {
         Assert.assertFalse(tiledB.spatialEnabled);
         Assert.assertFalse(tiledB.data.spatialEnabled);
 
-        spatialB.setEnabled(true);
+        Assert.assertThrows(IllegalArgumentException.class, () -> spatialB.setEnabled(true));
         Assert.assertTrue(tiledA.spatialEnabled);
-        Assert.assertTrue(tiledA.data.spatialEnabled);
-        Assert.assertTrue(tiledB.spatialEnabled);
-        Assert.assertTrue(tiledB.data.spatialEnabled);
+        Assert.assertFalse(tiledB.spatialEnabled);
+        Assert.assertFalse(tiledB.data.spatialEnabled);
 
         spatialA.setEnabled(false);
+        spatialB.setEnabled(true);
         Assert.assertFalse(tiledA.spatialEnabled);
         Assert.assertFalse(tiledA.data.spatialEnabled);
         Assert.assertTrue(tiledB.spatialEnabled);
@@ -2271,9 +2271,22 @@ public class PixscapeApiV1Test {
         index.zIndex = 0;
         TiledLayerComponent tiled = world.edit(map).create(TiledLayerComponent.class);
         tiled.data = new TiledLayerData(4, 4, 16, 16, 2);
+        attachTiledMap(world, map, layerIndex);
 
         world.process();
         return map;
+    }
+
+    private static void attachTiledMap(World world, int tiles, int layerIndex) {
+        var ids = games.pixscape.runtime.service.IdentityRegistry.boundTo(world);
+        var tiled = world.getMapper(TiledLayerComponent.class).get(tiles);
+        tiled.projection = games.pixscape.runtime.tiled.TiledProjection.ORTHO;
+        tiled.tileWidth = tiled.tileHeight = 16;
+        world.getMapper(TransformComponent.class).create(tiles);
+        int root = games.pixscape.runtime.tiled.TiledMapHierarchy.createMap(world, ids,
+                "Map", layerIndex, 0, tiled.projection, 16, 16, 4, 4);
+        games.pixscape.runtime.tiled.TiledMapHierarchy.attachLayer(world, ids, root, tiles,
+                games.pixscape.runtime.component.TiledMapLayerComponent.Kind.TILE, 0);
     }
 
     private static int createTiledMap(World world, int layerIndex) {
@@ -2282,6 +2295,7 @@ public class PixscapeApiV1Test {
         index.layerIndex = layerIndex;
         TiledLayerComponent tiled = world.edit(map).create(TiledLayerComponent.class);
         tiled.data = new TiledLayerData(4, 4, 16, 16, 2);
+        attachTiledMap(world, map, layerIndex);
         return map;
     }
 

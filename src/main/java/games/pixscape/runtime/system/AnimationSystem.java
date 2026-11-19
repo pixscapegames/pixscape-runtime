@@ -63,6 +63,11 @@ public final class AnimationSystem extends IteratingSystem implements ProfiledSy
         }
     }
 
+    /** Read-only O(1) definition lookup for explicit authoring operations. */
+    public AnimationDef definition(int assetId) {
+        return animationRegistry.getByAssetId(assetId);
+    }
+
     @Override
     protected void process(int e) {
         AnimationComponent a = mAnim.get(e);

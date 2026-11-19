@@ -79,7 +79,13 @@ public final class GameObjectHierarchyMutation {
         GameObjectCompositionSystem composition = world.getSystem(GameObjectCompositionSystem.class);
         int effectiveLayer = composition == null ? previousLayer
                 : composition.state().effectiveLayer[parent < 0 ? child : parent];
+        games.pixscape.runtime.service.SpatialRepresentationAuthoring.PreparedSubtree spatial =
+                parent >= 0 && composition != null && composition.spatialOwner(parent) >= 0
+                        ? games.pixscape.runtime.service.SpatialRepresentationAuthoring.prepareSubtree(world, child, topology) : null;
         try {
+            if (spatial != null) {
+                spatial.apply();
+            }
             if (promote) {
                 world.getMapper(GameObjectComponent.class).create(parent);
                 apply(world.getMapper(TransformComponent.class).get(parent), parentAfter);
@@ -94,6 +100,9 @@ public final class GameObjectHierarchyMutation {
             }
             hierarchy.publishAuthoredHierarchyMutation();
         } catch (RuntimeException | Error failure) {
+            if (spatial != null) {
+                spatial.restore();
+            }
             apply(world.getMapper(TransformComponent.class).get(child), childBefore);
             index.layerIndex = previousLayer;
             if (oldStableParent < 0) {

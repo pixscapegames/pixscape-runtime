@@ -35,6 +35,7 @@ public final class GameObjectHierarchyValidator {
     private final IntArray path = new IntArray(false, 16);
     private final IntArray touchedStates = new IntArray(false, 16);
     private byte[] visitState = new byte[16];
+    private final IntSet spatialEntities = new IntSet();
 
     public GameObjectHierarchyValidator(World world, IdentityRegistry identities) {
         if (world == null || identities == null) {
@@ -81,6 +82,7 @@ public final class GameObjectHierarchyValidator {
             throw new IllegalArgumentException("Hierarchy validation entity list is required.");
         }
         clearVisitState();
+        spatialEntities.clear();
         int[] data = entities.getData();
         for (int i = 0, n = entities.size(); i < n; i++) {
             int entityId = data[i];
@@ -178,7 +180,6 @@ public final class GameObjectHierarchyValidator {
         for (int i = 0, n = entities.size(); i < n; i++) {
             int entityId = data[i];
             if (!world.getEntityManager().isActive(entityId)
-                    || !members.has(entityId)
                     || state(entityId) == 2) {
                 continue;
             }
@@ -221,7 +222,37 @@ public final class GameObjectHierarchyValidator {
             path.add(current);
             current = requireDirectParent(current);
         }
-        for (int i = 0; i < path.size; i++) setState(path.get(i), (byte) 2);
+        if (state(current) != 2) {
+            validateSpatialRepresentation(current, false);
+            setState(current, (byte) 2);
+        }
+        boolean inherited = spatialEntities.contains(current);
+        for (int i = path.size - 1; i >= 0; i--) {
+            current = path.get(i);
+            validateSpatialRepresentation(current, inherited);
+            inherited = spatialEntities.contains(current);
+            setState(current, (byte) 2);
+        }
+    }
+
+    private void validateSpatialRepresentation(int entity, boolean inherited) {
+        if (!inherited && !world.getMapper(SpatialFootprintComponent.class).has(entity)) {
+            return;
+        }
+        spatialEntities.add(entity);
+        if (!world.getMapper(TextureRegionComponent.class).has(entity)) {
+            return;
+        }
+        games.pixscape.runtime.component.spatial.SpatialRepresentationComponent representation = world.getMapper(games.pixscape.runtime.component.spatial.SpatialRepresentationComponent.class)
+                .getSafe(entity, null);
+        AnimationComponent animation = world.getMapper(AnimationComponent.class).getSafe(entity, null);
+        AssetRefComponent asset = world.getMapper(AssetRefComponent.class).getSafe(entity, null);
+        games.pixscape.runtime.spatial.ActorSpatialRectangleData rectangle = representation == null || representation.rectangles == null ? null
+                : representation.rectangles.get(asset == null ? 0 : asset.assetId, animation == null ? null : animation.currentClip);
+        if (rectangle == null) {
+            throw failure(entity, "Spatial visual requires its own authored representation (occlusion rectangle and shadow pivot)");
+        }
+        rectangle.validate();
     }
 
     /**

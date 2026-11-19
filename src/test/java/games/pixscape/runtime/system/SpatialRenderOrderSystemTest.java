@@ -201,43 +201,38 @@ public class SpatialRenderOrderSystemTest {
     }
 
     @Test
-    public void differentSpatialLayersUseGlobalGeometricOrderWhenYAgrees() {
+    public void differentSpatialLayersUseGlobalGeometricOrderWhenYAgreesIsRejectedAtSceneBoundary() {
         Fixture fixture = new Fixture(512);
         fixture.createLayer(1, true);
         fixture.createLayer(2, true);
         int lowerLayer = fixture.createActor(10f, 40f, 0, 1, true);
         int higherLayer = fixture.createActor(10f, 20f, 0, 2, true);
 
-        fixture.process();
-
-        Assert.assertArrayEquals(new int[]{lowerLayer, higherLayer}, fixture.drawOrder());
+        Assert.assertThrows(IllegalArgumentException.class, fixture::process);
     }
 
     @Test
-    public void differentSpatialLayersUseOneGlobalGeometricOrder() {
+    public void differentSpatialLayersUseOneGlobalGeometricOrderIsRejectedAtSceneBoundary() {
         Fixture fixture = new Fixture(512);
         fixture.createLayer(1, true);
         fixture.createLayer(2, true);
         int lowerLayer = fixture.createActor(10f, 20f, 0, 1, true);
         int higherLayer = fixture.createActor(10f, 40f, 0, 2, true);
 
-        fixture.process();
-
-        Assert.assertArrayEquals(new int[]{higherLayer, lowerLayer}, fixture.drawOrder());
+        Assert.assertThrows(IllegalArgumentException.class, fixture::process);
     }
 
     @Test
-    public void multipleSpatialEnabledLayersShareOneDomainAroundTiledAnchors() {
+    public void singleActorLayerUsesAnchorsAcrossSceneLayers() {
         Fixture fixture = new Fixture(512);
         fixture.createLayer(1, true);
-        fixture.createLayer(2, true);
         TiledLayerData map = fixture.createBlockMap(2, 1, 16, 16, 300);
         fixture.createSpatialTiledLayerWithMap(0, map);
         int tileA = fixture.createLinkedTile(map, 0, 0, 101, 0, 10);
         int higher = fixture.createActor(10f, 10f, 0, 1, true);
         fixture.setSortOrder(higher, 1, 0, 20);
-        int lower = fixture.createActor(10f, 30f, 0, 2, true);
-        fixture.setSortOrder(lower, 2, 0, 30);
+        int lower = fixture.createActor(10f, 30f, 0, 1, true);
+        fixture.setSortOrder(lower, 1, 0, 30);
         int tileB = fixture.createLinkedTile(map, 1, 0, 102, 0, 40);
 
         fixture.process();
@@ -261,7 +256,7 @@ public class SpatialRenderOrderSystemTest {
     }
 
     @Test
-    public void actorLayerMetadataDoesNotGateFootprintOrdering() {
+    public void actorMetadataCannotEnableItsOrdinarySceneLayer() {
         Fixture fixture = new Fixture(512);
         fixture.createLayer(6, false);
         int higher = fixture.createActor(10f, 20f, 0, 6, true);
@@ -270,7 +265,7 @@ public class SpatialRenderOrderSystemTest {
 
         fixture.process();
 
-        Assert.assertArrayEquals(new int[]{lower, higher}, fixture.drawOrder());
+        Assert.assertArrayEquals(new int[]{higher, lower}, fixture.drawOrder());
     }
 
     @Test
@@ -1283,7 +1278,7 @@ public class SpatialRenderOrderSystemTest {
     }
 
     @Test
-    public void circleFixtureWithoutSpatialHeightDoesNotCreateBlockIntent() {
+    public void missingRepresentationIsRejectedEvenWithAValidFootprint() {
         Fixture fixture = new Fixture(512);
         fixture.createLayer(2, true);
         TiledLayerData map = fixture.createBlockMap(3, 3, 16, 16, 300);
@@ -1293,10 +1288,7 @@ public class SpatialRenderOrderSystemTest {
         fixture.addSpatialCircleFootprint(actor, 2f);
         fixture.setSortOrder(actor, 2, 0, 20);
 
-        fixture.process();
-
-        Assert.assertArrayEquals(new int[]{tile, actor}, fixture.drawOrder());
-        fixture.assertDrawListIntegrity();
+        Assert.assertThrows(IllegalArgumentException.class, fixture::process);
     }
 
     @Test
@@ -1563,7 +1555,7 @@ public class SpatialRenderOrderSystemTest {
     public void multiLayerSpatialSortKeepsEachTiledLayerDomainOrder() {
         Fixture fixture = new Fixture(1024, true);
         fixture.createLayer(2, true);
-        fixture.createLayer(4, true);
+        fixture.createLayer(4, false);
 
         TiledLayerData lowerMap = fixture.createBlockMap(
                 4, 2, 90, 30, 300, TiledProjection.ISO);
@@ -1580,7 +1572,7 @@ public class SpatialRenderOrderSystemTest {
         int upper2 = fixture.createLinkedTile(upperMap, 2, 0, 202, 3, 10);
 
         int actorA = fixture.createActor(8f, 8f, 0, 2, true);
-        int actorB = fixture.createActor(8f, 24f, 0, 4, true);
+        int actorB = fixture.createActor(8f, 24f, 0, 2, true);
         fixture.setActorCircleFootprint(actorA, 2f);
         fixture.setActorCircleFootprint(actorB, 2f);
 
@@ -1688,6 +1680,7 @@ public class SpatialRenderOrderSystemTest {
             int entity = world.create();
             LayerComponent layer = world.getMapper(LayerComponent.class).create(entity);
             layer.layerIndex = layerIndex;
+            layer.spatialEnabled = spatialEnabled;
         }
 
         void createSpatialTiledLayer(int layerIndex) {

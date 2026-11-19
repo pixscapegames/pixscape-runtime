@@ -35,6 +35,7 @@ public final class SpatialRenderOrderSystem extends BaseSystem implements Profil
     private ComponentMapper<SpatialFootprintComponent> mSpatialFootprint;
 
     private EntitySubscription tiledMapsSub;
+    private EntitySubscription sceneLayersSub;
 
 
     private int[] faceMapEntities = new int[0];
@@ -116,6 +117,8 @@ public final class SpatialRenderOrderSystem extends BaseSystem implements Profil
         gameObjectHierarchy = world.getSystem(GameObjectHierarchySystem.class);
         GameObjectCompositionSystem composition = world.getSystem(GameObjectCompositionSystem.class);
         actorCollector.setCompositionState(composition == null ? null : composition.state());
+        sceneLayersSub = world.getAspectSubscriptionManager()
+                .get(Aspect.all(LayerComponent.class).exclude(EntityIndexComponent.class));
         tiledMapsSub = world.getAspectSubscriptionManager()
                 .get(Aspect.all(EntityIndexComponent.class, TiledLayerComponent.class)
                         .exclude(LayerComponent.class));
@@ -199,6 +202,9 @@ public final class SpatialRenderOrderSystem extends BaseSystem implements Profil
             return;
         }
 
+        // Grouped layer publication: no per-actor layer search, no cached authored flag.
+        actorCollector.setSpatialActorLayer(
+                games.pixscape.runtime.service.SpatialScenePolicy.actorLayerIndex(world, sceneLayersSub.getEntities()));
         collectSpatialActors();
         if (actorCollector.actorCount() == 0 || drawList.size == 1) {
             return;

@@ -80,6 +80,7 @@ final class SpatialSharedSearchFixture implements AutoCloseable {
             int layer = world.create();
             LayerComponent component = world.getMapper(LayerComponent.class).create(layer);
             component.layerIndex = m;
+            component.spatialEnabled = m == count;
         }
         for (int m = 0; m < count; m++) {
             owners[m] = addMap(m);

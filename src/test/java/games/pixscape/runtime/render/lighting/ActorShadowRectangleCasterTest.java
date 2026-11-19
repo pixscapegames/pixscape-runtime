@@ -32,7 +32,7 @@ public class ActorShadowRectangleCasterTest {
 
     @Test
     public void footprintMovesOnlyShadowPivotAndKeepsProjectedImageAndUvs() {
-        ActorSpatialGeometry geometry = geometry(null, Q);
+        ActorSpatialGeometry geometry = geometry(new ActorSpatialRectangleData(), Q);
         ActorShadowRectangleCaster caster = new ActorShadowRectangleCaster();
         caster.update(geometry, 45, -17, 10, 3, -2);
         float[] before = caster.vertices.clone();
@@ -111,7 +111,7 @@ public class ActorShadowRectangleCasterTest {
     @Test
     public void translatedActorAndLightKeepTheSameLocalSilhouette() {
         ActorShadowRectangleCaster caster = new ActorShadowRectangleCaster();
-        ActorSpatialGeometry geometry = geometry(null, Q);
+        ActorSpatialGeometry geometry = geometry(new ActorSpatialRectangleData(), Q);
         caster.update(geometry, 0, 0, 0, 3, -4);
         caster.faceLight(100, 70);
         float[] before = caster.lightVertices.clone(), moved = Q.clone();
@@ -119,7 +119,7 @@ public class ActorShadowRectangleCasterTest {
             moved[i] += 20;
             moved[i + 1] += 20;
         }
-        caster.update(geometry(null, moved), 20, 20, 0, 3, -4);
+        caster.update(geometry(new ActorSpatialRectangleData(), moved), 20, 20, 0, 3, -4);
         caster.faceLight(130, 80);
         for (int i = 0; i < caster.vertexCount; i++) {
             int o = i * 8;
@@ -248,8 +248,8 @@ public class ActorShadowRectangleCasterTest {
             assertEquals(identity, s.casterShadowGroup());
             assertEquals(identity, s.receiverShadowGroup(24));
             world.getMapper(SpatialRepresentationComponent.class).remove(e);
-            world.process();
-            assertSame("Absent settings use the full image", storage.vertices, s.shadowVertices);
+            assertThrows(LightingAdmissionException.class, world::process);
+            assertNull("Missing settings must not synthesize an actor caster", s.shadowVertices);
             world.getMapper(SpatialFootprintComponent.class).remove(e);
             world.process();
             assertNull("Removing the owner stops the actor caster", s.shadowVertices);

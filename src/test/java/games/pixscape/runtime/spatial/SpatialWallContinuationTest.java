@@ -465,6 +465,7 @@ public class SpatialWallContinuationTest {
             int layerEntity = world.create();
             LayerComponent layer = world.getMapper(LayerComponent.class).create(layerEntity);
             layer.layerIndex = 0;
+            layer.spatialEnabled = true;
             actor = world.create();
             transform = world.getMapper(TransformComponent.class).create(actor);
             world.getMapper(EntityIndexComponent.class).create(actor).layerIndex = 0;

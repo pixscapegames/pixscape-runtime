@@ -79,6 +79,13 @@ public final class AnimationDef implements AnimationDefinition {
         return clipsByName.size;
     }
 
+    /** Cold authoring preparation; copies names without exposing mutable registry entries. */
+    public void copyClipNames(com.badlogic.gdx.utils.Array<String> destination) {
+        for (String name : clipsByName.keys()) {
+            destination.add(name);
+        }
+    }
+
     public boolean hasClip(String clipName) {
         return clip(clipName) != null;
     }

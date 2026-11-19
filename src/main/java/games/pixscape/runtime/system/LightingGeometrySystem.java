@@ -386,6 +386,9 @@ public final class LightingGeometrySystem extends BaseSystem {
         games.pixscape.runtime.spatial.ActorSpatialRectangleData rectangle = h == null || h.rectangles == null
                 ? null : h.rectangles.get(ref == null ? 0 : ref.assetId,
                         animation == null ? null : animation.currentClip);
+        if (rectangle == null) {
+            throw new LightingAdmissionException("Spatial visual entity " + e + " has no authored representation for its active image/clip.");
+        }
         games.pixscape.runtime.component.spatial.SpatialFootprintComponent foot = footprints.getSafe(owner, null);
         games.pixscape.runtime.component.TransformComponent transform = transforms.getSafe(owner, null);
         GameObjectHierarchySystem hierarchy = world.getSystem(GameObjectHierarchySystem.class);
@@ -399,7 +402,7 @@ public final class LightingGeometrySystem extends BaseSystem {
             surface.actorShadowRectangle = new ActorShadowRectangleCaster();
         }
         surface.actorShadowRectangle.update(geometry, actorPose.footX, actorPose.footY, actorPose.bottom,
-                rectangle == null ? 0f : rectangle.pivotX, rectangle == null ? 0f : rectangle.pivotY);
+                rectangle.pivotX, rectangle.pivotY);
         surface.shadowVertices = surface.actorShadowRectangle.vertices;
         surface.shadowVertexCount = surface.actorShadowRectangle.vertexCount;
         if (surface.imageQuad) {

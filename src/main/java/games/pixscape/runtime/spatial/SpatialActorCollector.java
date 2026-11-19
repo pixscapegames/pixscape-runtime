@@ -14,6 +14,14 @@ import games.pixscape.runtime.render.RenderKind;
 import games.pixscape.runtime.render.RenderSourceDomain;
 
 public final class SpatialActorCollector {
+    private boolean layerRestricted;
+    private int spatialActorLayer = -1;
+
+    public void setSpatialActorLayer(int layerIndex) {
+        layerRestricted = true;
+        spatialActorLayer = layerIndex;
+    }
+
     private ComponentMapper<games.pixscape.runtime.component.AnimationComponent> animations;
     private ComponentMapper<games.pixscape.runtime.component.AssetRefComponent> assets;
     private games.pixscape.runtime.hierarchy.GameObjectCompositionState composition;
@@ -217,6 +225,9 @@ public final class SpatialActorCollector {
         }
 
         ActorSpatialRectangleData rectangle = rectangle(entity, height);
+        if (rectangle == null) {
+            throw new IllegalArgumentException("Spatial visual entity " + entity + " has no authored representation for its active image/clip.");
+        }
         ActorSpatialGeometry geometry = state.prepareActorSpatialGeometry(slot, rectangle);
         if (geometry.vertexCount == 0) {
             return false;
@@ -303,7 +314,8 @@ public final class SpatialActorCollector {
             int slot, DynamicEntityRenderState state, EntityManager entityManager,
             ComponentMapper<EntityIndexComponent> entityIndexMapper,
             ComponentMapper<SpatialRepresentationComponent> spatialRepresentationMapper) {
-        if (!isRenderableSlot(slot, state)) {
+        if (!isRenderableSlot(slot, state)
+                || layerRestricted && (spatialActorLayer < 0 || state.layerIndex[slot] != spatialActorLayer)) {
             return false;
         }
         int entity = state.renderSlotToEntityId[slot];

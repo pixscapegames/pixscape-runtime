@@ -1604,37 +1604,37 @@ public final class PixscapeApiImpl implements PixscapeAPI {
 
         @Override
         public float rectangleHeight() {
-            games.pixscape.runtime.spatial.ActorSpatialRectangleData rectangle = activeRectangle(comp(false), false);
-            return (rectangle == null ? 1f : rectangle.height) * imageSize(false);
+            games.pixscape.runtime.spatial.ActorSpatialRectangleData rectangle = requiredRectangle();
+            return (rectangle == null ? 0f : rectangle.height) * imageSize(false);
         }
 
         @Override
         public float rectangleWidth() {
-            games.pixscape.runtime.spatial.ActorSpatialRectangleData rectangle = activeRectangle(comp(false), false);
-            return (rectangle == null ? 1f : rectangle.width) * imageSize(true);
+            games.pixscape.runtime.spatial.ActorSpatialRectangleData rectangle = requiredRectangle();
+            return (rectangle == null ? 0f : rectangle.width) * imageSize(true);
         }
 
         @Override
         public float rectangleX() {
-            games.pixscape.runtime.spatial.ActorSpatialRectangleData rectangle = activeRectangle(comp(false), false);
+            games.pixscape.runtime.spatial.ActorSpatialRectangleData rectangle = requiredRectangle();
             return rectangle == null ? 0f : rectangle.x * imageSize(true);
         }
 
         @Override
         public float rectangleY() {
-            games.pixscape.runtime.spatial.ActorSpatialRectangleData rectangle = activeRectangle(comp(false), false);
+            games.pixscape.runtime.spatial.ActorSpatialRectangleData rectangle = requiredRectangle();
             return rectangle == null ? 0f : rectangle.y * imageSize(false);
         }
 
         @Override
         public float shadowPivotX() {
-            games.pixscape.runtime.spatial.ActorSpatialRectangleData rectangle = activeRectangle(comp(false), false);
+            games.pixscape.runtime.spatial.ActorSpatialRectangleData rectangle = requiredRectangle();
             return rectangle == null ? 0f : rectangle.pivotX;
         }
 
         @Override
         public float shadowPivotY() {
-            games.pixscape.runtime.spatial.ActorSpatialRectangleData rectangle = activeRectangle(comp(false), false);
+            games.pixscape.runtime.spatial.ActorSpatialRectangleData rectangle = requiredRectangle();
             return rectangle == null ? 0f : rectangle.pivotY;
         }
 
@@ -1680,6 +1680,17 @@ public final class PixscapeApiImpl implements PixscapeAPI {
             return this;
         }
 
+        private games.pixscape.runtime.spatial.ActorSpatialRectangleData requiredRectangle() {
+            if (handle.world() == null) {
+                return null;
+            }
+            games.pixscape.runtime.spatial.ActorSpatialRectangleData rectangle = activeRectangle(comp(false), false);
+            if (rectangle == null) {
+                throw new IllegalStateException("Spatial visual has no authored representation for its active image/clip.");
+            }
+            return rectangle;
+        }
+
         private games.pixscape.runtime.spatial.ActorSpatialRectangleData activeRectangle(SpatialRepresentationComponent c, boolean create) {
             if (c == null) return null;
             World world = handle.world();
@@ -1709,7 +1720,12 @@ public final class PixscapeApiImpl implements PixscapeAPI {
                     world.getMapper(games.pixscape.runtime.component.spatial.SpatialFootprintComponent.class);
             if (create && !mapper.has(handle.entityId)) {
                 requireFootprintPublication(world);
+                GameObjectHierarchySystem hierarchy = world.getSystem(GameObjectHierarchySystem.class);
+                games.pixscape.runtime.service.SpatialRepresentationAuthoring.PreparedSubtree representations =
+                        games.pixscape.runtime.service.SpatialRepresentationAuthoring.prepareSubtree(world, handle.entityId,
+                                hierarchy == null ? null : hierarchy.topologyForRemoval());
                 games.pixscape.runtime.component.spatial.SpatialFootprintComponent result = mapper.create(handle.entityId);
+                representations.apply();
                 publishFootprintOwnership(world);
                 return result;
             }
@@ -4008,6 +4024,9 @@ public final class PixscapeApiImpl implements PixscapeAPI {
         @Override
         public TiledSpatialFacade setEnabled(boolean enabled) {
             TiledLayerComponent c = comp();
+            if (enabled && c != null && !enabled()) {
+                games.pixscape.runtime.service.SpatialScenePolicy.requireTiledActivation(handle.world(), handle.entityId);
+            }
             if (c != null) c.spatialEnabled = enabled;
             TiledLayerData d = c != null ? c.data : null;
             if (d != null) d.spatialEnabled = enabled;

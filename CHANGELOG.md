@@ -2,14 +2,20 @@
 
 ## [0.2.5-SNAPSHOT]
 
+### Spatial participation
+* Every spatial visual requires its own authored occlusion rectangle and shadow pivot, while its footprint may be inherited through nonvisual composition nodes. Explicit activation and reparent operations prepare missing representation records (including animation clips) before publication and preserve existing settings. Loading, rendering and geometry getters no longer synthesize an implicit full-image rectangle or pivot when records are missing; no migration or load-time repair is introduced.
+* Restored `LayerComponent.spatialEnabled`: at most one scene layer admits spatial actors. The renderer checks each drawable's effective layer while retaining footprint ownership/inheritance and Physics independence.
+* Scene loading and explicit Tiled Spatial activation reject Depth layers belonging to different maps. Several Depth layers of the same map remain supported across the actor/map scene-layer boundary; the existing actor ordering, projection and occlusion priorities are unchanged. Nonparticipating ORTHO/ISO maps remain ordinary decor.
+* The current component schema includes the restored layer flag (default false), without migration or automatic scene/map selection.
+
 ### Breaking changes
 * Scenes now require schema 7 and Game Object definitions/fragments schema 6. Occlusion zones are stored in normalized image-local coordinates. Older formats are rejected; no historical reader, conversion or migration is provided.
-* Removed ordinary-layer spatial activation and the global `SpatialAPI`/`PixscapeAPI.spatial()` entry point. Spatial participation now follows an entity's own or nearest ancestor's footprint, independently of layers and physics; per-entity spatial access remains available.
+* Removed the global `SpatialAPI`/`PixscapeAPI.spatial()` entry point. Footprint ownership follows an entity's own or nearest ancestor's footprint independently of Physics; spatial participation requires the designated scene layer. Per-entity spatial access remains available.
 * Renamed tile-layer APIs: `TiledMapRef` becomes `TiledLayerRef`, `map()` becomes `layer()`, `TiledMapFacade` becomes `TiledLayerFacade`, and `TiledMapLayerData` becomes `TiledLayerData`.
 
 ### Added
 * Tiled map/layer roles now enforce structural ownership, translation-only map/tile transforms and exclusion from actor footprints and Game Object assets. Object layers retain ordinary object composition; tile-layer managed collisions and volumes remain supported. Invalid scene state is diagnosed without migration or repair.
-* Added independent footprint radius/offset APIs and optional image-local occlusion zones; shadow pivot offsets retain their footprint-relative role.
+* Added independent footprint radius/offset APIs and authored image-local occlusion zones; shadow pivot offsets retain their footprint-relative role.
 * Added `gameObjects().reparent(child, parent)` to change or remove a parent while preserving resolved world poses and native Body/joint connections. Compatible visual parents gain Game Object capability; invalid operations are rejected before mutation.
 * Added a session-only composition visibility filter for editor integration, without changing authored visibility or physics.
 * Added prepared Game Object factories and explicit rigid placement of physics-backed compositions.

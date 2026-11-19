@@ -50,6 +50,9 @@ public class VisualScalePhysicsIntegrationTest {
                 authored.originX = 10f;
                 authored.originY = 12f;
                 h.world.getMapper(TextureRegionComponent.class).create(sprite);
+                var representation = h.world.getMapper(games.pixscape.runtime.component.spatial.SpatialRepresentationComponent.class).create(sprite);
+                representation.rectangles = new games.pixscape.runtime.spatial.ActorSpatialRectangles();
+                representation.rectangles.staticRectangle = new games.pixscape.runtime.spatial.ActorSpatialRectangleData();
                 DimensionsComponent dimensions = h.world.getMapper(DimensionsComponent.class).create(sprite);
                 dimensions.width = 80f;
                 dimensions.height = 40f;

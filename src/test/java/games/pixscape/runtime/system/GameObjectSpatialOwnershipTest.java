@@ -127,8 +127,13 @@ public class GameObjectSpatialOwnershipTest {
             c.x = 80;
             c.y = 60;
             f.world.getMapper(SpatialFootprintComponent.class).create(parent);
+            f.world.getMapper(games.pixscape.runtime.component.TextureRegionComponent.class).create(child);
+            var representations = f.world.getMapper(games.pixscape.runtime.component.spatial.SpatialRepresentationComponent.class);
             f.process();
+            Assert.assertFalse(representations.has(child));
             games.pixscape.runtime.hierarchy.GameObjectHierarchyMutation.reparent(f.world, child, parent);
+            Assert.assertNotNull(representations.get(child).rectangles.staticRectangle);
+            Assert.assertFalse(representations.has(parent));
             Assert.assertTrue(f.world.getMapper(GameObjectComponent.class).has(parent));
             Assert.assertEquals(20, p.x, 0);
             Assert.assertEquals(80, f.hierarchy.worldTransforms().x[child], .0001f);

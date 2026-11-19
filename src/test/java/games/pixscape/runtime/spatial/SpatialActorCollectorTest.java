@@ -97,11 +97,11 @@ public class SpatialActorCollectorTest {
                 }
             }
             animation.currentClip = "missing";
-            f.collector.collect(f.drawList, f.state, f.world.getEntityManager(), f.entityIndex, f.transform, f.height, f.shapes);
-            Assert.assertEquals(1, f.collector.actorCount());
+            Assert.assertThrows(IllegalArgumentException.class, () -> f.collector.collect(
+                    f.drawList, f.state, f.world.getEntityManager(), f.entityIndex, f.transform, f.height, f.shapes));
             height.rectangles = null;
-            f.collector.collect(f.drawList, f.state, f.world.getEntityManager(), f.entityIndex, f.transform, f.height, f.shapes);
-            Assert.assertEquals(1, f.collector.actorCount());
+            Assert.assertThrows(IllegalArgumentException.class, () -> f.collector.collect(
+                    f.drawList, f.state, f.world.getEntityManager(), f.entityIndex, f.transform, f.height, f.shapes));
         } finally {
             f.world.dispose();
         }
@@ -165,7 +165,7 @@ public class SpatialActorCollectorTest {
     }
 
     @Test
-    public void missingRepresentationUsesImageAndEmptyZoneEmitsNothing() {
+    public void missingRepresentationIsRejectedAndExplicitEmptyZoneEmitsNothing() {
         Fixture fixture = new Fixture();
         int missing = fixture.createActorWithoutHeight(10f, 20f, 2);
         fixture.addCircle(missing, 3f, 0f, 0f);
@@ -175,10 +175,14 @@ public class SpatialActorCollectorTest {
         fixture.addActorDrawSlot(missing);
         fixture.addActorDrawSlot(zero);
 
+        Assert.assertThrows(IllegalArgumentException.class, () -> fixture.collector.collect(
+                fixture.drawList, fixture.state, fixture.world.getEntityManager(),
+                fixture.entityIndex, fixture.transform, fixture.height, fixture.shapes));
+        fixture.footprints.remove(missing);
         fixture.collector.collect(fixture.drawList, fixture.state, fixture.world.getEntityManager(),
                 fixture.entityIndex, fixture.transform, fixture.height, fixture.shapes);
 
-        Assert.assertEquals(1, fixture.collector.actorCount());
+        Assert.assertEquals(0, fixture.collector.actorCount());
     }
 
     @Test
