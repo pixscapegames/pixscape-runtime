@@ -16,6 +16,15 @@ public final class ActorSpatialRectangles {
         return map == null ? null : map.get(clip);
     }
 
+    /** Same current-visual requirement for ECS validation and asset admission. */
+    public static void requireCurrent(ActorSpatialRectangles rectangles, int asset, String clip) {
+        ActorSpatialRectangleData rectangle = rectangles == null ? null : rectangles.get(asset, clip);
+        if (rectangle == null) {
+            throw new IllegalArgumentException("Spatial visual requires its own authored representation (occlusion rectangle and shadow pivot)");
+        }
+        rectangle.validate();
+    }
+
     public void put(int asset, String clip, ActorSpatialRectangleData rectangle) {
         rectangle.validate();
         if (clip == null) {

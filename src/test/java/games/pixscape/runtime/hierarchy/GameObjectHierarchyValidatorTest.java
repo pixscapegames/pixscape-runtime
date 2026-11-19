@@ -65,6 +65,26 @@ public class GameObjectHierarchyValidatorTest {
     }
 
     @Test
+    public void spatialAnimationUsesOnlyCurrentAssetAndClip() {
+        int root = gameObject(1);
+        int child = member(2, 1, false);
+        world.getMapper(games.pixscape.runtime.component.spatial.SpatialFootprintComponent.class).create(root);
+        world.getMapper(TextureRegionComponent.class).create(child);
+        world.getMapper(AssetRefComponent.class).create(child).assetId = 7;
+        var animation = world.getMapper(AnimationComponent.class).create(child);
+        animation.currentClip = "idle";
+        animation.animationAssetIds.addAll(7, 8);
+        var representation = world.getMapper(games.pixscape.runtime.component.spatial.SpatialRepresentationComponent.class).create(child);
+        representation.rectangles = new games.pixscape.runtime.spatial.ActorSpatialRectangles();
+        representation.rectangles.put(0, null, new games.pixscape.runtime.spatial.ActorSpatialRectangleData());
+        representation.rectangles.put(8, "idle", new games.pixscape.runtime.spatial.ActorSpatialRectangleData());
+        representation.rectangles.put(7, "run", new games.pixscape.runtime.spatial.ActorSpatialRectangleData());
+        Assert.assertTrue(validateAllFailure().getMessage().contains("own authored representation"));
+        representation.rectangles.put(7, "idle", new games.pixscape.runtime.spatial.ActorSpatialRectangleData());
+        validateAll();
+    }
+
+    @Test
     public void missingParentIsRejected() {
         int child = member(2, 99, false);
 

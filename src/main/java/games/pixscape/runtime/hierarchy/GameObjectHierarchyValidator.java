@@ -14,6 +14,7 @@ import games.pixscape.runtime.component.spatial.SpatialShapesComponent;
 import games.pixscape.runtime.render.SortKey64;
 import games.pixscape.runtime.service.IdentityRegistry;
 import games.pixscape.runtime.component.spatial.SpatialFootprintComponent;
+import games.pixscape.runtime.spatial.ActorSpatialRectangles;
 
 /**
  * Cold-boundary validator for authored Game Object hierarchy relations.
@@ -247,12 +248,13 @@ public final class GameObjectHierarchyValidator {
                 .getSafe(entity, null);
         AnimationComponent animation = world.getMapper(AnimationComponent.class).getSafe(entity, null);
         AssetRefComponent asset = world.getMapper(AssetRefComponent.class).getSafe(entity, null);
-        games.pixscape.runtime.spatial.ActorSpatialRectangleData rectangle = representation == null || representation.rectangles == null ? null
-                : representation.rectangles.get(asset == null ? 0 : asset.assetId, animation == null ? null : animation.currentClip);
-        if (rectangle == null) {
-            throw failure(entity, "Spatial visual requires its own authored representation (occlusion rectangle and shadow pivot)");
+        try {
+            ActorSpatialRectangles.requireCurrent(
+                    representation == null ? null : representation.rectangles,
+                    asset == null ? 0 : asset.assetId, animation == null ? null : animation.currentClip);
+        } catch (IllegalArgumentException ex) {
+            throw failure(entity, ex.getMessage());
         }
-        rectangle.validate();
     }
 
     /**

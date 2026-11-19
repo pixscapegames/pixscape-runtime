@@ -7,6 +7,7 @@ import games.pixscape.runtime.component.physics.PhysicsJointComponent;
 import games.pixscape.runtime.physics.PhysicsShapeData;
 import games.pixscape.runtime.property.PropertySet;
 import games.pixscape.runtime.render.SortKey64;
+import games.pixscape.runtime.spatial.ActorSpatialRectangles;
 
 /**
  * Strict reader/writer for the independent Game Object asset schema.
@@ -106,7 +107,7 @@ public final class GameObjectAssetLoader {
                         + " must have Game Object root semantics");
             }
         }
-        validateAcyclic(asset, byId, file);
+        validateHierarchy(asset, byId, file);
         for (GameObjectAsset.GameObjectEntityData entity : asset.entities) {
             validateObjectReferences(entity.customProperties, byId, file, entity.sourceEntityId);
         }
@@ -383,24 +384,43 @@ public final class GameObjectAssetLoader {
         }
     }
 
-    private static void validateAcyclic(
+    private static void validateHierarchy(
             GameObjectAsset asset, IntMap<GameObjectAsset.GameObjectEntityData> byId,
             FileHandle file) {
         IntSet visiting = new IntSet();
         IntSet complete = new IntSet();
+        IntSet spatial = new IntSet();
+        IntArray path = new IntArray();
         for (GameObjectAsset.GameObjectEntityData entity : asset.entities) {
             int current = entity.sourceEntityId;
-            visiting.clear();
+            path.clear();
             while (current != -1 && !complete.contains(current)) {
                 if (!visiting.add(current)) {
                     throw failure(file, "hierarchy contains a cycle at sourceEntityId " + current);
                 }
-                GameObjectAsset.GameObjectEntityData currentEntity = byId.get(current);
-                if (currentEntity == null) break;
-                current = currentEntity.parentSourceEntityId;
+                path.add(current);
+                current = byId.get(current).parentSourceEntityId;
             }
-            IntSet.IntSetIterator iterator = visiting.iterator();
-            while (iterator.hasNext) complete.add(iterator.next());
+            for (int i = path.size - 1; i >= 0; i--) {
+                GameObjectAsset.GameObjectEntityData data = byId.get(path.get(i));
+                if (data.spatialFootprint != null || spatial.contains(data.parentSourceEntityId)) {
+                    spatial.add(data.sourceEntityId);
+                    if (data.assetRef != null) {
+                        // Match the animation component materialized by the Runtime spawner.
+                        String clip = data.animation == null ? null
+                                : data.animation.currentClip == null ? "" : data.animation.currentClip;
+                        try {
+                            ActorSpatialRectangles.requireCurrent(
+                                    data.spatialRepresentation == null ? null : data.spatialRepresentation.rectangles,
+                                    data.assetRef.assetId, clip);
+                        } catch (IllegalArgumentException ex) {
+                            throw failure(file, "sourceEntityId " + data.sourceEntityId + ": " + ex.getMessage());
+                        }
+                    }
+                }
+                visiting.remove(data.sourceEntityId);
+                complete.add(data.sourceEntityId);
+            }
         }
     }
 

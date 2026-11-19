@@ -16,6 +16,53 @@ public class GameObjectAssetLoaderTest {
     private final GameObjectAssetLoader loader = new GameObjectAssetLoader();
 
     @Test
+    public void spatialVisualRequiresOwnRectangleThroughNonvisualAncestors() {
+        GameObjectAsset asset = validNestedAsset();
+        asset.entities.get(0).spatialFootprint = new games.pixscape.runtime.component.spatial.SpatialFootprintComponent();
+        var visual = asset.entities.get(2);
+        visual.assetRef = new GameObjectAsset.AssetRefData();
+        visual.assetRef.assetId = 7;
+        asset.entities.reverse();
+        rejected(asset, "own authored representation");
+        Assert.assertNull(visual.spatialRepresentation);
+        visual.spatialRepresentation = new GameObjectAsset.SpatialRepresentationData();
+        visual.spatialRepresentation.rectangles = new games.pixscape.runtime.spatial.ActorSpatialRectangles();
+        visual.spatialRepresentation.rectangles.staticRectangle = new games.pixscape.runtime.spatial.ActorSpatialRectangleData();
+        loader.fromJson(loader.toJson(asset));
+    }
+
+    @Test
+    public void spatialAnimationRequiresOnlyCurrentAssetAndClipRectangle() {
+        GameObjectAsset asset = validNestedAsset();
+        var visual = asset.entities.get(2);
+        visual.spatialFootprint = new games.pixscape.runtime.component.spatial.SpatialFootprintComponent();
+        visual.assetRef = new GameObjectAsset.AssetRefData();
+        visual.assetRef.assetId = 7;
+        visual.animation = new GameObjectAsset.AnimationData();
+        visual.animation.currentClip = "idle";
+        visual.animation.animationAssetIds.addAll(7, 8);
+        visual.spatialRepresentation = new GameObjectAsset.SpatialRepresentationData();
+        var rectangles = new games.pixscape.runtime.spatial.ActorSpatialRectangles();
+        visual.spatialRepresentation.rectangles = rectangles;
+        rectangles.staticRectangle = new games.pixscape.runtime.spatial.ActorSpatialRectangleData();
+        rectangles.put(8, "idle", new games.pixscape.runtime.spatial.ActorSpatialRectangleData());
+        rectangles.put(7, "run", new games.pixscape.runtime.spatial.ActorSpatialRectangleData());
+        rejected(asset, "own authored representation");
+        rectangles.put(7, "idle", new games.pixscape.runtime.spatial.ActorSpatialRectangleData());
+        loader.fromJson(loader.toJson(asset));
+    }
+
+    @Test
+    public void spatialNonvisualDescendantsNeedNeitherRectanglesNorSceneLayers() {
+        GameObjectAsset asset = validNestedAsset();
+        asset.entities.get(0).spatialFootprint = new games.pixscape.runtime.component.spatial.SpatialFootprintComponent();
+        GameObjectAsset restored = loader.fromJson(loader.toJson(asset));
+        for (var entity : restored.entities) {
+            Assert.assertNull(entity.spatialRepresentation);
+        }
+    }
+
+    @Test
     public void tiledStructuralMetadataCannotBeLoadedAsAGameObjectAsset() {
         for (String kind : new String[]{"TILED_MAP", "TILED_LAYER"}) {
             String json = "{schemaVersion:7,rootSourceEntityId:1,entities:["

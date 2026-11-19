@@ -23,6 +23,41 @@ import org.junit.Test;
 
 public class GameObjectHierarchySpawnTest {
     @Test
+    public void incompleteSpatialVisualRejectsBeforePrepareOrSpawnAllocatesAnything() throws Exception {
+        World world = new World(new WorldConfigurationBuilder().build());
+        IdentityRegistry identities = new IdentityRegistry();
+        SceneMetaRuntime meta = new SceneMetaRuntime();
+        identities.bind(world, meta);
+        var file = new com.badlogic.gdx.files.FileHandle(java.io.File.createTempFile("spatial-invalid-", ".gameobject"));
+        try {
+            // Literal input bypasses the writer's validation, as an incomplete file would.
+            file.writeString("{schemaVersion:7,rootSourceEntityId:1,entities:["
+                    + "{sourceEntityId:1,transform:{scaleX:1,scaleY:1},gameObject:{},spatialFootprint:{}},"
+                    + "{sourceEntityId:2,parentSourceEntityId:1,transform:{scaleX:1,scaleY:1},assetRef:{assetId:7}}]}", false);
+            var spawner = new GameObjectRuntimeFragmentSpawner(identities, meta, new AtlasRuntimeService());
+            int nextId = meta.nextEntityStableId;
+            IllegalArgumentException failure = Assert.assertThrows(IllegalArgumentException.class,
+                    () -> spawner.prepare(file, "invalid"));
+            Assert.assertTrue(failure.getMessage().contains("sourceEntityId 2"));
+            Assert.assertTrue(failure.getMessage().contains("own authored representation"));
+            GameObjectAsset asset = hierarchy();
+            asset.entities.first().spatialFootprint = new games.pixscape.runtime.component.spatial.SpatialFootprintComponent();
+            asset.entities.get(1).assetRef = new GameObjectAsset.AssetRefData();
+            asset.entities.get(1).assetRef.assetId = 7;
+            failure = Assert.assertThrows(IllegalArgumentException.class,
+                    () -> spawner.spawnAsset(world, asset, "invalid", 0, 0));
+            Assert.assertTrue(failure.getMessage().contains("own authored representation"));
+            world.process();
+            Assert.assertEquals(nextId, meta.nextEntityStableId);
+            Assert.assertEquals(0, world.getAspectSubscriptionManager().get(Aspect.all()).getEntities().size());
+        } finally {
+            file.delete();
+            identities.bind(null, null);
+            world.dispose();
+        }
+    }
+
+    @Test
     public void authoredContoursSurviveSerializedFragmentAndIndependentRuntimeSpawns() {
         GameObjectAsset asset = hierarchy();
         float[] closed = {0, 0, 20, 20, 0, 20, 20, 0};
