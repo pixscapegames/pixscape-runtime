@@ -1164,6 +1164,12 @@ public class PixscapeEnginePhysicsLifecycleTest {
                 shapes.shapes.add(linked);
             }
 
+            int sceneLayer = source.create();
+            source.getMapper(LayerComponent.class).create(sceneLayer).layerIndex = 0;
+            PixscapeIdentityComponent layerIdentity = source.getMapper(PixscapeIdentityComponent.class).create(sceneLayer);
+            layerIdentity.stableId = 1;
+            layerIdentity.name = "Default layer";
+
             source.process();
             WorldSerializationManager serialization =
                     source.getSystem(WorldSerializationManager.class);

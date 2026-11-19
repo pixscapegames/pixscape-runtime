@@ -71,6 +71,7 @@ public interface GameObjectsAPI {
      * Composed transforms, materializable bodies and all authored joints are ready on return.
      * This does not advance simulation or process the World. Members without materializable
      * physics still have no native body. Failure rolls back only this attempt.
+     * Uses scene-layer index 0 with the destination checks of {@link #spawn(String, float, float, int)}.
      *
      * @param name Game Object name or canonical logical asset ID
      * @param x    world-space X coordinate of the new root
@@ -81,13 +82,29 @@ public interface GameObjectsAPI {
      *                                  this is checked before allocating entities or identities. Use {@link #spawnDeferred}
      *                                  from contact callbacks instead. Assets without physics remain allowed.
      */
-    GameObjectInstance spawn(String name, float x, float y);
+    default GameObjectInstance spawn(String name, float x, float y) {
+        return spawn(name, x, y, 0);
+    }
+
+    /**
+     * Spawns into an existing, unambiguous exported scene-layer index (not an entity ID,
+     * stable ID or Tiled-layer index). All descendants inherit this destination, retaining
+     * local transforms and ordering. A fragment with any footprint requires the configured
+     * Spatial layer. Invalid destinations fail before identity/entity/native allocation.
+     * The overload without a destination uses index 0 with these same checks; no layer is
+     * created or selected automatically. Other readiness/rollback rules match {@link #spawn(String, float, float)}.
+     * <pre>{@code
+     * GameObjectInstance enemy = api.gameObjects().spawn("enemy", 100f, 200f, 3);
+     * }</pre>
+     */
+    GameObjectInstance spawn(String name, float x, float y, int layerIndex);
 
     /**
      * Requests a complete spawn in the current READY scene. Safe to enqueue from contact callbacks.
      * Requests run in FIFO order at the start of the next normal engine render, before World
      * systems, on that render's calling thread and outside the Box2D lock. Requests queued by
      * callbacks during delivery wait for another render. No background work or forced step occurs.
+     * This overload targets scene-layer index 0 with the same checks as an explicit destination.
      *
      * <p>Exactly one callback is invoked: success only after the complete instance is ready,
      * or failure after rollback. Undeclared names and preparation errors reach failure.
@@ -103,7 +120,19 @@ public interface GameObjectsAPI {
      * @throws IllegalArgumentException if either callback is null
      * @throws IllegalStateException    if no scene is READY when the request is submitted
      */
-    void spawnDeferred(String name, float x, float y,
+    default void spawnDeferred(String name, float x, float y,
+                               Consumer<GameObjectInstance> success, Consumer<Throwable> failure) {
+        spawnDeferred(name, x, y, 0, success, failure);
+    }
+
+    /**
+     * Deferred variant of {@link #spawn(String, float, float, int)}. Captures the destination's
+     * entity incarnation at enqueue, then verifies that same destination and its admission
+     * at execution. Removal/replacement never redirects to a layer reusing the index.
+     * Destination resolution failures use the queued failure callback, preserving FIFO and
+     * retirement behavior. Missing callbacks or a non-READY scene still throw at submission.
+     */
+    void spawnDeferred(String name, float x, float y, int layerIndex,
                        Consumer<GameObjectInstance> success, Consumer<Throwable> failure);
 
 }

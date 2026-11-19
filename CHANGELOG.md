@@ -21,6 +21,7 @@
 * Renamed tile-layer APIs: `TiledMapRef` becomes `TiledLayerRef`, `map()` becomes `layer()`, `TiledMapFacade` becomes `TiledLayerFacade`, and `TiledMapLayerData` becomes `TiledLayerData`.
 
 ### Added
+* Game Object direct, factory and deferred spawns accept an explicit exported scene-layer index. Destination admission is checked before allocation, including footprints on descendants; deferred requests retain the destination entity incarnation and reject removal/replacement.
 * Tiled map/layer roles now enforce structural ownership, translation-only map/tile transforms and exclusion from actor footprints and Game Object assets. Object layers retain ordinary object composition; tile-layer managed collisions and volumes remain supported. Invalid scene state is diagnosed without migration or repair.
 * Added independent footprint radius/offset APIs and authored image-local occlusion zones; shadow pivot offsets retain their footprint-relative role.
 * Added `gameObjects().reparent(child, parent)` to change or remove a parent while preserving resolved world poses and native Body/joint connections. Compatible visual parents gain Game Object capability; invalid operations are rejected before mutation.
@@ -31,6 +32,7 @@
 * Added `gameObjects().spawnDeferred(...)` for contact callbacks and other explicitly deferred spawns. Success receives a complete instance at the start of a subsequent render; failures and scene-retirement cancellations have a separate callback.
 
 ### Changed
+* Game Object spawns without an explicit destination still use layer index 0, but now reject missing, ambiguous or Spatial-incompatible destinations instead of spawning into an invalid layer. No replacement layer is selected automatically.
 * Game Object roots can render their own visuals. Physics-backed entities support visual scaling without resizing their collision shapes.
 * Multiple representations can share an invisible ancestor's footprint; a descendant's own footprint takes precedence. Bodies do not interrupt spatial ownership, and each representation retains independent sorting and shadow geometry.
 * Occlusion zones follow visual rotation, signed scale, flips and deformation through clipping against the visual's actual triangles. Missing settings use the full image; custom settings remain dormant when no footprint is resolved. Configured dimensions must be finite and strictly positive, even when the resulting clipped geometry is empty.

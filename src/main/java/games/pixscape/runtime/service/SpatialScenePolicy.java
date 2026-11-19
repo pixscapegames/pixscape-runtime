@@ -17,6 +17,13 @@ public final class SpatialScenePolicy {
     private SpatialScenePolicy() {
     }
 
+    /** O(1) admission into a resolved scene layer; scene validation owns Spatial-layer uniqueness. */
+    public static void requireActorLayer(World world, int layerEntity) {
+        if (!world.getMapper(LayerComponent.class).get(layerEntity).spatialEnabled) {
+            throw new IllegalArgumentException("A Game Object with footprints requires the configured Spatial scene layer.");
+        }
+    }
+
     public static int actorLayerIndex(World world, IntBag entities) {
         int result = -1;
         int owner = -1;

@@ -93,9 +93,9 @@ public final class SceneAvailabilityPlan {
 
     /** Reuses scene-owned remapping buffers; instance results never borrow those buffers. */
     public games.pixscape.runtime.gameobject.SpawnResult spawnGameObject(com.artemis.World world,
-                                                                        String logicalId, float x, float y) {
+                                                                        String logicalId, float x, float y, int layerIndex) {
         PreparedGameObject model = requireGameObject(logicalId);
-        return gameObjectSpawner.spawnPreparedRuntime(world, model, x, y);
+        return gameObjectSpawner.spawnPreparedRuntime(world, model, x, y, layerIndex);
     }
 
     public SceneAvailabilityPlan(FileAvailabilityService availability,

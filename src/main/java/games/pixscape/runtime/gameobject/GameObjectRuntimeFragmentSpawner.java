@@ -100,7 +100,7 @@ public final class GameObjectRuntimeFragmentSpawner {
      */
     public SpawnResult spawnPrepared(World world, PreparedGameObject prepared,
                                      float rootWorldX, float rootWorldY) {
-        return spawnPrepared(world, prepared, rootWorldX, rootWorldY, false);
+        return spawnPrepared(world, prepared, rootWorldX, rootWorldY, 0, false);
     }
 
     /**
@@ -108,11 +108,17 @@ public final class GameObjectRuntimeFragmentSpawner {
      */
     public SpawnResult spawnPreparedRuntime(World world, PreparedGameObject prepared,
                                             float rootWorldX, float rootWorldY) {
-        return spawnPrepared(world, prepared, rootWorldX, rootWorldY, true);
+        return spawnPreparedRuntime(world, prepared, rootWorldX, rootWorldY, 0);
+    }
+
+    /** Destination is prevalidated by the Runtime API before instance allocation. */
+    public SpawnResult spawnPreparedRuntime(World world, PreparedGameObject prepared,
+                                            float rootWorldX, float rootWorldY, int layerIndex) {
+        return spawnPrepared(world, prepared, rootWorldX, rootWorldY, layerIndex, true);
     }
 
     private SpawnResult spawnPrepared(World world, PreparedGameObject prepared,
-                                      float rootWorldX, float rootWorldY, boolean completeRuntime) {
+                                      float rootWorldX, float rootWorldY, int layerIndex, boolean completeRuntime) {
         if (spawning) {
             throw new IllegalStateException("Game Object spawning is not reentrant.");
         }
@@ -152,7 +158,7 @@ public final class GameObjectRuntimeFragmentSpawner {
                 sourceToEntity.put(data.sourceEntityId, entityId);
                 apply(world, entityId, data, asset.rootSourceEntityId,
                         prepared.sourceAssetId, sourceToStable, prepared.bindings.get(data.sourceEntityId),
-                        prepared.physics.get(data.sourceEntityId), shapeIds, rootWorldX, rootWorldY);
+                        prepared.physics.get(data.sourceEntityId), shapeIds, rootWorldX, rootWorldY, layerIndex);
                 identityRegistry.indexEntityImmediately(entityId);
                 if (data.sourceEntityId == asset.rootSourceEntityId) rootEntityId = entityId;
             }
@@ -422,7 +428,7 @@ public final class GameObjectRuntimeFragmentSpawner {
             int rootSourceId, String sourceAssetId, IntIntMap sourceToStable,
             PreparedAssetBinding preparedBinding, PreparedPhysics preparedPhysics,
             PhysicsShapeIdAllocator shapeIds,
-            float rootWorldX, float rootWorldY) {
+            float rootWorldX, float rootWorldY, int layerIndex) {
         if (data.transform != null) {
             TransformComponent value = world.getMapper(TransformComponent.class).create(entityId);
             value.x = data.sourceEntityId == rootSourceId ? rootWorldX : data.transform.x;
@@ -435,7 +441,7 @@ public final class GameObjectRuntimeFragmentSpawner {
             value.refreshCaches();
         }
         EntityIndexComponent index = world.getMapper(EntityIndexComponent.class).create(entityId);
-        index.layerIndex = 0;
+        index.layerIndex = layerIndex;
         index.zIndex = data.sourceEntityId == rootSourceId || data.entityIndex == null
                 ? 0 : data.entityIndex.zIndex;
         PixscapeIdentityComponent identity = world.getMapper(PixscapeIdentityComponent.class).create(entityId);
@@ -764,6 +770,12 @@ public final class GameObjectRuntimeFragmentSpawner {
         private final IntMap<PreparedPhysics> physics;
         private final boolean hasPhysics;
         private final boolean requiresNativePhysics;
+        private final boolean hasFootprints;
+
+        /** Prepared once across all nodes, including owners of inherited visual footprints. */
+        public boolean hasFootprints() {
+            return hasFootprints;
+        }
 
         /** Lightweight invalidation identity; does not retain atlas bindings or parsed asset data. */
         public Object preparationIdentity() {
@@ -793,6 +805,14 @@ public final class GameObjectRuntimeFragmentSpawner {
             this.bindings = bindings;
             this.physics = physics;
             this.hasPhysics = hasPhysics;
+            boolean footprints = false;
+            for (int i = 0; i < ordered.size; i++) {
+                if (ordered.get(i).spatialFootprint != null) {
+                    footprints = true;
+                    break;
+                }
+            }
+            this.hasFootprints = footprints;
             boolean nativePhysics = !asset.joints.isEmpty();
             for (int i = 0; i < ordered.size && !nativePhysics; i++) {
                 PreparedPhysics body = physics.get(ordered.get(i).sourceEntityId);

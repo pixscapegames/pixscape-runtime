@@ -10,6 +10,7 @@ import games.pixscape.runtime.api.GameObjectInstance;
 import games.pixscape.runtime.api.GameObjectsAPI;
 import games.pixscape.runtime.component.GameObjectMemberComponent;
 import games.pixscape.runtime.component.TransformComponent;
+import games.pixscape.runtime.component.LayerComponent;
 import games.pixscape.runtime.component.spatial.SpatialFootprintComponent;
 import games.pixscape.runtime.component.physics.PhysicsJointComponent;
 import games.pixscape.runtime.component.physics.PhysicsRuntimeBodyComponent;
@@ -33,6 +34,8 @@ public class PixscapeEngineGameObjectSpawnTest {
         definition.entities.get(0).spatialFootprint = new SpatialFootprintComponent();
         try (Harness h = new Harness(definition)) {
             h.ready();
+            int layer = h.engine.api().entities().requireStableId(1).entityId();
+            h.engine.getWorld().getMapper(LayerComponent.class).get(layer).spatialEnabled = true;
             GameObjectInstance old = h.spawn();
             GameObjectInstance destination = h.spawn();
             EntityRef leaf = old.requireMember("visualOnly");

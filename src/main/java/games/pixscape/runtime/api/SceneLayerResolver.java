@@ -126,10 +126,16 @@ final class SceneLayerResolver {
     }
 
     public int requireLayerIndex(int layerIndex) {
-        if (findLayerEntityId(layerIndex) < 0) {
+        requireLayerEntityId(layerIndex);
+        return layerIndex;
+    }
+
+    int requireLayerEntityId(int layerIndex) {
+        int entity = findLayerEntityId(layerIndex);
+        if (entity < 0) {
             throw new IllegalArgumentException("No scene layer exists for layer index " + layerIndex + ".");
         }
-        return layerIndex;
+        return entity;
     }
 
     int findLayerEntityId(int layerIndex) {

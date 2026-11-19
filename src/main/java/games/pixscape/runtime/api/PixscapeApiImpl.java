@@ -290,6 +290,17 @@ public final class PixscapeApiImpl implements PixscapeAPI {
         sceneLayers.bind(null);
     }
 
+    /** INTERNAL spawn preflight, sharing RenderOrderFacade's indexed destination resolution. */
+    public int requireGameObjectSpawnLayer(int layerIndex, boolean hasFootprints) {
+        World world = engine.getWorld();
+        sceneLayers.bind(world);
+        int layer = sceneLayers.requireLayerEntityId(layerIndex);
+        if (hasFootprints) {
+            SpatialScenePolicy.requireActorLayer(world, layer);
+        }
+        return layer;
+    }
+
     @Override
     public EntitiesAPI entities() {
         return entities;
@@ -4662,15 +4673,15 @@ public final class PixscapeApiImpl implements PixscapeAPI {
         }
 
         @Override
-        public GameObjectInstance spawn(String name, float x, float y) {
-            return engine.spawnGameObject(name, x, y);
+        public GameObjectInstance spawn(String name, float x, float y, int layerIndex) {
+            return engine.spawnGameObject(name, x, y, layerIndex);
         }
 
         @Override
-        public void spawnDeferred(String name, float x, float y,
+        public void spawnDeferred(String name, float x, float y, int layerIndex,
                                   java.util.function.Consumer<GameObjectInstance> success,
                                   java.util.function.Consumer<Throwable> failure) {
-            engine.spawnGameObjectDeferred(name, x, y, success, failure);
+            engine.spawnGameObjectDeferred(name, x, y, layerIndex, success, failure);
         }
     }
 }

@@ -513,13 +513,30 @@ public final class PixscapeEngine {
      * @throws IllegalStateException if the project or world is not initialized
      */
     public GameObjectInstance spawnGameObject(String name, float rootWorldX, float rootWorldY) {
+        return spawnGameObject(name, rootWorldX, rootWorldY, 0);
+    }
+
+    /** Same spawn contract, targeting an exported scene-layer index. */
+    public GameObjectInstance spawnGameObject(String name, float rootWorldX, float rootWorldY, int layerIndex) {
         if (!sceneLoaded || activeSceneAvailability == null || world == null) {
             throw new IllegalStateException("No scene is active. Call loadScene() successfully first.");
         }
         String logicalId = GameObjectAssetId.normalize(name);
-        SpawnResult result = activeSceneAvailability.spawnGameObject(world, logicalId, rootWorldX, rootWorldY);
+        return spawnPreparedGameObject(logicalId, rootWorldX, rootWorldY, layerIndex, null);
+    }
+
+    private GameObjectInstance spawnPreparedGameObject(String logicalId, float x, float y,
+                                                       int layerIndex, EntityRef capturedDestination) {
+        GameObjectRuntimeFragmentSpawner.PreparedGameObject model = activeSceneAvailability.requireGameObject(logicalId);
+        api(); // Initializes the shared API-owned layer resolver if needed.
+        int destination = publicApi.requireGameObjectSpawnLayer(layerIndex, model.hasFootprints());
+        if (capturedDestination != null
+                && (!capturedDestination.exists() || capturedDestination.entityId() != destination)) {
+            throw new IllegalStateException("Deferred Game Object destination was removed or replaced: layer index " + layerIndex + ".");
+        }
+        SpawnResult result = activeSceneAvailability.spawnGameObject(world, logicalId, x, y, layerIndex);
         return new SpawnedGameObjectInstance(world, result, api().entities(),
-                activeSceneAvailability.requireGameObject(logicalId).memberNames());
+                model.memberNames());
     }
 
     /** Acquires or explicitly reloads a scene-local immutable definition, never an instance. */
@@ -541,11 +558,9 @@ public final class PixscapeEngine {
             }
 
             @Override
-            public GameObjectInstance spawn(float x, float y) {
+            public GameObjectInstance spawn(float x, float y, int layerIndex) {
                 requireCurrent();
-                SpawnResult result = scene.spawnGameObject(world, logicalId, x, y);
-                return new SpawnedGameObjectInstance(world, result, api().entities(),
-                        activeSceneAvailability.requireGameObject(logicalId).memberNames());
+                return spawnPreparedGameObject(logicalId, x, y, layerIndex, null);
             }
 
             @Override
@@ -567,12 +582,26 @@ public final class PixscapeEngine {
      */
     public void spawnGameObjectDeferred(String name, float x, float y,
                                         Consumer<GameObjectInstance> success, Consumer<Throwable> failure) {
+        spawnGameObjectDeferred(name, x, y, 0, success, failure);
+    }
+
+    /** Captures the resolved layer incarnation; errors retain the existing queued callback channel. */
+    public void spawnGameObjectDeferred(String name, float x, float y, int layerIndex,
+                                        Consumer<GameObjectInstance> success, Consumer<Throwable> failure) {
         if (success == null || failure == null) throw new IllegalArgumentException("Spawn callbacks are required.");
         if (!sceneLoaded || activeSceneAvailability == null || world == null) {
             throw new IllegalStateException("No scene is READY for a deferred Game Object spawn.");
         }
+        EntityRef destination = null;
+        Throwable destinationFailure = null;
+        try {
+            api();
+            destination = api().entities().ofEntityId(publicApi.requireGameObjectSpawnLayer(layerIndex, false));
+        } catch (RuntimeException | Error problem) {
+            destinationFailure = problem;
+        }
         pendingGameObjectSpawns.addLast(new DeferredGameObjectSpawn(
-                activeSceneAvailability, world, name, x, y, success, failure));
+                activeSceneAvailability, world, name, x, y, layerIndex, destination, destinationFailure, success, failure));
     }
 
     private final class DeferredGameObjectSpawn {
@@ -580,16 +609,23 @@ public final class PixscapeEngine {
         final World targetWorld;
         final String name;
         final float x, y;
+        final int layerIndex;
+        final EntityRef destination;
+        final Throwable destinationFailure;
         final Consumer<GameObjectInstance> success;
         final Consumer<Throwable> failure;
 
         DeferredGameObjectSpawn(SceneAvailabilityPlan scene, World targetWorld, String name, float x, float y,
+                                int layerIndex, EntityRef destination, Throwable destinationFailure,
                                 Consumer<GameObjectInstance> success, Consumer<Throwable> failure) {
             this.scene = scene;
             this.targetWorld = targetWorld;
             this.name = name;
             this.x = x;
             this.y = y;
+            this.layerIndex = layerIndex;
+            this.destination = destination;
+            this.destinationFailure = destinationFailure;
             this.success = success;
             this.failure = failure;
         }
@@ -600,7 +636,11 @@ public final class PixscapeEngine {
                 if (scene != activeSceneAvailability || targetWorld != world || !sceneLoaded) {
                     throw new IllegalStateException("Deferred Game Object spawn cancelled: its scene or World was retired.");
                 }
-                instance = spawnGameObject(name, x, y);
+                if (destinationFailure != null) {
+                    fail(destinationFailure);
+                    return;
+                }
+                instance = spawnPreparedGameObject(GameObjectAssetId.normalize(name), x, y, layerIndex, destination);
             } catch (RuntimeException | Error problem) {
                 fail(problem);
                 return;
