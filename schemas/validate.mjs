@@ -74,10 +74,10 @@ function atlasPages(path) {
   return ids;
 }
 function validateScene(scene, path) {
-  check('scene/7.schema.json', scene, path);
+  check('scene/8.schema.json', scene, path);
   const dependencies = { assetIds: new Set(), effects: new Set() };
   if (!scene?.componentIdentifiers || !scene?.archetypes || !scene?.entities) return dependencies;
-  const componentTypes = schemas.get('components/7.schema.json');
+  const componentTypes = schemas.get('components/8.schema.json');
   const byAlias = new Map();
   for (const [fqcn, alias] of Object.entries(scene.componentIdentifiers)) {
     if (byAlias.has(alias)) error(path, `duplicate Artemis alias ${alias}`);
@@ -105,7 +105,7 @@ function validateScene(scene, path) {
       names.add(name);
       if (Object.hasOwn(entity.components || {}, alias)) {
         const value = entity.components[alias];
-        check('components/7.schema.json#/$defs/' + name, value, `${where} ${fqcn}`);
+        check('components/8.schema.json#/$defs/' + name, value, `${where} ${fqcn}`);
         if (name === 'AssetRefComponent' && value?.assetId > 0) dependencies.assetIds.add(value.assetId);
         if (name === 'TiledLayerComponent') {
           const tiles = value?.tileAssetIds;
@@ -123,7 +123,7 @@ function validateScene(scene, path) {
   return dependencies;
 }
 function validateGameObject(asset, path) {
-  check('game-object/6.schema.json', asset, path);
+  check('game-object/7.schema.json', asset, path);
   if (!Array.isArray(asset?.entities)) return;
   const ids = new Set();
   let roots = 0;
@@ -156,7 +156,7 @@ function validateExport(root) {
   const optional = [
     ['animations.json', 'animations/unversioned.schema.json'],
     ['tiled-animations.json', 'tiled-animations/1.schema.json'],
-    ['tileset-profiles.json', 'tileset-profiles/1.schema.json'],
+    ['tileset-profiles.json', 'tileset-profiles/2.schema.json'],
   ];
   for (const [file, schema] of optional) {
     const path = join(root, file);
@@ -231,26 +231,26 @@ function invalidSelfTest() {
   }
   mustReject('wrong project version', () => check('project/1.schema.json',
     { projectFileName: 'x', version: '2', scenes: {} }, 'invalid project'));
-  mustReject('removed footprint collision source even when false', () => check('common/1.schema.json#/$defs/physicsShape',
+  mustReject('removed footprint collision source even when false', () => check('common/2.schema.json#/$defs/physicsShape',
     { physicsShapeId: 1, geometry: { shapeType: 0 }, useSpatialFootprint: false }, 'invalid shape'));
-  mustReject('manual collision without independent geometry', () => check('common/1.schema.json#/$defs/physicsShape',
+  mustReject('manual collision without independent geometry', () => check('common/2.schema.json#/$defs/physicsShape',
     { physicsShapeId: 1, spatialBlockId: 0, geometry: null }, 'invalid shape'));
   for (const dimension of ['width', 'height']) {
     for (const invalid of [0, -1, NaN, Infinity]) {
-      mustReject(`configured zone ${dimension}=${invalid}`, () => check('common/1.schema.json#/$defs/actorRectangle',
+      mustReject(`configured zone ${dimension}=${invalid}`, () => check('common/2.schema.json#/$defs/actorRectangle',
         { width: 1, height: 1, [dimension]: invalid }, 'invalid configured zone'));
     }
   }
-  check('common/1.schema.json#/$defs/actorRectangle', {}, 'default full-image zone');
-  check('common/1.schema.json#/$defs/actorRectangle',
+  check('common/2.schema.json#/$defs/actorRectangle', {}, 'default full-image zone');
+  check('common/2.schema.json#/$defs/actorRectangle',
     { x: 2, y: 2, width: .5, height: .5 }, 'positive zone outside image');
-  mustReject('obsolete Layer.type', () => check('components/7.schema.json#/$defs/LayerComponent',
+  mustReject('obsolete Layer.type', () => check('components/8.schema.json#/$defs/LayerComponent',
     { type: 0 }, 'invalid Layer'));
-  mustReject('null primitive transform scale', () => check('components/7.schema.json#/$defs/TransformComponent',
+  mustReject('null primitive transform scale', () => check('components/8.schema.json#/$defs/TransformComponent',
     { scaleX: null }, 'invalid transform'));
-  mustReject('NaN outside physics parallax', () => check('components/7.schema.json#/$defs/TransformComponent',
+  mustReject('NaN outside physics parallax', () => check('components/8.schema.json#/$defs/TransformComponent',
     { x: 'NaN' }, 'invalid transform'));
-  mustReject('IntArray encoded as a plain array', () => check('components/7.schema.json#/$defs/AnimationComponent',
+  mustReject('IntArray encoded as a plain array', () => check('components/8.schema.json#/$defs/AnimationComponent',
     { animationAssetIds: [1] }, 'invalid animation'));
   mustReject('unresolved alias', () => validateScene({ metadata: { version: 1 },
     componentIdentifiers: {}, archetypes: { 1: ['missing'] },
@@ -263,10 +263,22 @@ function invalidSelfTest() {
     metadata: { version: 1 }, componentIdentifiers: identifiers,
     archetypes: { 1: ['layer', 'index'] }, entities: { 0: { archetype: 1, components: {} } },
   }, 'invalid scene'));
-  mustReject('Game Object root placement', () => validateGameObject({ schemaVersion: 6,
+  mustReject('Game Object root placement', () => validateGameObject({ schemaVersion: 7,
     rootSourceEntityId: 1, entities: [{ sourceEntityId: 1, parentSourceEntityId: -1,
       transform: { x: 5, y: 0, scaleX: 1, scaleY: 1 }, entityIndex: { zIndex: 0 },
       gameObject: {} }] }, 'invalid Game Object'));
+  for (const value of [{type: 'LIST'}, {type: 'LIST', listValues: null},
+    {type: 'LIST', listValues: [null]}, {type: 'LIST', listValues: [{type: 'UNKNOWN'}]},
+    {type: 'ENUM'}, {type: 'ENUM', enumDefinition: {name:'E', storageType:'FLOAT'}},
+    {type:'ENUM', enumDefinition:{name:'E',choices:['a','a']}},
+    {type:'ENUM', enumDefinition:{name:'E',flags:true,choices:['a,b']}}]) {
+    mustReject('invalid list or enum', () => check('common/2.schema.json#/$defs/propertyValue', value, 'invalid property'));
+  }
+  check('common/2.schema.json#/$defs/propertyValue', {type:'LIST',listValues:[]}, 'empty list');
+  check('common/2.schema.json#/$defs/propertyValue', {type:'LIST',listValues:[
+    {stringValue:'7'}, {type:'INTEGER',integerValue:7}, {type:'FLOAT',floatValue:16777217},
+    {type:'LIST',listValues:[{type:'ENUM',enumDefinition:{name:'E',choices:['a']},stringValue:'a'}]}
+  ]}, 'mixed nested list');
   console.log(`Rejected ${cases} representative invalid fixtures.`);
 }
 

@@ -59,7 +59,7 @@ public class PhysicsShapeIdAllocatorTest {
     public void sceneMetadataReadsAndCopiesPersistentHighWater() {
         SceneMetaRuntime parsed = SceneMetaRuntime.fromJson(
                 new JsonReader().parse(
-                        "{\"sceneSchemaVersion\":7,"
+                        "{\"sceneSchemaVersion\":8,"
                                 + "\"nextEntityStableId\":1,"
                                 + "\"nextPhysicsShapeId\":37}"),
                 "scene");

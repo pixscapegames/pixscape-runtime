@@ -31,19 +31,19 @@ public class RuntimeProjectIOTest {
     @Test
     public void currentSceneSchemaVersionIsAccepted() throws Exception {
         FileHandle projectDir = projectDirectory(projectJson(
-                "\"sceneSchemaVersion\":7,"));
+                "\"sceneSchemaVersion\":8,"));
 
         RuntimeConfig config = RuntimeProjectIO.loadProject(projectDir);
 
         SceneMetaRuntime scene = config.getCurrentSceneMeta();
-        Assert.assertEquals(7, scene.sceneSchemaVersion);
+        Assert.assertEquals(SceneMetaRuntime.CURRENT_SCENE_SCHEMA_VERSION, scene.sceneSchemaVersion);
         Assert.assertTrue(scene.physicsEnabled);
     }
 
     @Test
     public void removedMainCameraOffscreenMetadataIsIgnored() throws Exception {
         FileHandle projectDir = projectDirectory(projectJson(
-                "\"sceneSchemaVersion\":7,\"mainCameraOffscreen\":true,"));
+                "\"sceneSchemaVersion\":8,\"mainCameraOffscreen\":true,"));
 
         RuntimeConfig config = RuntimeProjectIO.loadProject(projectDir);
 

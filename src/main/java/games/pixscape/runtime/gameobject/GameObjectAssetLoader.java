@@ -6,8 +6,6 @@ import games.pixscape.runtime.component.physics.PhysicsBodyComponent;
 import games.pixscape.runtime.component.physics.PhysicsJointComponent;
 import games.pixscape.runtime.physics.PhysicsShapeData;
 import games.pixscape.runtime.property.PropertySet;
-import games.pixscape.runtime.property.PropertyType;
-import games.pixscape.runtime.property.PropertyValue;
 import games.pixscape.runtime.render.SortKey64;
 
 /**
@@ -410,22 +408,12 @@ public final class GameObjectAssetLoader {
             PropertySet properties, IntMap<GameObjectAsset.GameObjectEntityData> byId,
             FileHandle file, int ownerSourceId) {
         if (properties == null) return;
-        Array<String> names = new Array<>();
-        properties.copyNamesTo(names);
-        for (String name : names) {
-            PropertyValue value = properties.valueCopy(name);
-            if (value.type() == PropertyType.OBJECT) {
-                int referencedSourceId = value.asObjectStableId();
-                if (referencedSourceId != -1 && !byId.containsKey(referencedSourceId)) {
-                    throw failure(file, "sourceEntityId " + ownerSourceId
-                            + " Custom Property '" + name
-                            + "' contains unsupported external OBJECT reference "
-                            + referencedSourceId);
-                }
-            } else if (value.type() == PropertyType.CLASS) {
-                validateObjectReferences(value.classPropertiesCopy(), byId, file, ownerSourceId);
+        properties.visitObjectReferences(referencedSourceId -> {
+            if (referencedSourceId != -1 && !byId.containsKey(referencedSourceId)) {
+                throw failure(file, "sourceEntityId " + ownerSourceId
+                        + " Custom Property contains unsupported external OBJECT reference " + referencedSourceId);
             }
-        }
+        });
     }
 
     private static void requireExtension(FileHandle file) {

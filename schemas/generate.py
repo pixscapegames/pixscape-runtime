@@ -58,18 +58,35 @@ def write(path, schema):
         target.write_text(output, encoding="utf-8")
 
 
-COMMON = "common/1.schema.json"
-COMP = "components/7.schema.json"
+COMMON = "common/2.schema.json"
+COMP = "components/8.schema.json"
 common_defs = {
     "intArray": obj({"items": {"type": ["array", "null"], "items": I}, "size": NONNEG}, ("size",), description="LibGDX IntArray. Items may be omitted or null at SceneLoader boundary; only the first size entries are active when present."),
     "byteArray": obj({"items": arr(I), "size": NONNEG}, ("size",), description="LibGDX ByteArray. Items may be omitted for zero-filled storage; only the first size entries are active."),
-    "propertyValue": obj({"type": {"enum": ["STRING", "BOOLEAN", "INTEGER", "FLOAT", "COLOR", "OBJECT", "CLASS"]}, "stringValue": NULLABLE_S, "booleanValue": B, "integerValue": I, "floatValue": N, "className": NULLABLE_S, "classProperties": {"$ref": "#/$defs/propertySet"}}, ("type",)),
+    "propertyValue": obj({"type": {"enum": ["STRING", "BOOLEAN", "INTEGER", "FLOAT", "COLOR", "OBJECT", "CLASS", "LIST", "ENUM", "IMPORTED"]}, "stringValue": S, "booleanValue": B, "integerValue": I, "floatValue": N, "className": S, "classProperties": {"$ref": "#/$defs/propertySet"}, "listValues": {"anyOf": [arr({"$ref": "#/$defs/propertyValue"}), {"type": "null"}]}, "enumDefinition": {"anyOf": [{"$ref": "#/$defs/enumDefinition"}, {"type": "null"}]}, "importedType": S, "importedCustomType": S}),
+    "enumDefinition": obj({"name": NONS, "storageType": {"enum": ["STRING", "INTEGER"], "default": "STRING"}, "flags": {"type": "boolean", "default": False}, "choices": {"type": "array", "items": S, "uniqueItems": True, "default": []}}, ("name",)),
     "propertySet": obj({"values": {"type": "object", "additionalProperties": {"$ref": "#/$defs/propertyValue"}}}),
     "physicsGeometry": obj({"shapeType": {"type": "integer", "enum": [0, 1, 2]}, "offsetX": N, "offsetY": N, "angleDegrees": N, "radius": N, "halfWidth": N, "halfHeight": N, "polygonVertices": arr(N), "polygonVertexCount": NONNEG}),
     "physicsShape": obj({"physicsShapeId": I, "spatialBlockId": I, "geometry": {"anyOf": [{"$ref": "#/$defs/physicsGeometry"}, {"type": "null"}]}, "density": N, "friction": N, "restitution": N, "sensor": B, "categoryBits": I, "maskBits": I, "groupIndex": I, "enabled": B}),
     "spatialShape": obj({"shapeType": {"type": "integer", "enum": [0, 1, 2]}, "polyVerts": arr(N), "polyCount": NONNEG, "halfW": N, "halfH": N, "radius": N, "offsetX": N, "offsetY": N, "angleDeg": N, "collisionEnabled": B, "actorOccluder": B, "lightOccluder": B, "particleOccluder": B, "altitude": N, "height": N}),
     "spatialBlock": obj({"id": I, "structureId": I, "name": NULLABLE_S, "x": N, "y": N, "width": N, "depth": N, "altitude": N, "height": N, "actorOccluder": B, "lightOccluder": B, "shadowCaster": B, "particleOccluder": B, "linkedTileRefsAuthored": B, "linkedTileRefs": arr(obj({"gx": I, "gy": I, "tileAssetId": I}))}),
 }
+common_defs["enumDefinition"]["allOf"] = [{
+    "if": {"properties": {"flags": {"const": True}}, "required": ["flags"]},
+    "then": {"properties": {"choices": {"maxItems": 31, "items": {"type": "string", "minLength": 1, "pattern": "^[^,]+$"}}}}
+}]
+common_defs["propertyValue"]["allOf"] = [
+    {"if": {"properties": {"type": {"const": "LIST"}}, "required": ["type"]},
+     "then": {"required": ["listValues"], "properties": {"listValues": arr({"$ref": "#/$defs/propertyValue"})}}},
+    {"if": {"properties": {"type": {"const": "ENUM"}}, "required": ["type"]},
+     "then": {"required": ["enumDefinition"], "properties": {"enumDefinition": {"$ref": "#/$defs/enumDefinition"}}}},
+    {"if": {"properties": {"type": {"const": "CLASS"}}, "required": ["type"]},
+     "then": {"required": ["className"], "properties": {"className": NONS}}},
+    {"if": {"properties": {"type": {"const": "OBJECT"}}, "required": ["type"]},
+     "then": {"required": ["integerValue"], "properties": {"integerValue": {"anyOf": [{"const": -1}, POS]}}}},
+    {"if": {"properties": {"type": {"const": "IMPORTED"}}, "required": ["type"]},
+     "then": {"required": ["importedType", "stringValue"], "properties": {"importedType": NONS, "stringValue": NONS}}}
+]
 common_defs["localLightingSurface"] = obj({"xyz": arr(N), "uv": arr(N), "normals": arr(N), "triangles": arr(NONNEG), "receiveLight": B, "shadowCaster": B, "twoSided": B}, ("xyz", "uv", "normals", "triangles"))
 common_defs["actorRectangle"] = obj({"width": {"type": "number", "exclusiveMinimum": 0, "default": 1}, "height": {"type": "number", "exclusiveMinimum": 0, "default": 1}, "x": {"type": "number", "default": 0}, "y": {"type": "number", "default": 0}, "pivotX": N, "pivotY": N}, description="Optional image-local normalized zone with finite, strictly positive configured dimensions, clipped against the native visual triangles after deformation. Missing settings mean the full image. Only the resulting geometry may be empty after clipping or deformation. pivotX/Y are projected pixel offsets from the resolved footprint, independent of image TRS.")
 common_defs["actorRectangles"] = obj({"staticRectangle": {"anyOf": [{"$ref": "#/$defs/actorRectangle"}, {"type": "null"}]}, "clips": {"type": "object", "additionalProperties": {"type": "object", "additionalProperties": {"$ref": "#/$defs/actorRectangle"}}}})
@@ -259,7 +276,7 @@ write(COMP, {"title": "Pixscape scene component payloads (scene schema 7)",
 
 AVAIL = obj({"sprites": arr(POS), "animations": arr(POS), "particles": arr(NONS), "gameObjects": arr(NONS), "tiledTiles": arr(POS), "tiledAnimations": arr(POS)})
 SCENE_META = obj({
-    "sceneSchemaVersion": {"const": 7}, "name": NULLABLE_S, "file": NONS,
+    "sceneSchemaVersion": {"const": 8}, "name": NULLABLE_S, "file": NONS,
     "defaultHudScreenId": {"type": ["string", "null"], "default": None}, "nextEntityStableId": POS,
     "nextPhysicsShapeId": POS, "physicsEnabled": {"type": "boolean", "default": False},
     "pixelsPerMeter": {"type": "number", "default": 100},
@@ -287,7 +304,7 @@ write("project/1.schema.json", {
     "description": "Absent or blank version is normalized to 1 by Runtime; the schema documents the canonical value when present. Paths resolve from the directory passed to the engine, not runtimeRootDir."
 })
 
-write("scene/7.schema.json", {
+write("scene/8.schema.json", {
     "title": "Artemis scene envelope for Pixscape scene schema 7",
     "type": "object", "required": ["metadata", "componentIdentifiers", "entities", "archetypes"],
     "properties": {
@@ -301,7 +318,7 @@ write("scene/7.schema.json", {
 
 write("animations/unversioned.schema.json", {"title": "Pixscape sprite animation registry (no in-file version)", **obj({"animations": arr(obj({"assetId": POS, "name": NONS, "fps": N, "currentClip": S, "frameCount": NONNEG, "clips": arr(obj({"name": NONS, "start": NONNEG, "end": NONNEG, "flipX": B}))}))}, ("animations",))})
 write("tiled-animations/1.schema.json", {"title": "Pixscape tiled animation registry 1", **obj({"version": {"const": "1"}, "animations": arr(obj({"id": POS, "name": NONS, "frameAssetIds": arr(POS), "frameDurationsMs": arr(POS)}))}, ("animations",))})
-write("tileset-profiles/1.schema.json", {"title": "Pixscape tileset profiles 1", **obj({"format": {"const": "pixscape.tileset-profiles"}, "version": {"const": 1}, "tilesets": arr(obj({"tilesetId": POS, "logicalPath": NONS, "tileWidth": POS, "tileHeight": POS, "referenceCellWidth": POS, "referenceCellHeight": POS, "projection": {"enum": ["orthogonal", "isometric"]}, "anchor": S, "offsetX": N, "offsetY": N, "renderSize": S, "tileAssetIds": arr(POS)}))}, ("format", "version", "tilesets"))})
+write("tileset-profiles/2.schema.json", {"title": "Pixscape tileset profiles 2", **obj({"format": {"const": "pixscape.tileset-profiles"}, "version": {"const": 2}, "tilesets": arr(obj({"tilesetId": POS, "logicalPath": NONS, "tileWidth": POS, "tileHeight": POS, "referenceCellWidth": POS, "referenceCellHeight": POS, "projection": {"enum": ["orthogonal", "isometric"]}, "anchor": S, "offsetX": N, "offsetY": N, "renderSize": S, "tileAssetIds": arr(POS), "tiles": arr(obj({"localId": NONNEG, "assetId": POS, "properties": ref(COMMON + "#/$defs/propertySet")}))}))}, ("format", "version", "tilesets"))})
 
 go_transform = obj({n: {"type": "number", "default": 0} for n in "x y rotationRad scaleX scaleY originX originY".split()})
 go_entity_index = obj({"zIndex": {"type": "integer", "default": 0}}, extra=False)
@@ -354,9 +371,9 @@ for label, numeric, booleans in [
         fields.update({"jointALocalId": POS, "jointBLocalId": POS})
     joint_base[label] = {"anyOf": [obj(fields), {"type": "null"}]}
 go_joint = obj(joint_base, ("jointLocalId", "type", "bodyALocalEntityId", "bodyBLocalEntityId"))
-write("game-object/6.schema.json", {
+write("game-object/7.schema.json", {
     "title": "Pixscape Game Object definition 6",
-    **obj({"schemaVersion": {"const": 6}, "rootSourceEntityId": NONNEG,
+    **obj({"schemaVersion": {"const": 7}, "rootSourceEntityId": NONNEG,
            "entities": arr(go_entity), "joints": {**arr(go_joint), "default": []}},
           ("schemaVersion", "rootSourceEntityId", "entities"), extra=False),
     "description": "A definition does not place an instance. The root has x=y=0 and zIndex=0; layerIndex is forbidden in entityIndex. Local member transforms and zIndex survive spawn. Cross-entity references and the unique root are validated semantically."

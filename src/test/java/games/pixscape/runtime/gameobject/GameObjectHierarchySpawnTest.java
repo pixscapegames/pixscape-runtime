@@ -210,6 +210,38 @@ public class GameObjectHierarchySpawnTest {
     }
 
     @Test
+    public void nestedListReferencesEnumsAndDoubleValuesSurviveIndependentInstances() {
+        World world = new World(new WorldConfigurationBuilder().build());
+        try {
+            GameObjectAsset asset = hierarchy();
+            asset.entities.get(0).customProperties.putList("items", com.badlogic.gdx.utils.Array.with(
+                    games.pixscape.runtime.property.PropertyValue.ofObjectStableId(200),
+                    games.pixscape.runtime.property.PropertyValue.ofClass("Config", new PropertySet()
+                            .putList("self", com.badlogic.gdx.utils.Array.with(
+                                    games.pixscape.runtime.property.PropertyValue.ofObjectStableId(100))))))
+                    .putFloat("precise", 16777217d)
+                    .put("flags", games.pixscape.runtime.property.PropertyValue.ofEnum(
+                            new games.pixscape.runtime.property.EnumDefinition("Flags", games.pixscape.runtime.property.PropertyType.INTEGER,
+                                    true, "A", "B"), 3));
+            GameObjectAsset reloaded = new GameObjectAssetLoader().fromJson(new GameObjectAssetLoader().toJson(asset));
+            var spawner = new GameObjectRuntimeFragmentSpawner(new IdentityRegistry(), new SceneMetaRuntime(), new AtlasRuntimeService());
+            SpawnResult first = spawner.spawnAsset(world, reloaded, "gameobjects/test.gameobject", 0, 0);
+            SpawnResult second = spawner.spawnAsset(world, reloaded, "gameobjects/test.gameobject", 10, 0);
+            for (SpawnResult instance : new SpawnResult[]{first, second}) {
+                var values = world.getMapper(CustomPropertiesComponent.class).get(instance.rootEntityId()).properties;
+                Assert.assertEquals(stable(world, instance.createdEntityIds().get(1)), values.getListValue("items").getObjectStableId(0));
+                Assert.assertEquals(stable(world, instance.rootEntityId()), values.getListValue("items").getClassValue(1)
+                        .properties().getListValue("self").getObjectStableId(0));
+                Assert.assertEquals(16777217d, values.getDouble("precise", 0), 0);
+                Assert.assertEquals(3, values.getEnumValue("flags").intValue());
+            }
+            world.getMapper(CustomPropertiesComponent.class).get(first.rootEntityId()).properties.putList("items", new com.badlogic.gdx.utils.Array<>());
+            Assert.assertEquals(2, world.getMapper(CustomPropertiesComponent.class).get(second.rootEntityId()).properties.getListValue("items").size());
+            Assert.assertEquals(200, reloaded.entities.get(0).customProperties.getListValue("items").getObjectStableId(0));
+        } finally { world.dispose(); }
+    }
+
+    @Test
     public void invalidAssetFailsBeforePublishingAnyEntity() {
         World world = new World(new WorldConfigurationBuilder().build());
         GameObjectAsset asset = hierarchy();

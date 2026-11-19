@@ -310,7 +310,7 @@ public class SceneLoaderPhysicsSchemaTest {
             meta.sceneSchemaVersion = 4;
             IllegalArgumentException failure = Assert.assertThrows(IllegalArgumentException.class,
                     () -> SceneLoader.loadScene(target, file, true, meta));
-            Assert.assertTrue(failure.getMessage().contains("requires sceneSchemaVersion 7"));
+            Assert.assertTrue(failure.getMessage().contains("requires sceneSchemaVersion 8"));
             Assert.assertTrue(target.getEntityManager().isActive(existing));
         } finally {
             target.dispose();

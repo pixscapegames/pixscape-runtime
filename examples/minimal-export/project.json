@@ -11,7 +11,7 @@
   "gameObjectsDir": "gameobjects",
   "scenes": {
     "Simple": {
-      "sceneSchemaVersion": 7,
+      "sceneSchemaVersion": 8,
       "name": "Simple",
       "file": "scene1.json",
       "nextEntityStableId": 3,

@@ -2,6 +2,12 @@
 
 ## [0.2.5-SNAPSHOT]
 
+### Custom properties
+* Enum definition copies use GWT-compatible array copying so the HTML player can compile the current property model.
+* Added ordered heterogeneous LIST values, nested CLASS/LIST copies and recursive OBJECT remapping. Empty lists remain explicit overrides; validation rejects null items, invalid values and cycles without an arbitrary nesting/length limit.
+* Added portable Tiled enum definitions with string/integer storage and flag selection, plus read-only `ListProperty`/`EnumProperty` API views. FLOAT custom properties now retain double precision; `getFloat` explicitly narrows and `getDouble` preserves stored precision.
+* Scene schema 8, Game Object schema 7 and tileset profiles 2 encode these contracts. Updated generated schemas and export validation; previous versions are rejected without migration.
+
 ### Spatial participation
 * Every spatial visual requires its own authored occlusion rectangle and shadow pivot, while its footprint may be inherited through nonvisual composition nodes. Explicit activation and reparent operations prepare missing representation records (including animation clips) before publication and preserve existing settings. Loading, rendering and geometry getters no longer synthesize an implicit full-image rectangle or pivot when records are missing; no migration or load-time repair is introduced.
 * Restored `LayerComponent.spatialEnabled`: at most one scene layer admits spatial actors. The renderer checks each drawable's effective layer while retaining footprint ownership/inheritance and Physics independence.
@@ -9,7 +15,7 @@
 * The current component schema includes the restored layer flag (default false), without migration or automatic scene/map selection.
 
 ### Breaking changes
-* Scenes now require schema 7 and Game Object definitions/fragments schema 6. Occlusion zones are stored in normalized image-local coordinates. Older formats are rejected; no historical reader, conversion or migration is provided.
+* Scenes now require schema 8 and Game Object definitions/fragments schema 7. Occlusion zones are stored in normalized image-local coordinates. Older formats are rejected; no historical reader, conversion or migration is provided.
 * Removed the global `SpatialAPI`/`PixscapeAPI.spatial()` entry point. Footprint ownership follows an entity's own or nearest ancestor's footprint independently of Physics; spatial participation requires the designated scene layer. Per-entity spatial access remains available.
 * Renamed tile-layer APIs: `TiledMapRef` becomes `TiledLayerRef`, `map()` becomes `layer()`, `TiledMapFacade` becomes `TiledLayerFacade`, and `TiledMapLayerData` becomes `TiledLayerData`.
 

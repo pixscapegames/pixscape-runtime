@@ -10,16 +10,15 @@ import games.pixscape.runtime.api.ImportedProperty;
  * {@code SUPPORTED_EXPERT} case-sensitive collection of named, typed Pixscape
  * custom properties.
  *
- * <p>Supports string, boolean, signed 32-bit integer, finite float, packed
+ * <p>Supports string, boolean, signed 32-bit integer, finite double-precision FLOAT, packed
  * RGBA8888 color, persistent Pixscape stable-ID object references, and
- * recursively nested class values.</p>
+ * enums and recursively nested class/list values.</p>
  *
  * <p>Names are preserved exactly as supplied. Typed getters return their fallback only when a
  * property is absent and throw when an existing property has a different type.</p>
  */
 public final class PropertySet {
-    private static final int MAX_NESTED_CLASS_DEPTH = 64;
-    private ObjectMap<String, PropertyValue> values;
+    ObjectMap<String, PropertyValue> values;
     private transient CustomProperties readView;
 
     /**
@@ -124,7 +123,7 @@ public final class PropertySet {
         return put(name, PropertyValue.ofInt(value));
     }
 
-    public PropertySet putFloat(String name, float value) {
+    public PropertySet putFloat(String name, double value) {
         return put(name, PropertyValue.ofFloat(value));
     }
 
@@ -171,11 +170,42 @@ public final class PropertySet {
         return value.integerValue();
     }
 
+    public PropertySet putList(String name, Array<PropertyValue> items) {
+        return put(name, PropertyValue.ofList(items));
+    }
+
+    public games.pixscape.runtime.api.ListProperty getListValue(String name) {
+        PropertyValue value = value(name);
+        if (value == null) {
+            return null;
+        }
+        requireType(name, value, PropertyType.LIST);
+        return value.asList();
+    }
+
+    public games.pixscape.runtime.api.EnumProperty getEnumValue(String name) {
+        PropertyValue value = value(name);
+        if (value == null) {
+            return null;
+        }
+        requireType(name, value, PropertyType.ENUM);
+        return value.asEnum();
+    }
+
+    public double getDouble(String name, double fallback) {
+        PropertyValue value = value(name);
+        if (value == null) {
+            return fallback;
+        }
+        requireType(name, value, PropertyType.FLOAT);
+        return value.asDouble();
+    }
+
     public float getFloat(String name, float fallback) {
         PropertyValue value = value(name);
         if (value == null) return fallback;
         requireType(name, value, PropertyType.FLOAT);
-        return value.floatValue();
+        return (float) value.floatValue();
     }
 
     /**
@@ -218,6 +248,11 @@ public final class PropertySet {
         else values.clear();
     }
 
+    /** Cold structural equality, preserving order, duplicates, declared types and exact values. */
+    public boolean contentEquals(PropertySet other) {
+        return PropertyTree.same(this, other);
+    }
+
     public PropertySet copy() {
         return new PropertySet(this);
     }
@@ -228,13 +263,8 @@ public final class PropertySet {
         }
         if (source == this) return this;
 
-        source.validate();
-        ObjectMap<String, PropertyValue> copied =
-                new ObjectMap<String, PropertyValue>(source.values.size);
-        for (ObjectMap.Entry<String, PropertyValue> entry : source.values) {
-            copied.put(entry.key, entry.value.copy());
-        }
-        values = copied;
+        PropertySet copied = (PropertySet) PropertyTree.copy(source, null);
+        values = copied.values;
         return this;
     }
 
@@ -242,34 +272,33 @@ public final class PropertySet {
      * Validates the complete authored representation after construction or deserialization.
      */
     public void validate() {
-        validate(0);
+        PropertyTree.validate(this);
     }
 
-    void validate(int depth) {
-        if (depth > MAX_NESTED_CLASS_DEPTH) {
-            throw new IllegalStateException(
-                    "Custom property nesting exceeds the maximum depth of "
-                            + MAX_NESTED_CLASS_DEPTH + ".");
+    /** Cold authoring/transfer operation, visits all values including CLASS/LIST. */
+    public PropertySet remapObjectReferences(ObjectReferenceMapper mapper) {
+        if (mapper == null) {
+            throw new IllegalArgumentException("Reference mapper required.");
         }
-        requireBackingMap();
-        for (ObjectMap.Entry<String, PropertyValue> entry : values) {
-            requireName(entry.key);
-            if (entry.value == null) {
-                throw new IllegalStateException(
-                        "Property '" + entry.key + "' must not have a null value.");
-            }
-            entry.value.validateState(depth);
-        }
+        return (PropertySet) PropertyTree.copy(this, mapper);
     }
 
-    /**
-     * Shrinks deserialized backing storage to the current property count.
-     */
+    /** Cold validation visits each OBJECT including nested CLASS/LIST, without copying. */
+    public void visitObjectReferences(ObjectReferenceVisitor visitor) {
+        PropertyTree.validate(this, visitor);
+    }
+
+    public interface ObjectReferenceVisitor {
+        void visit(int stableId);
+    }
+
+    public interface ObjectReferenceMapper {
+        int map(int stableId);
+    }
+
+    /** Shrinks storage after validation/loading without recursion or a nesting limit. */
     public void compact() {
-        values.shrink(values.size);
-        for (ObjectMap.Entry<String, PropertyValue> entry : values) {
-            if (entry.value != null) entry.value.compactNested();
-        }
+        PropertyTree.compact(this);
     }
 
     private PropertyValue value(String name) {
@@ -282,7 +311,7 @@ public final class PropertySet {
         }
     }
 
-    private static void requireName(String name) {
+    static void requireName(String name) {
         if (name == null) {
             throw new IllegalArgumentException("Property name must not be null.");
         }

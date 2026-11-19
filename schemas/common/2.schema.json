@@ -1,6 +1,6 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "$id": "https://pixscape.games/schemas/pixscape/common/1.schema.json",
+  "$id": "https://pixscape.games/schemas/pixscape/common/2.schema.json",
   "title": "Shared Pixscape value structures",
   "$defs": {
     "intArray": {
@@ -59,15 +59,15 @@
             "FLOAT",
             "COLOR",
             "OBJECT",
-            "CLASS"
+            "CLASS",
+            "LIST",
+            "ENUM",
+            "IMPORTED"
           ],
           "default": "STRING"
         },
         "stringValue": {
-          "type": [
-            "string",
-            "null"
-          ],
+          "type": "string",
           "default": ""
         },
         "booleanValue": {
@@ -83,10 +83,7 @@
           "default": 0
         },
         "className": {
-          "type": [
-            "string",
-            "null"
-          ],
+          "type": "string",
           "default": ""
         },
         "classProperties": {
@@ -94,10 +91,223 @@
           "default": {
             "values": {}
           }
+        },
+        "listValues": {
+          "anyOf": [
+            {
+              "type": "array",
+              "items": {
+                "$ref": "#/$defs/propertyValue"
+              }
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "enumDefinition": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/enumDefinition"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "importedType": {
+          "type": "string"
+        },
+        "importedCustomType": {
+          "type": "string"
+        }
+      },
+      "allOf": [
+        {
+          "if": {
+            "properties": {
+              "type": {
+                "const": "LIST"
+              }
+            },
+            "required": [
+              "type"
+            ]
+          },
+          "then": {
+            "required": [
+              "listValues"
+            ],
+            "properties": {
+              "listValues": {
+                "type": "array",
+                "items": {
+                  "$ref": "#/$defs/propertyValue"
+                }
+              }
+            }
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "type": {
+                "const": "ENUM"
+              }
+            },
+            "required": [
+              "type"
+            ]
+          },
+          "then": {
+            "required": [
+              "enumDefinition"
+            ],
+            "properties": {
+              "enumDefinition": {
+                "$ref": "#/$defs/enumDefinition"
+              }
+            }
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "type": {
+                "const": "CLASS"
+              }
+            },
+            "required": [
+              "type"
+            ]
+          },
+          "then": {
+            "required": [
+              "className"
+            ],
+            "properties": {
+              "className": {
+                "type": "string",
+                "pattern": "\\S"
+              }
+            }
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "type": {
+                "const": "OBJECT"
+              }
+            },
+            "required": [
+              "type"
+            ]
+          },
+          "then": {
+            "required": [
+              "integerValue"
+            ],
+            "properties": {
+              "integerValue": {
+                "anyOf": [
+                  {
+                    "const": -1
+                  },
+                  {
+                    "type": "integer",
+                    "minimum": 1
+                  }
+                ]
+              }
+            }
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "type": {
+                "const": "IMPORTED"
+              }
+            },
+            "required": [
+              "type"
+            ]
+          },
+          "then": {
+            "required": [
+              "importedType",
+              "stringValue"
+            ],
+            "properties": {
+              "importedType": {
+                "type": "string",
+                "pattern": "\\S"
+              },
+              "stringValue": {
+                "type": "string",
+                "pattern": "\\S"
+              }
+            }
+          }
+        }
+      ]
+    },
+    "enumDefinition": {
+      "type": "object",
+      "properties": {
+        "name": {
+          "type": "string",
+          "pattern": "\\S"
+        },
+        "storageType": {
+          "enum": [
+            "STRING",
+            "INTEGER"
+          ],
+          "default": "STRING"
+        },
+        "flags": {
+          "type": "boolean",
+          "default": false
+        },
+        "choices": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "uniqueItems": true,
+          "default": []
         }
       },
       "required": [
-        "type"
+        "name"
+      ],
+      "allOf": [
+        {
+          "if": {
+            "properties": {
+              "flags": {
+                "const": true
+              }
+            },
+            "required": [
+              "flags"
+            ]
+          },
+          "then": {
+            "properties": {
+              "choices": {
+                "maxItems": 31,
+                "items": {
+                  "type": "string",
+                  "minLength": 1,
+                  "pattern": "^[^,]+$"
+                }
+              }
+            }
+          }
+        }
       ]
     },
     "propertySet": {

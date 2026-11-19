@@ -6,6 +6,8 @@ import games.pixscape.runtime.engine.PixscapeEngine;
 import games.pixscape.runtime.loading.SceneMetaRuntime;
 import games.pixscape.runtime.property.PropertySet;
 import games.pixscape.runtime.property.PropertyType;
+import games.pixscape.runtime.property.PropertyValue;
+import com.badlogic.gdx.utils.Array;
 import org.junit.Assert;
 import org.junit.Test;
 
@@ -125,7 +127,9 @@ public class CustomPropertiesApiTest {
         world.getMapper(CustomPropertiesComponent.class).create(owner).properties
                 .putObjectStableId("target", targetStableId)
                 .putObjectStableId("optionalTarget", -1)
-                .putClass("links", "Links", nested);
+                .putClass("links", "Links", nested)
+                .putList("targets", Array.with(PropertyValue.ofObjectStableId(targetStableId),
+                        PropertyValue.ofList(Array.with(PropertyValue.ofClass("Links", nested)))));
         world.process();
 
         CustomProperties properties =
@@ -138,6 +142,11 @@ public class CustomPropertiesApiTest {
         Assert.assertEquals(targetStableId, properties.getClassValue("links")
                 .properties().getObjectStableId("target", -1));
 
+        ListProperty targets = properties.getListValue("targets");
+        Assert.assertSame(targets, properties.getListValue("targets"));
+        Assert.assertEquals(targetStableId, targets.getObjectStableId(0));
+        Assert.assertEquals(targetStableId, targets.getListValue(1).getClassValue(0)
+                .properties().getObjectStableId("target", -1));
         EntityRef resolved = engine.api().entities().ofStableId(
                 properties.getObjectStableId("target", -1));
         Assert.assertTrue(resolved.exists());
@@ -148,6 +157,8 @@ public class CustomPropertiesApiTest {
         int replacement = world.create();
         Assert.assertEquals(target, replacement);
         Assert.assertFalse(resolved.exists());
+        Assert.assertEquals(targetStableId, targets.getObjectStableId(0));
+        Assert.assertFalse(engine.api().entities().ofStableId(targets.getObjectStableId(0)).exists());
         Assert.assertFalse(engine.api().entities().ofStableId(targetStableId).exists());
         world.dispose();
     }

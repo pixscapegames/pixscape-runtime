@@ -30,7 +30,7 @@ public class RuntimeProjectIOTilesetProfilesTest {
         File dir = makeTempDir("pixscape-runtime-tileset-profiles");
         File file = new File(dir, "tileset-profiles.json");
         FileWriter writer = new FileWriter(file);
-        writer.write("{\"format\":\"pixscape.tileset-profiles\",\"version\":1,\"tilesets\":[{\"tilesetId\":7,\"logicalPath\":\"tiles/terrain\",\"tileWidth\":64,\"tileHeight\":96,\"referenceCellWidth\":32,\"referenceCellHeight\":16,\"projection\":\"isometric\",\"anchor\":\"top-center\",\"offsetX\":3,\"offsetY\":-5,\"renderSize\":\"native\",\"tileAssetIds\":[101,102]}]}");
+        writer.write("{\"format\":\"pixscape.tileset-profiles\",\"version\":2,\"tilesets\":[{\"tilesetId\":7,\"logicalPath\":\"tiles/terrain\",\"tileWidth\":64,\"tileHeight\":96,\"referenceCellWidth\":32,\"referenceCellHeight\":16,\"projection\":\"isometric\",\"anchor\":\"top-center\",\"offsetX\":3,\"offsetY\":-5,\"renderSize\":\"native\",\"tileAssetIds\":[101,102]}]}");
         writer.close();
 
         RuntimeTilesetProfiles profiles = RuntimeProjectIO.loadTilesetProfiles(new FileHandle(dir));
@@ -76,7 +76,7 @@ public class RuntimeProjectIOTilesetProfilesTest {
     @Test
     public void normalsRemainIndexedByAssetAndClearWithRegistry() throws Exception {
         FileHandle root = new FileHandle(makeTempDir("tile-normals"));
-        root.child("tileset-profiles.json").writeString("{format:pixscape.tileset-profiles,version:1,tilesets:["
+        root.child("tileset-profiles.json").writeString("{format:pixscape.tileset-profiles,version:2,tilesets:["
                 + "{tilesetId:1,tileAssetIds:[2,3,4],normalMaps:[{tileAssetId:2,source:normals/2.png},"
                 + "{tileAssetId:3,source:normals/3.png}]}]}", false);
         RuntimeTilesetProfiles profiles = RuntimeProjectIO.loadTilesetProfiles(root);
@@ -90,7 +90,7 @@ public class RuntimeProjectIOTilesetProfilesTest {
     @Test(expected = GdxRuntimeException.class)
     public void normalCannotClaimAnotherTile() {
         FileHandle root = new FileHandle(makeTempDir("invalid-tile-normal"));
-        root.child("tileset-profiles.json").writeString("{format:pixscape.tileset-profiles,version:1,tilesets:["
+        root.child("tileset-profiles.json").writeString("{format:pixscape.tileset-profiles,version:2,tilesets:["
                 + "{tilesetId:1,tileAssetIds:[2],normalMaps:[{tileAssetId:3,source:normals/3.png}]}]}", false);
         RuntimeProjectIO.loadTilesetProfiles(root);
     }

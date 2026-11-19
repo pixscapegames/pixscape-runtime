@@ -17,7 +17,7 @@ import java.util.Map;
  */
 public final class GameObjectAsset {
     public static final String EXTENSION = ".gameobject";
-    public static final int SCHEMA_VERSION = 6;
+    public static final int SCHEMA_VERSION = 7;
 
     public int schemaVersion = SCHEMA_VERSION;
     public int rootSourceEntityId = -1;

@@ -14,7 +14,7 @@ import games.pixscape.runtime.physics.PhysicsShapeIdState;
  */
 public class SceneMetaRuntime implements PhysicsShapeIdState {
 
-    public static final int CURRENT_SCENE_SCHEMA_VERSION = 7;
+    public static final int CURRENT_SCENE_SCHEMA_VERSION = 8;
 
     public int sceneSchemaVersion = CURRENT_SCENE_SCHEMA_VERSION;
     public String name;

@@ -59,7 +59,7 @@ public final class SceneRenderPreparationGlCheck {
         FileHandle project = root.child(PixscapeEngine.RUNTIME_DIR_NAME);
         project.child("project.json").writeString("{\"projectFileName\":\"test\",\"version\":\"1\","
                 + "\"currentSceneName\":\"test\",\"scenes\":{\"test\":{\"name\":\"test\","
-                + "\"file\":\"test.json\",\"sceneSchemaVersion\":7,\"nextEntityStableId\":4,"
+                + "\"file\":\"test.json\",\"sceneSchemaVersion\":8,\"nextEntityStableId\":4,"
                 + "\"nextPhysicsShapeId\":1}}}", false, "UTF-8");
         project.child("atlases/test.atlas").writeString("", false, "UTF-8");
         writeScene(project.child("scenes/test.json"));

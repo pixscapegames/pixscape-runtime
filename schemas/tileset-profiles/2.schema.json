@@ -1,14 +1,14 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "$id": "https://pixscape.games/schemas/pixscape/tileset-profiles/1.schema.json",
-  "title": "Pixscape tileset profiles 1",
+  "$id": "https://pixscape.games/schemas/pixscape/tileset-profiles/2.schema.json",
+  "title": "Pixscape tileset profiles 2",
   "type": "object",
   "properties": {
     "format": {
       "const": "pixscape.tileset-profiles"
     },
     "version": {
-      "const": 1
+      "const": 2
     },
     "tilesets": {
       "type": "array",
@@ -62,6 +62,25 @@
             "items": {
               "type": "integer",
               "minimum": 1
+            }
+          },
+          "tiles": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "localId": {
+                  "type": "integer",
+                  "minimum": 0
+                },
+                "assetId": {
+                  "type": "integer",
+                  "minimum": 1
+                },
+                "properties": {
+                  "$ref": "https://pixscape.games/schemas/pixscape/common/2.schema.json#/$defs/propertySet"
+                }
+              }
             }
           }
         }

@@ -108,16 +108,13 @@ public class PropertySetTest {
     }
 
     @Test
-    public void recursiveValidationRejectsPathologicalDepth() {
+    public void finiteNestingHasNoArbitraryClassDepthLimit() {
         PropertySet nested = new PropertySet();
-        try {
-            for (int i = 0; i < 70; i++) {
-                nested = new PropertySet().putClass("next", "Node", nested);
-            }
-            Assert.fail("Expected excessive nesting to fail");
-        } catch (IllegalStateException expected) {
-            Assert.assertTrue(expected.getMessage().contains("maximum depth"));
+        for (int i = 0; i < 100; i++) {
+            nested = new PropertySet().putClass("next", "Node", nested);
         }
+        nested.validate();
+        nested.copy().compact();
     }
 
     @Test

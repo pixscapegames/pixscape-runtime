@@ -18,7 +18,7 @@ public class GameObjectAssetLoaderTest {
     @Test
     public void tiledStructuralMetadataCannotBeLoadedAsAGameObjectAsset() {
         for (String kind : new String[]{"TILED_MAP", "TILED_LAYER"}) {
-            String json = "{schemaVersion:6,rootSourceEntityId:1,entities:["
+            String json = "{schemaVersion:7,rootSourceEntityId:1,entities:["
                     + "{sourceEntityId:1,transform:{scaleX:1,scaleY:1},gameObject:{},meta:{kind:"
                     + kind + "}}]}";
             IllegalArgumentException failure = Assert.assertThrows(IllegalArgumentException.class,
@@ -29,7 +29,7 @@ public class GameObjectAssetLoaderTest {
 
     @Test
     public void serializedZoneRejectsZeroConfiguredDimensionsButAllowsPositiveOutsideImage() {
-        String prefix = "{schemaVersion:6,rootSourceEntityId:1,entities:["
+        String prefix = "{schemaVersion:7,rootSourceEntityId:1,entities:["
                 + "{sourceEntityId:1,transform:{scaleX:1,scaleY:1},gameObject:{},"
                 + "spatialRepresentation:{rectangles:{staticRectangle:";
         String suffix = "}}}]}";
@@ -43,7 +43,7 @@ public class GameObjectAssetLoaderTest {
 
     @Test
     public void literalJsonCollectionsPreserveOrderAndIdentities() {
-        String json = "{schemaVersion:6,rootSourceEntityId:9,entities:["
+        String json = "{schemaVersion:7,rootSourceEntityId:9,entities:["
                 + "{sourceEntityId:9,transform:{scaleX:1,scaleY:1},gameObject:{},physicsBody:{}},"
                 + "{sourceEntityId:2,parentSourceEntityId:9,transform:{scaleX:1,scaleY:1},"
                 + "tags:{values:[enemy,boss]},physicsBody:{},physicsShapes:["
@@ -216,7 +216,8 @@ public class GameObjectAssetLoaderTest {
     public void externalObjectReferenceIsRejected() {
         GameObjectAsset asset = validNestedAsset();
         asset.entities.get(1).customProperties = new PropertySet()
-                .putObjectStableId("external", 500);
+                .putList("nested", com.badlogic.gdx.utils.Array.with(
+                        games.pixscape.runtime.property.PropertyValue.ofClass("Link", new PropertySet().putObjectStableId("external", 500))));
         rejected(asset, "unsupported external OBJECT reference 500");
     }
 
@@ -288,7 +289,7 @@ public class GameObjectAssetLoaderTest {
 
         Assert.assertEquals(47f, restored.entities.get(2).spatialFootprint.localOffsetXPx, 0f);
         Assert.assertEquals(-61f, restored.entities.get(2).spatialRepresentation.rectangles.staticRectangle.x, 0f);
-        Assert.assertEquals(6, restored.schemaVersion);
+        Assert.assertEquals(GameObjectAsset.SCHEMA_VERSION, restored.schemaVersion);
         Assert.assertNotNull(restored.entities.get(2).physicsShapes.get(0).geometry);
         Assert.assertEquals(2.5f, restored.entities.get(2).spatialFootprint.altitude, 0f);
         Assert.assertEquals(7.5f, restored.entities.get(2).spatialRepresentation.rectangles.staticRectangle.height, 0f);
@@ -360,7 +361,7 @@ public class GameObjectAssetLoaderTest {
 
         GameObjectAsset restored = loader.fromJson(loader.toJson(asset));
 
-        Assert.assertEquals(6, restored.schemaVersion);
+        Assert.assertEquals(GameObjectAsset.SCHEMA_VERSION, restored.schemaVersion);
         Assert.assertEquals(1, restored.joints.size);
         GameObjectAsset.GameObjectJointData restoredJoint = restored.joints.get(0);
         Assert.assertEquals(7, restoredJoint.jointLocalId);
@@ -383,7 +384,7 @@ public class GameObjectAssetLoaderTest {
     public void v2AssetsAreRejectedRatherThanSilentlyMigrated() {
         GameObjectAsset asset = validNestedAsset();
         asset.schemaVersion = 2;
-        rejected(asset, "schemaVersion must be 6");
+        rejected(asset, "schemaVersion must be 7");
     }
 
     private void rejected(GameObjectAsset asset, String diagnostic) {

@@ -19,8 +19,6 @@ import games.pixscape.runtime.physics.PhysicsShapeData;
 import games.pixscape.runtime.physics.PhysicsShapeIdAllocator;
 import games.pixscape.runtime.physics.PreparedPhysicsBodyCandidate;
 import games.pixscape.runtime.property.PropertySet;
-import games.pixscape.runtime.property.PropertyType;
-import games.pixscape.runtime.property.PropertyValue;
 import games.pixscape.runtime.render.DirtyBits;
 import games.pixscape.runtime.render.JointDirtyBits;
 import games.pixscape.runtime.service.*;
@@ -627,20 +625,15 @@ public final class GameObjectRuntimeFragmentSpawner {
     }
 
     private static PropertySet remapProperties(PropertySet source, IntIntMap sourceToStable) {
-        PropertySet result = new PropertySet(source.size());
-        Array<String> names = new Array<String>();
-        source.copyNamesTo(names);
-        for (int i = 0; i < names.size; i++) {
-            String name = names.get(i);
-            PropertyValue value = source.valueCopy(name);
-            if (value.type() == PropertyType.OBJECT) {
-                int sourceId = value.asObjectStableId();
-                result.putObjectStableId(name, sourceId == -1 ? -1 : sourceToStable.get(sourceId, -1));
-            } else if (value.type() == PropertyType.CLASS) {
-                result.putClass(name, value.className(), remapProperties(value.classPropertiesCopy(), sourceToStable));
-            } else result.put(name, value);
-        }
-        return result;
+        return source.remapObjectReferences(sourceId -> {
+            if (sourceId == -1) {
+                return -1;
+            }
+            if (!sourceToStable.containsKey(sourceId)) {
+                throw new IllegalArgumentException("Unresolved Game Object property reference " + sourceId);
+            }
+            return sourceToStable.get(sourceId, -1);
+        });
     }
 
     private static void rollback(World world, IntArray created) {

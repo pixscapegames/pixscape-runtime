@@ -108,3 +108,47 @@ On Windows, use `gradlew.bat` instead of `./gradlew`. The build targets Java 8 f
 ## License
 
 [Apache License 2.0](LICENSE).
+
+## Typed custom properties
+
+`entity.properties()` and `tile.properties()` expose read-only named values. Names are case-sensitive.
+Missing scalar properties return the supplied fallback; missing CLASS/LIST/ENUM properties return `null`.
+A present value with the wrong type throws `IllegalStateException`; a list index outside `[0, size)` throws
+`IndexOutOfBoundsException`. An explicit empty LIST has size zero and differs from absence. Lists retain
+individual types, order and duplicates, including nested lists/classes; an empty inherited override replaces
+the entire list. Enums retain their definition name, storage type, choices and flags independently of Tiled.
+
+```java
+CustomProperties properties = entity.properties();
+ListProperty items = properties.getListValue("items");
+if (items != null) {
+    for (int i = 0; i < items.size(); i++) {
+        if (items.typeAt(i) == PropertyType.FLOAT) {
+            double exact = items.getDouble(i);
+        } else if (items.typeAt(i) == PropertyType.OBJECT) {
+            int stableId = items.getObjectStableId(i);
+            EntityRef target = api.entities().ofStableId(stableId);
+            if (target.exists()) { /* use the resolved target */ }
+        }
+    }
+}
+EnumProperty mode = properties.getEnumValue("mode");
+if (mode != null && mode.isFlags() && mode.choiceCount() > 0) {
+    boolean firstEnabled = mode.isSelected(0);
+}
+```
+
+FLOAT stores a finite `double`; `getFloat` is an explicit narrowing read and is never an import/copy
+intermediate. OBJECT stores a positive stable ID or `-1` (None), never an ECS ID or list index. Resolving a
+missing/deleted target returns an unavailable handle; reusing its ECS slot does not retarget the property.
+Named and indexed access is O(1), without copying collections. Nested CLASS/LIST/ENUM views belong to the
+captured value: reacquire them after replacing the property/component. Entity-backed properties become
+empty when their entity handle is stale. Authoring copies and remapping occur at explicit mutation boundaries.
+See `ListEnumPropertiesTest`, `CustomPropertiesApiTest` and `GameObjectHierarchySpawnTest` for compiled
+examples of simple/mixed/nested lists, enum flags and independent instances.
+
+Current storage formats: scene metadata 8, Game Object 7, tileset profiles 2 (common schema 2/components 8).
+Historical formats are rejected; no migration or implicit repair is provided. Studio selects a `.tiled-project`
+explicitly when enum definitions are required. External CLASS defaults are not synthesized; missing declared
+members are reported. FILE and other unsupported tile metadata retain only their existing IMPORTED contract;
+unsupported values inside LIST are rejected with an item path.

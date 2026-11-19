@@ -16,7 +16,7 @@ import static org.junit.Assert.*;
 public class SceneRendererSettingsTest {
     @Test
     public void sceneSelectionDefaultsLegacyAndExplicitOverrideWins() throws Exception {
-        String base = "{sceneSchemaVersion:7,nextEntityStableId:1,nextPhysicsShapeId:1";
+        String base = "{sceneSchemaVersion:8,nextEntityStableId:1,nextPhysicsShapeId:1";
         SceneMetaRuntime legacy = SceneMetaRuntime.fromJson(new JsonReader().parse(base + "}"), "legacy");
         SceneMetaRuntime forward = SceneMetaRuntime.fromJson(new JsonReader().parse(base + ",forwardLighting:true}"), "forward");
         assertFalse(legacy.forwardLighting);

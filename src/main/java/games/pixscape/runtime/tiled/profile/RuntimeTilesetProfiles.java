@@ -7,7 +7,7 @@ import games.pixscape.runtime.api.TileDefinition;
 
 public final class RuntimeTilesetProfiles {
     public static final String FORMAT = "pixscape.tileset-profiles";
-    public static final int VERSION = 1;
+    public static final int VERSION = 2;
 
     private final Array<RuntimeTilesetProfile> profiles = new Array<>();
     private final IntMap<RuntimeTilesetProfile> byTilesetId = new IntMap<>();

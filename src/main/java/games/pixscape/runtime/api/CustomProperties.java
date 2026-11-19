@@ -5,9 +5,10 @@ import games.pixscape.runtime.property.PropertyType;
 /**
  * {@code HIGH_LEVEL} read-only custom properties of a Runtime entity or tile definition.
  *
- * <p>V1 supports {@link PropertyType#STRING}, {@link PropertyType#BOOLEAN},
+ * <p>Supports {@link PropertyType#STRING}, {@link PropertyType#BOOLEAN},
  * {@link PropertyType#INTEGER}, {@link PropertyType#FLOAT}, {@link PropertyType#COLOR}, and
- * {@link PropertyType#OBJECT}, and recursively nested {@link PropertyType#CLASS} values. COLOR
+ * {@link PropertyType#OBJECT}, recursively nested {@link PropertyType#CLASS}/{@link PropertyType#LIST} values and
+ * {@link PropertyType#ENUM} values with embedded definitions. FLOAT uses double storage. COLOR
  * values are packed RGBA8888 integers ({@code 0xRRGGBBAA}). Unsupported imported tile values
  * use {@link PropertyType#IMPORTED}: their source type and payload remain available through
  * {@link #getImportedValue(String)}, without conversion to STRING or entity stable IDs.</p>
@@ -34,7 +35,16 @@ public interface CustomProperties {
 
     int getInt(String name, int fallback);
 
+    /** Explicit single-precision read. Use getDouble for lossless FLOAT access. */
     float getFloat(String name, float fallback);
+
+    double getDouble(String name, double fallback);
+
+    /** Null when absent, a size-zero view for an empty LIST, throws for wrong type. */
+    ListProperty getListValue(String name);
+
+    /** Null when absent; throws for wrong type. Includes the persisted definition. */
+    EnumProperty getEnumValue(String name);
 
     /**
      * Returns a packed RGBA8888 COLOR value ({@code 0xRRGGBBAA}), or {@code fallback} when

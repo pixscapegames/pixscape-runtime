@@ -17,6 +17,8 @@ public enum PropertyType {
     COLOR,
     OBJECT,
     CLASS,
+    LIST,
+    ENUM,
     /**
      * Imported data whose source semantics are not editable/interpreted by Pixscape.
      */

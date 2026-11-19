@@ -1,6 +1,6 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "$id": "https://pixscape.games/schemas/pixscape/components/7.schema.json",
+  "$id": "https://pixscape.games/schemas/pixscape/components/8.schema.json",
   "title": "Pixscape scene component payloads (scene schema 7)",
   "description": "Resolve each document's componentIdentifiers first; these definitions are selected by fully qualified type ID, never by a globally fixed alias.",
   "x-pixscape-components": {
@@ -301,7 +301,7 @@
         "animationAssetIds": {
           "anyOf": [
             {
-              "$ref": "https://pixscape.games/schemas/pixscape/common/1.schema.json#/$defs/intArray"
+              "$ref": "https://pixscape.games/schemas/pixscape/common/2.schema.json#/$defs/intArray"
             },
             {
               "type": "null"
@@ -469,7 +469,7 @@
       "type": "object",
       "properties": {
         "properties": {
-          "$ref": "https://pixscape.games/schemas/pixscape/common/1.schema.json#/$defs/propertySet",
+          "$ref": "https://pixscape.games/schemas/pixscape/common/2.schema.json#/$defs/propertySet",
           "default": {
             "values": {}
           }
@@ -524,25 +524,25 @@
           "default": false
         },
         "tileXs": {
-          "$ref": "https://pixscape.games/schemas/pixscape/common/1.schema.json#/$defs/intArray",
+          "$ref": "https://pixscape.games/schemas/pixscape/common/2.schema.json#/$defs/intArray",
           "default": {
             "size": 0
           }
         },
         "tileYs": {
-          "$ref": "https://pixscape.games/schemas/pixscape/common/1.schema.json#/$defs/intArray",
+          "$ref": "https://pixscape.games/schemas/pixscape/common/2.schema.json#/$defs/intArray",
           "default": {
             "size": 0
           }
         },
         "tileAssetIds": {
-          "$ref": "https://pixscape.games/schemas/pixscape/common/1.schema.json#/$defs/intArray",
+          "$ref": "https://pixscape.games/schemas/pixscape/common/2.schema.json#/$defs/intArray",
           "default": {
             "size": 0
           }
         },
         "tileTransformFlags": {
-          "$ref": "https://pixscape.games/schemas/pixscape/common/1.schema.json#/$defs/byteArray",
+          "$ref": "https://pixscape.games/schemas/pixscape/common/2.schema.json#/$defs/byteArray",
           "default": {
             "size": 0
           }
@@ -578,7 +578,7 @@
         "tileSpatialFlags": {
           "anyOf": [
             {
-              "$ref": "https://pixscape.games/schemas/pixscape/common/1.schema.json#/$defs/intArray"
+              "$ref": "https://pixscape.games/schemas/pixscape/common/2.schema.json#/$defs/intArray"
             },
             {
               "type": "null"
@@ -589,7 +589,7 @@
         "tileSpatialOverrides": {
           "anyOf": [
             {
-              "$ref": "https://pixscape.games/schemas/pixscape/common/1.schema.json#/$defs/byteArray"
+              "$ref": "https://pixscape.games/schemas/pixscape/common/2.schema.json#/$defs/byteArray"
             },
             {
               "type": "null"
@@ -607,7 +607,7 @@
                 "minimum": 1
               },
               "geometry": {
-                "$ref": "https://pixscape.games/schemas/pixscape/common/1.schema.json#/$defs/localLightingSurface"
+                "$ref": "https://pixscape.games/schemas/pixscape/common/2.schema.json#/$defs/localLightingSurface"
               }
             },
             "required": [
@@ -645,7 +645,7 @@
       "type": "object",
       "properties": {
         "rectangles": {
-          "$ref": "https://pixscape.games/schemas/pixscape/common/1.schema.json#/$defs/actorRectangles"
+          "$ref": "https://pixscape.games/schemas/pixscape/common/2.schema.json#/$defs/actorRectangles"
         }
       }
     },
@@ -696,7 +696,7 @@
         "shapes": {
           "type": "array",
           "items": {
-            "$ref": "https://pixscape.games/schemas/pixscape/common/1.schema.json#/$defs/spatialShape"
+            "$ref": "https://pixscape.games/schemas/pixscape/common/2.schema.json#/$defs/spatialShape"
           },
           "default": []
         }
@@ -712,7 +712,7 @@
         "blocks": {
           "type": "array",
           "items": {
-            "$ref": "https://pixscape.games/schemas/pixscape/common/1.schema.json#/$defs/spatialBlock"
+            "$ref": "https://pixscape.games/schemas/pixscape/common/2.schema.json#/$defs/spatialBlock"
           },
           "default": []
         },
@@ -994,7 +994,7 @@
         "shapes": {
           "type": "array",
           "items": {
-            "$ref": "https://pixscape.games/schemas/pixscape/common/1.schema.json#/$defs/physicsShape"
+            "$ref": "https://pixscape.games/schemas/pixscape/common/2.schema.json#/$defs/physicsShape"
           },
           "default": []
         }
@@ -1325,7 +1325,7 @@
         "description": {
           "anyOf": [
             {
-              "$ref": "https://pixscape.games/schemas/pixscape/common/1.schema.json#/$defs/localLightingSurface"
+              "$ref": "https://pixscape.games/schemas/pixscape/common/2.schema.json#/$defs/localLightingSurface"
             },
             {
               "type": "null"

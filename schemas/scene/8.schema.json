@@ -1,6 +1,6 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "$id": "https://pixscape.games/schemas/pixscape/scene/7.schema.json",
+  "$id": "https://pixscape.games/schemas/pixscape/scene/8.schema.json",
   "title": "Artemis scene envelope for Pixscape scene schema 7",
   "type": "object",
   "required": [

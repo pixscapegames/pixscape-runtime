@@ -3,6 +3,9 @@ package games.pixscape.runtime.property;
 import games.pixscape.runtime.api.ClassProperty;
 import games.pixscape.runtime.api.CustomProperties;
 import games.pixscape.runtime.api.ImportedProperty;
+import games.pixscape.runtime.api.ListProperty;
+import games.pixscape.runtime.api.EnumProperty;
+import com.badlogic.gdx.utils.Array;
 
 /**
  * {@code SUPPORTED_EXPERT} concrete typed value stored in a
@@ -12,17 +15,23 @@ import games.pixscape.runtime.api.ImportedProperty;
  * on Desktop, Android, and GWT. Accessors never coerce between property types.</p>
  */
 public final class PropertyValue {
-    private PropertyType type = PropertyType.STRING;
-    private String stringValue = "";
-    private boolean booleanValue;
-    private int integerValue;
-    private float floatValue;
-    private String className = "";
-    private PropertySet classProperties = new PropertySet();
+    PropertyType type = PropertyType.STRING;
+    String stringValue = "";
+    boolean booleanValue;
+    int integerValue;
+    double floatValue;
+    String className = "";
+    PropertySet classProperties = new PropertySet();
     private transient ClassProperty classView;
-    private String importedType = "";
-    private String importedCustomType = "";
+    String importedType = "";
+    String importedCustomType = "";
     private transient ImportedProperty importedView;
+    Array<PropertyValue> listValues;
+    EnumDefinition enumDefinition;
+    private transient ListProperty listView;
+    private transient EnumProperty enumView;
+    transient int enumSelection;
+
 
     /**
      * Creates the valid default value {@code STRING("")} for serializers.
@@ -55,7 +64,7 @@ public final class PropertyValue {
         return property;
     }
 
-    public static PropertyValue ofFloat(float value) {
+    public static PropertyValue ofFloat(double value) {
         if (!isFinite(value)) {
             throw new IllegalArgumentException(
                     "Float property value must be finite, got " + value + ".");
@@ -152,7 +161,7 @@ public final class PropertyValue {
 
     public float asFloat() {
         requireType(PropertyType.FLOAT);
-        return floatValue;
+        return (float) floatValue;
     }
 
     /**
@@ -193,18 +202,76 @@ public final class PropertyValue {
         return classProperties.copy();
     }
 
+    /** Cold structural equality, preserving order, duplicates, declared types and exact values. */
+    public boolean contentEquals(PropertyValue other) {
+        return PropertyTree.same(this, other);
+    }
+
     public PropertyValue copy() {
-        validateState();
-        PropertyValue copy = new PropertyValue(type);
-        copy.stringValue = stringValue;
-        copy.booleanValue = booleanValue;
-        copy.integerValue = integerValue;
-        copy.floatValue = floatValue;
-        copy.className = className;
-        copy.importedType = importedType;
-        copy.importedCustomType = importedCustomType;
-        copy.classProperties = classProperties != null ? classProperties.copy() : null;
-        return copy;
+        return (PropertyValue) PropertyTree.copy(this, null);
+    }
+
+    /** Constructs an independent ordered list; null items and cycles are rejected. */
+    public static PropertyValue ofList(Array<PropertyValue> items) {
+        if (items == null) {
+            throw new IllegalArgumentException("List items must not be null.");
+        }
+        PropertyValue value = new PropertyValue(PropertyType.LIST);
+        value.listValues = items;
+        return value.copy();
+    }
+
+    public static PropertyValue ofEnum(EnumDefinition definition, String value) {
+        if (definition == null || definition.storageType() != PropertyType.STRING) {
+            throw new IllegalArgumentException("STRING enum definition required.");
+        }
+        PropertyValue result = new PropertyValue(PropertyType.ENUM);
+        result.enumDefinition = definition.copy();
+        result.stringValue = value;
+        result.validateState();
+        return result;
+    }
+
+    public static PropertyValue ofEnum(EnumDefinition definition, int value) {
+        if (definition == null || definition.storageType() != PropertyType.INTEGER) {
+            throw new IllegalArgumentException("INTEGER enum definition required.");
+        }
+        PropertyValue result = new PropertyValue(PropertyType.ENUM);
+        result.enumDefinition = definition.copy();
+        result.integerValue = value;
+        result.validateState();
+        return result;
+    }
+
+    public EnumDefinition enumDefinitionCopy() {
+        requireType(PropertyType.ENUM);
+        return enumDefinition.copy();
+    }
+
+    public Array<PropertyValue> listValuesCopy() {
+        requireType(PropertyType.LIST);
+        return copy().listValues;
+    }
+
+    public double asDouble() {
+        requireType(PropertyType.FLOAT);
+        return floatValue;
+    }
+
+    public ListProperty asList() {
+        requireType(PropertyType.LIST);
+        if (listView == null) {
+            listView = new ListView();
+        }
+        return listView;
+    }
+
+    public EnumProperty asEnum() {
+        requireType(PropertyType.ENUM);
+        if (enumView == null) {
+            enumView = new EnumView();
+        }
+        return enumView;
     }
 
     String stringValue() {
@@ -219,15 +286,15 @@ public final class PropertyValue {
         return integerValue;
     }
 
-    float floatValue() {
+    double floatValue() {
         return floatValue;
     }
 
     void validateState() {
-        validateState(0);
+        PropertyTree.validate(this);
     }
 
-    void validateState(int depth) {
+    void validateShallow() {
         if (type == null) {
             throw new IllegalStateException("Property value type must not be null.");
         }
@@ -246,16 +313,22 @@ public final class PropertyValue {
             if (classProperties == null) {
                 throw new IllegalStateException("Class property members must not be null.");
             }
-            classProperties.validate(depth + 1);
+
+        }
+        if (type == PropertyType.LIST && listValues == null) {
+            throw new IllegalStateException("List items must not be null.");
+        }
+        if (type == PropertyType.ENUM) {
+            if (enumDefinition == null) {
+                throw new IllegalStateException("Enum definition must not be null.");
+            }
+            enumDefinition.validate();
+            enumSelection = enumDefinition.selection(stringValue, integerValue);
         }
         if (type == PropertyType.IMPORTED && (importedType == null || importedType.trim().isEmpty()
                 || importedCustomType == null || stringValue.isEmpty())) {
             throw new IllegalStateException("Imported property requires its declared type and source XML.");
         }
-    }
-
-    void compactNested() {
-        if (type == PropertyType.CLASS && classProperties != null) classProperties.compact();
     }
 
     private void requireType(PropertyType expected) {
@@ -265,8 +338,8 @@ public final class PropertyValue {
         }
     }
 
-    private static boolean isFinite(float value) {
-        return !Float.isNaN(value) && !Float.isInfinite(value);
+    private static boolean isFinite(double value) {
+        return !Double.isNaN(value) && !Double.isInfinite(value);
     }
 
     private static void requireClassName(String value) {
@@ -296,6 +369,88 @@ public final class PropertyValue {
         }
         if (value.trim().isEmpty()) {
             throw new IllegalStateException("Class property type name must not be blank.");
+        }
+    }
+
+    private final class EnumView implements EnumProperty {
+        public String typeName() {
+            return enumDefinition.name();
+        }
+        public PropertyType storageType() {
+            return enumDefinition.storageType();
+        }
+        public boolean isFlags() {
+            return enumDefinition.isFlags();
+        }
+        public int choiceCount() {
+            return enumDefinition.size();
+        }
+        public String choiceAt(int index) {
+            return enumDefinition.choiceAt(index);
+        }
+        public boolean isSelected(int index) {
+            enumDefinition.choiceAt(index);
+            return isFlags() ? (enumSelection & (1 << index)) != 0 : enumSelection == index;
+        }
+        public String stringValue() {
+            if (storageType() != PropertyType.STRING) {
+                throw new IllegalStateException("Not a STRING enum.");
+            }
+            return stringValue;
+        }
+        public int intValue() {
+            if (storageType() != PropertyType.INTEGER) {
+                throw new IllegalStateException("Not an INTEGER enum.");
+            }
+            return integerValue;
+        }
+    }
+
+    private final class ListView implements ListProperty {
+        public int size() {
+            return listValues.size;
+        }
+        private PropertyValue at(int index) {
+            if (index < 0 || index >= listValues.size) {
+                throw new IndexOutOfBoundsException("List index: " + index);
+            }
+            return listValues.get(index);
+        }
+        public PropertyType typeAt(int index) {
+            return at(index).type();
+        }
+        public String getString(int index) {
+            return at(index).asString();
+        }
+        public boolean getBoolean(int index) {
+            return at(index).asBoolean();
+        }
+        public int getInt(int index) {
+            return at(index).asInt();
+        }
+        public float getFloat(int index) {
+            return at(index).asFloat();
+        }
+        public double getDouble(int index) {
+            return at(index).asDouble();
+        }
+        public int getColorRgba8888(int index) {
+            return at(index).asColorRgba8888();
+        }
+        public int getObjectStableId(int index) {
+            return at(index).asObjectStableId();
+        }
+        public ClassProperty getClassValue(int index) {
+            return at(index).asClass();
+        }
+        public ListProperty getListValue(int index) {
+            return at(index).asList();
+        }
+        public EnumProperty getEnumValue(int index) {
+            return at(index).asEnum();
+        }
+        public ImportedProperty getImportedValue(int index) {
+            return at(index).asImported();
         }
     }
 
@@ -359,6 +514,19 @@ public final class PropertyValue {
         @Override
         public int getInt(String name, int fallback) {
             return properties.getInt(name, fallback);
+        }
+
+        @Override
+        public double getDouble(String name, double fallback) {
+            return properties.getDouble(name, fallback);
+        }
+        @Override
+        public ListProperty getListValue(String name) {
+            return properties.getListValue(name);
+        }
+        @Override
+        public EnumProperty getEnumValue(String name) {
+            return properties.getEnumValue(name);
         }
 
         @Override

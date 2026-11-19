@@ -96,8 +96,8 @@ public class PublishedExportLoadTest {
     private static boolean unsupportedSpatialFormat(Throwable error) {
         for (Throwable cause = error; cause != null; cause = cause.getCause()) {
             String message = cause.getMessage();
-            if (message != null && (message.contains("requires sceneSchemaVersion 7, found ")
-                    || (message.contains("unsupported schemaVersion ") && message.contains("; expected 6")))) {
+            if (message != null && (message.contains("requires sceneSchemaVersion 8, found ")
+                    || (message.contains("unsupported schemaVersion ") && message.contains("; expected 7")))) {
                 return true;
             }
         }

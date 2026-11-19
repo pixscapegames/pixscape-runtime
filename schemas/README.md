@@ -14,13 +14,13 @@ match the generator without changing them.
 | File | In-file format version | Scope |
 | --- | --- | --- |
 | `project/1.schema.json` | project `"1"` | Export entry point and scene metadata |
-| `scene/7.schema.json` | scene `7` | Artemis envelope; its observed `metadata.version: 1` is a distinct serializer marker |
-| `components/7.schema.json` | scene `7` | 50 supported Runtime component type IDs, including layer names, surface lighting and non-pooled shader parameters |
-| `common/1.schema.json` | shared definitions `1` | LibGDX arrays, properties, physics and Spatial payloads |
-| `game-object/6.schema.json` | Game Object `6` | Independent definition and local entity/joint IDs |
+| `scene/8.schema.json` | scene `8` | Artemis envelope; its observed `metadata.version: 1` is a distinct serializer marker |
+| `components/8.schema.json` | scene `8` | 50 supported Runtime component type IDs, including layer names, surface lighting and non-pooled shader parameters |
+| `common/2.schema.json` | shared definitions `2` | LibGDX arrays, properties, physics and Spatial payloads |
+| `game-object/7.schema.json` | Game Object `7` | Independent definition and local entity/joint IDs |
 | `animations/unversioned.schema.json` | none | Sprite animation registry; no version field is emitted |
 | `tiled-animations/1.schema.json` | registry `"1"` | Tiled animation frames/durations |
-| `tileset-profiles/1.schema.json` | profile `1` | Tileset dimensions, projection and tile IDs |
+| `tileset-profiles/2.schema.json` | profile `2` | Tileset dimensions, projection and tile IDs |
 | `hud-screen/1.schema.json` | HUD screen `1` | Logical descriptor |
 | `hud-document/2.schema.json` | HUD document `2` | Recursive Scene2D node/document structure |
 
@@ -51,7 +51,7 @@ Objects, HUD, registries, tileset profiles, atlas page paths and particle
 effect paths. For scene components it resolves each document's
 `componentIdentifiers`, expands each entity's archetype and validates explicit
 payloads against the matching fully qualified type ID. The nonstandard
-`x-pixscape-components` mapping in `components/7.schema.json` provides that
+`x-pixscape-components` mapping in `components/8.schema.json` provides that
 link; the short aliases are **not** global identifiers. The validator also
 rejects a Layer/EntityIndex combination inherited entirely from an archetype.
 The self-test checks representative invalid fixtures, including nonpositive or nonfinite configured zone dimensions, wrong

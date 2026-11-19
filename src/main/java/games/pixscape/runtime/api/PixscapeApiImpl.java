@@ -988,6 +988,24 @@ public final class PixscapeApiImpl implements PixscapeAPI {
         }
 
         @Override
+        public double getDouble(String name, double fallback) {
+            PropertySet properties = properties();
+            return properties != null ? properties.getDouble(name, fallback) : fallback;
+        }
+
+        @Override
+        public ListProperty getListValue(String name) {
+            PropertySet properties = properties();
+            return properties != null ? properties.getListValue(name) : null;
+        }
+
+        @Override
+        public EnumProperty getEnumValue(String name) {
+            PropertySet properties = properties();
+            return properties != null ? properties.getEnumValue(name) : null;
+        }
+
+        @Override
         public float getFloat(String name, float fallback) {
             PropertySet properties = properties();
             return properties != null ? properties.getFloat(name, fallback) : fallback;
