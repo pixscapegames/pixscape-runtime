@@ -1,7 +1,6 @@
 package games.pixscape.runtime.hierarchy;
 
 import com.badlogic.gdx.math.Affine2;
-import com.badlogic.gdx.math.MathUtils;
 import games.pixscape.runtime.component.TransformComponent;
 
 /**
@@ -12,6 +11,9 @@ import games.pixscape.runtime.component.TransformComponent;
  * state and are not inherited as hierarchy ownership. Rotation uses the Runtime convention of
  * radians. Positive uniform scale is required only for parent frames; ordinary child transforms
  * retain their existing signed/non-uniform scale representation.</p>
+ *
+ * <p>Use Math trigonometry, as do the published hierarchy frames. Lookup-table samples do not
+ * compose: R(a) * R(b) differs from R(a+b), causing distance-dependent reparenting drift.</p>
  */
 public final class GameObjectTransformMath {
     public static final float DECOMPOSITION_EPSILON = 0.0001f;
@@ -56,8 +58,8 @@ public final class GameObjectTransformMath {
         if (transform == null || out == null) {
             throw new IllegalArgumentException("Transform and output frame are required.");
         }
-        float cos = MathUtils.cos(transform.rotationRad);
-        float sin = MathUtils.sin(transform.rotationRad);
+        float cos = (float) Math.cos(transform.rotationRad);
+        float sin = (float) Math.sin(transform.rotationRad);
         out.m00 = cos * transform.scaleX;
         out.m01 = -sin * transform.scaleY;
         out.m10 = sin * transform.scaleX;
@@ -78,8 +80,8 @@ public final class GameObjectTransformMath {
         if (transform == null || out == null) {
             throw new IllegalArgumentException("Transform and output frame are required.");
         }
-        float cos = MathUtils.cos(transform.rotationRad);
-        float sin = MathUtils.sin(transform.rotationRad);
+        float cos = (float) Math.cos(transform.rotationRad);
+        float sin = (float) Math.sin(transform.rotationRad);
         out.m00 = cos * transform.scaleX;
         out.m01 = -sin * transform.scaleY;
         out.m02 = transform.x;
@@ -160,8 +162,8 @@ public final class GameObjectTransformMath {
         requireFiniteTransform(childLocal);
         requirePositiveUniformParentScale(parentWorld);
         float parentScale = parentWorld.scaleX;
-        float cos = MathUtils.cos(parentWorld.rotationRad);
-        float sin = MathUtils.sin(parentWorld.rotationRad);
+        float cos = (float) Math.cos(parentWorld.rotationRad);
+        float sin = (float) Math.sin(parentWorld.rotationRad);
         float p00 = cos * parentScale;
         float p01 = -sin * parentScale;
         float p10 = sin * parentScale;
@@ -205,8 +207,8 @@ public final class GameObjectTransformMath {
         requireFiniteTransform(parentWorld);
         requireFiniteTransform(childWorld);
         requirePositiveUniformParentScale(parentWorld);
-        float cos = MathUtils.cos(parentWorld.rotationRad);
-        float sin = MathUtils.sin(parentWorld.rotationRad);
+        float cos = (float) Math.cos(parentWorld.rotationRad);
+        float sin = (float) Math.sin(parentWorld.rotationRad);
         float parentScale = parentWorld.scaleX;
         float p00 = cos * parentScale;
         float p01 = -sin * parentScale;

@@ -51,8 +51,8 @@ public final class WorldTransformState {
             throw new IllegalArgumentException("Entity ID and resolved world transform are required.");
         }
         ensureEntityCapacity(entityId);
-        float cos = com.badlogic.gdx.math.MathUtils.cos(worldTransform.rotationRad);
-        float sin = com.badlogic.gdx.math.MathUtils.sin(worldTransform.rotationRad);
+        float cos = (float) Math.cos(worldTransform.rotationRad);
+        float sin = (float) Math.sin(worldTransform.rotationRad);
         resolved[entityId] = true;
         x[entityId] = worldTransform.x;
         y[entityId] = worldTransform.y;
@@ -73,8 +73,8 @@ public final class WorldTransformState {
             throw new IllegalArgumentException("Entity ID must be non-negative.");
         }
         ensureEntityCapacity(entityId);
-        float cos = com.badlogic.gdx.math.MathUtils.cos(worldRotationRad);
-        float sin = com.badlogic.gdx.math.MathUtils.sin(worldRotationRad);
+        float cos = (float) Math.cos(worldRotationRad);
+        float sin = (float) Math.sin(worldRotationRad);
         resolved[entityId] = true;
         x[entityId] = worldX;
         y[entityId] = worldY;

@@ -52,6 +52,90 @@ public class GameObjectHierarchySystemTest {
     }
 
     @Test
+    public void worldPreservingReparentAndDetachKeepDistantDescendants() {
+        int outer = entity(1, true, -1), group = entity(2, true, 1);
+        int leaf = entity(3, false, 2), destination = entity(4, true, -1);
+        TransformComponent rootPose = world.getMapper(TransformComponent.class).get(outer);
+        rootPose.x = 21;
+        rootPose.originX = 7;
+        rootPose.rotationRad = .3f;
+        TransformComponent groupPose = world.getMapper(TransformComponent.class).get(group);
+        groupPose.originY = 9;
+        groupPose.rotationRad = .3f;
+        TransformComponent leafPose = world.getMapper(TransformComponent.class).get(leaf);
+        leafPose.x = 10000;
+        leafPose.scaleX = -2;
+        leafPose.scaleY = 3;
+        TransformComponent destinationPose = world.getMapper(TransformComponent.class).get(destination);
+        destinationPose.x = -53;
+        destinationPose.originY = 11;
+        destinationPose.rotationRad = -.7f;
+        destinationPose.scaleX = destinationPose.scaleY = 2;
+        identities.rebuild();
+        world.process();
+        float x = hierarchy.worldTransforms().x[leaf], y = hierarchy.worldTransforms().y[leaf];
+        for (int cycle = 0; cycle < 12; cycle++) {
+            games.pixscape.runtime.hierarchy.GameObjectHierarchyMutation.reparent(world, group, destination);
+            assertResolvedPosition(leaf, x, y, .008f);
+            world.process();
+            assertResolvedPosition(leaf, x, y, .008f);
+            games.pixscape.runtime.hierarchy.GameObjectHierarchyMutation.reparent(world, group, -1);
+            assertResolvedPosition(leaf, x, y, .008f);
+            world.process();
+            assertResolvedPosition(leaf, x, y, .008f);
+            Assert.assertEquals(-2, leafPose.scaleX, 0);
+            Assert.assertEquals(3, leafPose.scaleY, 0);
+            Assert.assertEquals(2, world.getMapper(GameObjectMemberComponent.class).get(leaf).parentStableId);
+        }
+    }
+
+    private void assertResolvedPosition(int entity, float x, float y, float tolerance) {
+        Assert.assertEquals(x, hierarchy.worldTransforms().x[entity], tolerance);
+        Assert.assertEquals(y, hierarchy.worldTransforms().y[entity], tolerance);
+    }
+
+    @Test
+    public void preparedLocalMutationKeepsLocalWhileWorldPreservingOperationConvertsIt() {
+        int first = entity(1, true, -1), second = entity(2, true, -1), child = entity(3, false, 1);
+        world.getMapper(TransformComponent.class).get(first).x = 10;
+        world.getMapper(TransformComponent.class).get(second).x = 30;
+        TransformComponent local = world.getMapper(TransformComponent.class).get(child);
+        local.x = 2;
+        identities.rebuild();
+        world.process();
+        games.pixscape.runtime.hierarchy.GameObjectHierarchyMutation.applyPreparedLocalPose(world, child, 2, local);
+        Assert.assertEquals(2, local.x, 0);
+        // Reads the pending relationship, not the still-published x=12 pose.
+        Assert.assertEquals(32, games.pixscape.runtime.hierarchy.GameObjectHierarchyMutation
+                .captureWorldPose(world, child).x, 0);
+        world.process();
+        games.pixscape.runtime.hierarchy.GameObjectHierarchyMutation.reparent(world, child, first);
+        Assert.assertEquals(22, local.x, 0);
+        assertResolvedPosition(child, 32, 0, 0);
+    }
+
+    @Test
+    public void incompatibleProspectiveParentsRejectWithoutPromotionOrLocalMutation() {
+        int child = entity(1, false, -1), parent = entity(2, false, -1);
+        TransformComponent local = world.getMapper(TransformComponent.class).get(child);
+        local.x = 17;
+        TransformComponent parentPose = world.getMapper(TransformComponent.class).get(parent);
+        parentPose.rotationRad = .7f;
+        identities.rebuild();
+        for (float[] scale : new float[][]{{0, 0}, {-1, -1}, {2, 3}}) {
+            parentPose.scaleX = scale[0];
+            parentPose.scaleY = scale[1];
+            world.process();
+            Assert.assertThrows(IllegalArgumentException.class,
+                    () -> games.pixscape.runtime.hierarchy.GameObjectHierarchyMutation.reparent(world, child, parent));
+            Assert.assertEquals(17, local.x, 0);
+            Assert.assertFalse(world.getMapper(GameObjectComponent.class).has(parent));
+            Assert.assertFalse(world.getMapper(GameObjectMemberComponent.class).has(child));
+            assertResolvedPosition(child, 17, 0, 0);
+        }
+    }
+
+    @Test
     public void emptyHierarchyBuildsAnEmptyTraversal() {
         world.process();
 

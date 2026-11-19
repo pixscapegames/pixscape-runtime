@@ -6,7 +6,6 @@ import com.artemis.ComponentMapper;
 import com.artemis.EntitySubscription;
 import com.artemis.annotations.SkipWire;
 import com.artemis.utils.IntBag;
-import com.badlogic.gdx.math.MathUtils;
 import com.badlogic.gdx.utils.IntArray;
 import com.badlogic.gdx.utils.IntSet;
 import games.pixscape.runtime.component.GameObjectComponent;
@@ -514,8 +513,8 @@ public final class GameObjectHierarchySystem extends BaseSystem {
                 y = physics.getBox2d().mToPx(position.y);
                 rotation = runtime.body.getAngle();
             }
-            cos = MathUtils.cos(rotation);
-            sin = MathUtils.sin(rotation);
+            cos = (float) Math.cos(rotation);
+            sin = (float) Math.sin(rotation);
             worldM00 = cos * scaleX;
             worldM01 = -sin * scaleY;
             worldM10 = sin * scaleX;
@@ -528,8 +527,8 @@ public final class GameObjectHierarchySystem extends BaseSystem {
             rotation = authored.rotationRad;
             scaleX = authored.scaleX;
             scaleY = authored.scaleY;
-            cos = MathUtils.cos(rotation);
-            sin = MathUtils.sin(rotation);
+            cos = (float) Math.cos(rotation);
+            sin = (float) Math.sin(rotation);
             float localM00 = cos * scaleX;
             float localM01 = -sin * scaleY;
             float localM10 = sin * scaleX;

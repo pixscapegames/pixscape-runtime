@@ -11,12 +11,15 @@ import games.pixscape.runtime.component.spatial.SpatialShapesComponent;
 import games.pixscape.runtime.system.GameObjectCompositionSystem;
 import games.pixscape.runtime.system.GameObjectHierarchySystem;
 import games.pixscape.runtime.system.Box2dSyncSystem;
+import games.pixscape.runtime.system.PhysicsPoseAuthority;
+import games.pixscape.runtime.service.IdentityRegistry;
 
 /** Explicit cold hierarchy mutation, with candidate transforms prepared before any authored write. */
 public final class GameObjectHierarchyMutation {
     private GameObjectHierarchyMutation() {
     }
 
+    /** Preserves the published world pose; a negative parent detaches. Requires current topology. */
     public static void reparent(World world, int child, int parent) {
         TiledEntityRole.requireGenericMember(world, child);
         if (parent >= 0) {
@@ -90,26 +93,16 @@ public final class GameObjectHierarchyMutation {
                 world.getMapper(GameObjectComponent.class).create(parent);
                 apply(world.getMapper(TransformComponent.class).get(parent), parentAfter);
             }
-            apply(world.getMapper(TransformComponent.class).get(child), childAfter);
+            applyPreparedLocalPose(world, child, parent < 0 ? 0
+                    : world.getMapper(PixscapeIdentityComponent.class).get(parent).stableId, childAfter);
             index.layerIndex = effectiveLayer;
-            if (parent < 0) {
-                world.getMapper(GameObjectMemberComponent.class).remove(child);
-            } else {
-                world.getMapper(GameObjectMemberComponent.class).create(child).parentStableId =
-                        world.getMapper(PixscapeIdentityComponent.class).get(parent).stableId;
-            }
             hierarchy.publishAuthoredHierarchyMutation();
         } catch (RuntimeException | Error failure) {
             if (spatial != null) {
                 spatial.restore();
             }
-            apply(world.getMapper(TransformComponent.class).get(child), childBefore);
+            applyPreparedLocalPose(world, child, oldStableParent < 0 ? 0 : oldStableParent, childBefore);
             index.layerIndex = previousLayer;
-            if (oldStableParent < 0) {
-                world.getMapper(GameObjectMemberComponent.class).remove(child);
-            } else {
-                world.getMapper(GameObjectMemberComponent.class).create(child).parentStableId = oldStableParent;
-            }
             if (promote) {
                 world.getMapper(GameObjectComponent.class).remove(parent);
                 apply(world.getMapper(TransformComponent.class).get(parent), parentBefore);
@@ -120,6 +113,63 @@ public final class GameObjectHierarchyMutation {
                 failure.addSuppressed(rollbackFailure);
             }
             throw failure;
+        }
+    }
+
+    /**
+     * Captures the pose used to prepare a world-preserving hierarchy edit. Under authored authority,
+     * reads current authored relations, including changes not yet published by the caller.
+     * Runtime physics instead requires the published pose, whose Body boundaries are native-owned.
+     * Does not publish ECS state or step Physics.
+     */
+    public static TransformComponent captureWorldPose(World world, int entity) {
+        PhysicsPoseAuthority authority = world.getSystem(PhysicsPoseAuthority.class);
+        if (authority != null && authority.isRuntimePhysics()) {
+            GameObjectHierarchySystem hierarchy = world.getSystem(GameObjectHierarchySystem.class);
+            if (hierarchy == null || !hierarchy.worldTransforms().isResolved(entity)) {
+                throw new IllegalStateException("Hierarchy mutation requires a published world pose.");
+            }
+            return resolved(world, hierarchy.worldTransforms(), entity);
+        }
+        return captureAuthoredWorldPose(world, IdentityRegistry.boundTo(world), entity, 0);
+    }
+
+    private static TransformComponent captureAuthoredWorldPose(
+            World world, IdentityRegistry identities, int entity, int depth) {
+        if (depth > 1024 || entity < 0 || !world.getEntityManager().isActive(entity)) {
+            throw new IllegalArgumentException("Hierarchy requires live parents and bounded depth.");
+        }
+        TransformComponent authored = world.getMapper(TransformComponent.class).getSafe(entity, null);
+        if (authored == null) {
+            throw new IllegalArgumentException("Hierarchy entity requires TransformComponent.");
+        }
+        GameObjectMemberComponent member = world.getMapper(GameObjectMemberComponent.class).getSafe(entity, null);
+        if (member == null) {
+            return copy(authored);
+        }
+        if (identities == null) {
+            throw new IllegalStateException("Hierarchy conversion requires bound identities.");
+        }
+        TransformComponent parentWorld = captureAuthoredWorldPose(world, identities,
+                identities.findByStableId(member.parentStableId), depth + 1);
+        return GameObjectTransformMath.localToWorld(parentWorld, authored,
+                world.getMapper(GameObjectComponent.class).has(entity), new TransformComponent());
+    }
+
+    /**
+     * Applies an already validated local pose and relationship (zero means detached).
+     * This deliberately performs NO world-preserving conversion. Reparent preparation computes
+     * that conversion first; history restores its recorded local pose without recomputing it.
+     * Callers validate the complete operation before writes and own promotion, layers, dirty/event
+     * publication and rollback. No native Body/Joint is moved, rebuilt or stepped here.
+     */
+    public static void applyPreparedLocalPose(
+            World world, int entity, int parentStableId, TransformComponent localPose) {
+        apply(world.getMapper(TransformComponent.class).get(entity), localPose);
+        if (parentStableId == 0) {
+            world.getMapper(GameObjectMemberComponent.class).remove(entity);
+        } else {
+            world.getMapper(GameObjectMemberComponent.class).create(entity).parentStableId = parentStableId;
         }
     }
 

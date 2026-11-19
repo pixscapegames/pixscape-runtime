@@ -45,6 +45,7 @@
 * Physics body synchronization now processes ECS membership changes and explicitly dirty bodies instead of scanning every authored and native body on every frame. Native body removal uses an ownership index instead of searching the Box2D world. Full reconciliation remains at initialization and physics reactivation.
 
 ### Fixed
+* Game Object hierarchy frames and local/world conversions now use accurate trigonometry, removing distance-dependent reparent/detach drift from lookup-table angle composition. Shared hierarchy pose capture and prepared local-pose application retain authored/native pose authority without stepping or copying native Physics resources.
 * Derived polygon/polyline bounds now include authored local minima, preserving negative and offset vertices during Studio editing without normalizing contours or changing stored geometry.
 * Game Object definitions and runtime instances now retain authored polygon and open-polyline vertices, with independent arrays for each instance and no contour normalization or physics conversion.
 * Physics bootstrap stabilization no longer rewrites authored distance-joint lengths while restoring design poses, keeping ECS configuration and the native joint consistent at scene readiness.

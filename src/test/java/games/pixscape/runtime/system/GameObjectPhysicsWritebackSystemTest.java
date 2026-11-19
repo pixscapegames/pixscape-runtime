@@ -288,8 +288,8 @@ public class GameObjectPhysicsWritebackSystemTest {
 
         float worldX = 250f;
         float worldY = -70f;
-        float cos = MathUtils.cos(rootTransform.rotationRad);
-        float sin = MathUtils.sin(rootTransform.rotationRad);
+        float cos = (float) Math.cos(rootTransform.rotationRad);
+        float sin = (float) Math.sin(rootTransform.rotationRad);
         float parentFrameX = rootTransform.x + rootTransform.originX
                 - cos * rootTransform.originX + sin * rootTransform.originY;
         float parentFrameY = rootTransform.y + rootTransform.originY
@@ -900,6 +900,48 @@ public class GameObjectPhysicsWritebackSystemTest {
         Assert.assertEquals(2, before.getPosition().y, EPSILON);
         Assert.assertEquals(root, world.getMapper(PhysicsJointComponent.class).get(joint).aEid);
         Assert.assertEquals(child, world.getMapper(PhysicsJointComponent.class).get(joint).bEid);
+    }
+
+    @Test
+    public void nativeCompositionReparentAndDetachKeepVisualChildAndFollowingFrame() {
+        int root = entity(1, true, -1, true), group = entity(2, true, 1, true);
+        int child = entity(3, false, 2, false), destination = entity(4, true, -1, false);
+        transform(root).originX = 7;
+        transform(group).originY = 9;
+        transform(child).x = 10000;
+        transform(destination).x = 700;
+        transform(destination).rotationRad = -.7f;
+        transform(destination).originX = 11;
+        identities.rebuild();
+        world.process();
+        authority.setMode(PhysicsPoseAuthority.Mode.RUNTIME_PHYSICS);
+        sync.setStepEnabled(false);
+        Body body = nativeBody(group);
+        body.setTransform(3, 2, .6f);
+        body.setLinearVelocity(2, -3);
+        body.setAngularVelocity(.5f);
+        world.process();
+        float x = worldState().x[child], y = worldState().y[child];
+        for (int parent : new int[]{destination, -1, root}) {
+            games.pixscape.runtime.hierarchy.GameObjectHierarchyMutation.reparent(world, group, parent);
+            for (int frame = 0; frame < 3; frame++) {
+                Assert.assertEquals(x, worldState().x[child], .008f);
+                Assert.assertEquals(y, worldState().y[child], .008f);
+                Assert.assertSame(body, nativeBody(group));
+                Assert.assertEquals(3, body.getPosition().x, EPSILON);
+                Assert.assertEquals(2, body.getPosition().y, EPSILON);
+                Assert.assertEquals(.6f, body.getAngle(), EPSILON);
+                Assert.assertEquals(2, body.getLinearVelocity().x, 0);
+                Assert.assertEquals(-3, body.getLinearVelocity().y, 0);
+                Assert.assertEquals(.5f, body.getAngularVelocity(), 0);
+                world.process();
+            }
+        }
+        // Locals reconstructed from the native pose must also reproduce it under authored authority.
+        authority.setMode(PhysicsPoseAuthority.Mode.AUTHORING);
+        world.process();
+        Assert.assertEquals(x, worldState().x[child], .008f);
+        Assert.assertEquals(y, worldState().y[child], .008f);
     }
 
     private int entity(int stableId, boolean gameObject, int parentStableId, boolean physics) {
