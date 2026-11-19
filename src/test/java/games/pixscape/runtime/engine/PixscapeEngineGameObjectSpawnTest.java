@@ -3,10 +3,14 @@ package games.pixscape.runtime.engine;
 import com.artemis.Aspect;
 import com.artemis.BaseSystem;
 import com.badlogic.gdx.math.MathUtils;
+import com.badlogic.gdx.math.Vector2;
 import com.badlogic.gdx.physics.box2d.*;
 import games.pixscape.runtime.api.EntityRef;
 import games.pixscape.runtime.api.GameObjectInstance;
 import games.pixscape.runtime.api.GameObjectsAPI;
+import games.pixscape.runtime.component.GameObjectMemberComponent;
+import games.pixscape.runtime.component.TransformComponent;
+import games.pixscape.runtime.component.spatial.SpatialFootprintComponent;
 import games.pixscape.runtime.component.physics.PhysicsJointComponent;
 import games.pixscape.runtime.component.physics.PhysicsRuntimeBodyComponent;
 import games.pixscape.runtime.gameobject.GameObjectAsset;
@@ -23,6 +27,141 @@ import java.util.List;
 import static org.junit.Assert.*;
 
 public class PixscapeEngineGameObjectSpawnTest {
+    @Test
+    public void detachedLeafCanScaleImmediatelyWithoutLosingPhysicalSubtreeChecks() throws Exception {
+        GameObjectAsset definition = asset();
+        definition.entities.get(0).spatialFootprint = new SpatialFootprintComponent();
+        try (Harness h = new Harness(definition)) {
+            h.ready();
+            GameObjectInstance old = h.spawn();
+            GameObjectInstance destination = h.spawn();
+            EntityRef leaf = old.requireMember("visualOnly");
+            GameObjectsAPI api = h.engine.api().gameObjects();
+            h.frame(0);
+            api.reparent(leaf, destination.root());
+            old.despawn();
+            h.frame(0);
+            assertFalse(old.exists());
+            assertTrue(leaf.exists());
+
+            api.reparent(leaf, null);
+            int rebuilds = h.hierarchy().rebuildCount();
+            leaf.transform().setScale(0);
+            assertEquals(0, leaf.transform().scaleX(), 0);
+            assertEquals(-1, h.hierarchy().topology().parentEntityId[leaf.entityId()]);
+            assertFalse(h.hierarchy().containsPhysicsInSubtree(leaf.entityId()));
+            assertTrue(h.hierarchy().containsPhysicsInDescendants(destination.root().entityId()));
+            assertThrows(IllegalArgumentException.class, () -> destination.root().transform().setScale(2));
+            assertEquals(1, destination.root().transform().scaleX(), 0);
+            assertEquals(rebuilds, h.hierarchy().rebuildCount());
+
+            Body body = h.player(destination);
+            h.frame(0);
+            assertSame(body, h.player(destination));
+            assertEquals(0, leaf.transform().scaleX(), 0);
+            assertEquals(0, leaf.transform().scaleY(), 0);
+            assertEquals(-1, h.hierarchy().topology().parentEntityId[leaf.entityId()]);
+            assertFalse(h.engine.getWorld().getMapper(GameObjectMemberComponent.class).has(leaf.entityId()));
+            assertTrue(h.hierarchy().containsPhysicsInDescendants(destination.root().entityId()));
+            assertThrows(IllegalArgumentException.class, () -> destination.root().transform().setScale(2));
+            Vector2 output = new Vector2(17, 19);
+            assertThrows(IllegalStateException.class, () -> leaf.transform().worldToLocal(0, 0, output));
+            assertEquals(17, output.x, 0);
+            assertEquals(19, output.y, 0);
+        }
+    }
+
+    @Test
+    public void reparentRejectsUnpublishedSpawnWithoutChangingInstancesAndSucceedsAfterFrame() throws Exception {
+        assertReparentPublicationBoundary(false);
+    }
+
+    @Test
+    public void reparentPublishedNodesAlsoRejectsAnUnpublishedUnrelatedSpawn() throws Exception {
+        assertReparentPublicationBoundary(true);
+    }
+
+    private static void assertReparentPublicationBoundary(boolean publishedEndpoints) throws Exception {
+        try (Harness h = new Harness(asset())) {
+            h.ready();
+            GameObjectInstance first = h.spawn();
+            GameObjectInstance second = h.spawn();
+            if (publishedEndpoints) {
+                h.frame(0);
+                h.spawn(); // A rebuild must not drop this unrelated prepared hierarchy either.
+            }
+            EntityRef child = first.requireMember("visualOnly");
+            List<EntityRef> nodes = new ArrayList<>();
+            nodes.add(first.root());
+            nodes.add(second.root());
+            java.util.Collections.addAll(nodes, first.members());
+            java.util.Collections.addAll(nodes, second.members());
+            int[] stableIds = new int[nodes.size()];
+            int[] parents = new int[nodes.size()];
+            float[][] poses = new float[nodes.size()][];
+            Body[] bodies = new Body[nodes.size()];
+            float[][] nativePoses = new float[nodes.size()][];
+            var members = h.engine.getWorld().getMapper(GameObjectMemberComponent.class);
+            for (int i = 0; i < nodes.size(); i++) {
+                EntityRef node = nodes.get(i);
+                stableIds[i] = node.stableId();
+                parents[i] = members.has(node.entityId()) ? members.get(node.entityId()).parentStableId : -1;
+                poses[i] = authoredPose(h, node);
+                bodies[i] = h.body(node);
+                if (bodies[i] != null) {
+                    Body body = bodies[i];
+                    nativePoses[i] = new float[]{body.getPosition().x, body.getPosition().y, body.getAngle()};
+                }
+            }
+            int nextId = h.fixture.sceneA.nextEntityStableId;
+            int bodiesBefore = h.nativeWorld().getBodyCount();
+            int jointsBefore = h.nativeWorld().getJointCount();
+            int rebuilds = h.hierarchy().rebuildCount();
+            IllegalStateException failure = assertThrows(IllegalStateException.class,
+                    () -> h.engine.api().gameObjects().reparent(child, second.root()));
+            assertTrue(failure.getMessage(), failure.getMessage().contains("Artemis publication"));
+            assertEquals(rebuilds, h.hierarchy().rebuildCount());
+            assertEquals(nextId, h.fixture.sceneA.nextEntityStableId);
+            assertEquals(bodiesBefore, h.nativeWorld().getBodyCount());
+            assertEquals(jointsBefore, h.nativeWorld().getJointCount());
+            for (int i = 0; i < nodes.size(); i++) {
+                EntityRef node = nodes.get(i);
+                assertTrue(node.exists());
+                assertEquals(stableIds[i], node.stableId());
+                assertEquals(parents[i], members.has(node.entityId()) ? members.get(node.entityId()).parentStableId : -1);
+                assertArrayEquals(poses[i], authoredPose(h, node), 0);
+                assertSame(bodies[i], h.body(node));
+                if (bodies[i] != null) {
+                    Body body = bodies[i];
+                    assertArrayEquals(nativePoses[i], new float[]{body.getPosition().x, body.getPosition().y, body.getAngle()}, 0);
+                }
+            }
+
+            // The rejected attempt must leave ordinary removal/publication usable.
+            first.despawn();
+            h.frame(0);
+            assertFalse(first.exists());
+            assertFalse(child.exists());
+            assertTrue(second.exists());
+            GameObjectInstance replacement = h.spawn();
+            EntityRef replacementChild = replacement.requireMember("playerAnimation");
+            Body body = h.body(replacementChild);
+            assertThrows(IllegalStateException.class,
+                    () -> h.engine.api().gameObjects().reparent(replacementChild, second.root()));
+            h.frame(0);
+            h.engine.api().gameObjects().reparent(replacementChild, second.root());
+            assertEquals(second.root().stableId(), members.get(replacementChild.entityId()).parentStableId);
+            assertSame(body, h.body(replacementChild));
+            h.frame(0);
+            assertSame(body, h.body(replacementChild));
+        }
+    }
+
+    private static float[] authoredPose(Harness h, EntityRef node) {
+        TransformComponent t = h.engine.getWorld().getMapper(TransformComponent.class).get(node.entityId());
+        return new float[]{t.x, t.y, t.rotationRad, t.scaleX, t.scaleY, t.originX, t.originY};
+    }
+
     @Test
     public void reentrantFactorySpawnAndPrepareAreRejectedWithoutCorruptingOuterSpawn() throws Exception {
         try (Harness h = new Harness(asset())) {

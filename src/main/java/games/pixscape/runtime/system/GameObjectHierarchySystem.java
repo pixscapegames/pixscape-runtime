@@ -194,6 +194,19 @@ public final class GameObjectHierarchySystem extends BaseSystem {
         return topology;
     }
 
+    /**
+     * INTERNAL cold reparenting boundary. Unlike removal, reparenting rebuilds from Artemis
+     * subscriptions, so every prepared transform must have reached publication first.
+     * Comparing the existing counts is O(1); resolved spawn poses alone are not sufficient.
+     */
+    public GameObjectTopologyState topologyForReparenting() {
+        if (topology.traversalSize != transformSubscription.getEntities().size()) {
+            throw new IllegalStateException(
+                    "Reparenting requires Artemis publication of all spawned transforms before rebuilding the hierarchy.");
+        }
+        return topologyForRemoval();
+    }
+
     /** Cold authoring/API boundary; publishes topology and capabilities without processing or stepping. */
     public void publishAuthoredHierarchyMutation() {
         topologyDirty = true;
@@ -343,7 +356,9 @@ public final class GameObjectHierarchySystem extends BaseSystem {
             GameObjectMemberComponent member = members.get(entityId);
             PixscapeIdentityComponent identity = identities.getSafe(entityId, null);
             int stableId = identity != null ? identity.stableId : -1;
-            if (observedParentStableId[entityId] != member.parentStableId
+            // A published detach removes the component before Artemis removes its subscription entry.
+            int parentStableId = member != null ? member.parentStableId : -1;
+            if (observedParentStableId[entityId] != parentStableId
                     || observedStableId[entityId] != stableId) {
                 topologyDirty = true;
                 return;

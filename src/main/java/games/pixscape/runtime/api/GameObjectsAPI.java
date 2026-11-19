@@ -23,6 +23,8 @@ public interface GameObjectsAPI {
      * Rejects cycles, incompatible scales and unsupported nodes before mutation. Bodies and joints
      * keep their native poses and connections, including joints crossing hierarchy boundaries.
      * Explicit cold operation after structural publication; may allocate/rebuild derived topology.
+     * Resolved spawn poses do not replace Artemis publication: pending spawned transforms,
+     * including unrelated instances, cause rejection before mutation until normal publication.
      */
     void reparent(EntityRef child, EntityRef parent);
 

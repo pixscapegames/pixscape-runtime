@@ -45,6 +45,7 @@
 * Physics body synchronization now processes ECS membership changes and explicitly dirty bodies instead of scanning every authored and native body on every frame. Native body removal uses an ownership index instead of searching the Box2D world. Full reconciliation remains at initialization and physics reactivation.
 
 ### Fixed
+* Detaching a Game Object member now permits immediate eligible leaf scaling while retaining physical composition scale checks. Reparenting rejects pending spawn publication before mutation instead of rebuilding from incomplete Artemis subscriptions.
 * Game Object hierarchy frames and local/world conversions now use accurate trigonometry, removing distance-dependent reparent/detach drift from lookup-table angle composition. Shared hierarchy pose capture and prepared local-pose application retain authored/native pose authority without stepping or copying native Physics resources.
 * Derived polygon/polyline bounds now include authored local minima, preserving negative and offset vertices during Studio editing without normalizing contours or changing stored geometry.
 * Game Object definitions and runtime instances now retain authored polygon and open-polyline vertices, with independent arrays for each instance and no contour normalization or physics conversion.

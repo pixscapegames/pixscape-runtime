@@ -29,7 +29,7 @@ public final class GameObjectHierarchyMutation {
         if (hierarchy == null) {
             throw new IllegalStateException("Composition mutation requires a published hierarchy.");
         }
-        GameObjectTopologyState topology = hierarchy.topologyForRemoval();
+        GameObjectTopologyState topology = hierarchy.topologyForReparenting();
         requireNode(world, hierarchy, child);
         if (parent >= 0) {
             requireNode(world, hierarchy, parent);
