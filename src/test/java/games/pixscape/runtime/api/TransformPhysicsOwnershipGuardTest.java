@@ -160,6 +160,31 @@ public class TransformPhysicsOwnershipGuardTest {
     }
 
     @Test
+    public void bodylessCompositionAllowsUniformScaleAndRejectsInvalidCandidatesWithoutMutation() throws Exception {
+        Harness harness = new Harness();
+        int root = harness.entity(1, true, -1);
+        int child = harness.entity(2, false, 1);
+        harness.prepareHierarchy();
+        TransformFacade transform = harness.engine.api().entities().ofEntityId(root).transform();
+
+        transform.setScale(2f);
+        transform.setScale(2f);
+        assertScale(transform, 2f, 2f);
+        for (float[] candidate : new float[][]{{0f, 0f}, {-1f, -1f}, {2f, 3f}}) {
+            IllegalArgumentException failure = Assert.assertThrows(IllegalArgumentException.class,
+                    () -> transform.setScale(candidate[0], candidate[1]));
+            Assert.assertEquals("Game Object parent scale must be finite, positive, and uniform.",
+                    failure.getMessage());
+            assertScale(transform, 2f, 2f);
+        }
+        harness.world.process();
+        Assert.assertEquals(2f, harness.world.getSystem(GameObjectHierarchySystem.class)
+                .worldTransforms().scaleX[child], 0f);
+        Assert.assertEquals(2f, harness.world.getSystem(GameObjectHierarchySystem.class)
+                .worldTransforms().scaleY[child], 0f);
+    }
+
+    @Test
     public void lightRadiusCannotBypassPhysicsOriginOwnership() throws Exception {
         Harness harness = new Harness();
         int entity = harness.entity(1, false, -1);
@@ -199,6 +224,9 @@ public class TransformPhysicsOwnershipGuardTest {
         assertRejected(() -> rootPose.setRotationRad(1f));
         TransformFacade middlePose = harness.engine.api().entities().ofEntityId(middle).transform();
         Assert.assertThrows(IllegalArgumentException.class, () -> middlePose.setScale(2f));
+        assertScale(middlePose, 1f, 1f);
+        middlePose.setScale(1f);
+        assertScale(middlePose, 1f, 1f);
         middlePose.setPosition(1f, 2f).setRotationRad(1f).setOrigin(5f, 6f);
         harness.world.process();
         Assert.assertEquals(0f, harness.world.getMapper(games.pixscape.runtime.component.physics.PhysicsRuntimeBodyComponent.class)

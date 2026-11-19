@@ -1592,15 +1592,17 @@ public final class PixscapeApiImpl implements PixscapeAPI {
         private void requireScaleMutationAllowed(float sx, float sy) {
             World world = handle.world();
             // Validate the complete candidate before creating or changing the transform.
-            if (world.getMapper(GameObjectComponent.class).has(handle.entityId)
-                    && (sx <= 0f || Float.compare(sx, sy) != 0)) {
+            boolean isGameObject = world.getMapper(GameObjectComponent.class).has(handle.entityId);
+            if (isGameObject && (sx <= 0f || Float.compare(sx, sy) != 0)) {
                 throw new IllegalArgumentException(
                         "Game Object parent scale must be finite, positive, and uniform.");
             }
             GameObjectHierarchySystem hierarchy = world.getSystem(GameObjectHierarchySystem.class);
-            if (world.getMapper(GameObjectComponent.class).has(handle.entityId)
-                    && (world.getMapper(PhysicsBodyComponent.class).has(handle.entityId)
-                    || (hierarchy != null && hierarchy.containsPhysicsInDescendants(handle.entityId)))) {
+            boolean hasOwnCompositionBody = isGameObject
+                    && world.getMapper(PhysicsBodyComponent.class).has(handle.entityId);
+            boolean hasPhysicsDescendants = !hasOwnCompositionBody && hierarchy != null
+                    && hierarchy.containsPhysicsInDescendants(handle.entityId);
+            if (isGameObject && (hasOwnCompositionBody || hasPhysicsDescendants)) {
                 TransformComponent current = t(false);
                 if (current == null || current.scaleX != sx || current.scaleY != sy) {
                     throw new IllegalArgumentException(
@@ -1608,7 +1610,9 @@ public final class PixscapeApiImpl implements PixscapeAPI {
                 }
                 return;
             }
-            if (hierarchy == null || !hierarchy.containsPhysicsInDescendants(handle.entityId)) return;
+            if (!hasPhysicsDescendants) {
+                return;
+            }
             PhysicsPoseAuthority authority = world.getSystem(PhysicsPoseAuthority.class);
             if (authority != null && authority.isRuntimePhysics()) {
                 throw new IllegalStateException(

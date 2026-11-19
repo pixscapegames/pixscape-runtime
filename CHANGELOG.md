@@ -35,6 +35,7 @@
 * Added `gameObjects().spawnDeferred(...)` for contact callbacks and other explicitly deferred spawns. Success receives a complete instance at the start of a subsequent render; failures and scene-retirement cancellations have a separate callback.
 
 ### Changed
+* Scale validation reuses a single descendant-Physics query per call and skips it when a Game Object's own Body already determines the result. Existing scale restrictions and topology publication checks are unchanged.
 * Game Object spawns without an explicit destination still use layer index 0, but now reject missing, ambiguous or Spatial-incompatible destinations instead of spawning into an invalid layer. No replacement layer is selected automatically.
 * Game Object roots can render their own visuals. Physics-backed entities support visual scaling without resizing their collision shapes.
 * Multiple representations can share an invisible ancestor's footprint; a descendant's own footprint takes precedence. Bodies do not interrupt spatial ownership, and each representation retains independent sorting and shadow geometry.
