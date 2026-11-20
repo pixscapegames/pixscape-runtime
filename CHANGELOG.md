@@ -21,6 +21,7 @@
 * Renamed tile-layer APIs: `TiledMapRef` becomes `TiledLayerRef`, `map()` becomes `layer()`, `TiledMapFacade` becomes `TiledLayerFacade`, and `TiledMapLayerData` becomes `TiledLayerData`.
 
 ### Added
+* Added `PixscapeEngine.hasScene(String)` to check exact scene declarations after project loading, without accessing files, loading a scene or changing the active scene.
 * SpriteFacade exposes per-instance `flipX()`, `flipY()` and idempotent `setFlip(x, y)` for sprites and animations. Runtime-only state survives asset/clip/frame and atlas binding changes, composes with signed scale, and mirrors UV content without changing transforms, children or physics. Spatial rectangles/shadows follow effective UVs; actor normal sampling and tangent directions now follow the same orientation in both lighting paths. Flip state is excluded from serialization.
 * EntityRef exposes the published composition parent, direct children and descendants, including prepared spawns. Navigation offers independent snapshots and reusable caller-owned arrays; spawn-time GameObjectInstance inventories retain their existing semantics.
 * TransformFacade exposes authored origin coordinates and local/world vector conversions using the same published frame and singular-inverse policy as points, without applying translation or origin offsets.

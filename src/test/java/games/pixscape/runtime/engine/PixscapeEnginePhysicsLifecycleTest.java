@@ -631,6 +631,36 @@ public class PixscapeEnginePhysicsLifecycleTest {
     }
 
     @Test
+    public void hasSceneUsesExactDeclarationsWithoutLoadingOrChangingTheActiveScene() throws Exception {
+        EngineFixture fixture = createEngineFixture();
+        PixscapeEngine engine = fixture.engine;
+        try {
+            engine.loadScene("A");
+            World worldA = engine.getWorld();
+            SceneMetaRuntime metaA = engine.getActiveSceneMeta();
+            int entityA = engine.findEntityByStableId(7);
+            Assert.assertTrue(fixture.projectDir.child("scenes/b.json").delete());
+
+            Assert.assertTrue(engine.hasScene("A"));
+            Assert.assertTrue("Declared inactive scene needs no file", engine.hasScene("B"));
+            Assert.assertFalse(engine.hasScene("missing"));
+            Assert.assertFalse(engine.hasScene(""));
+            Assert.assertFalse(engine.hasScene("b"));
+            Assert.assertFalse(engine.hasScene(" B "));
+            IllegalArgumentException failure = Assert.assertThrows(
+                    IllegalArgumentException.class, () -> engine.hasScene(null));
+            Assert.assertEquals("sceneName must not be null.", failure.getMessage());
+
+            Assert.assertSame(worldA, engine.getWorld());
+            Assert.assertSame(metaA, engine.getActiveSceneMeta());
+            Assert.assertEquals("A", engine.config().currentSceneName);
+            Assert.assertEquals(entityA, engine.findEntityByStableId(7));
+        } finally {
+            engine.dispose();
+        }
+    }
+
+    @Test
     public void sceneDefaultsFollowPublishedSceneAndFailuresCannotMasquerade() throws Exception {
         EngineFixture fixture = createEngineFixture();
         PixscapeEngine engine = fixture.engine;

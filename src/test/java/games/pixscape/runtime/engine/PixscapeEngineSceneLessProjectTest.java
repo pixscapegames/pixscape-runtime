@@ -11,6 +11,21 @@ public class PixscapeEngineSceneLessProjectTest {
     public final TemporaryFolder temporaryFolder = new TemporaryFolder();
 
     @Test
+    public void hasSceneRequiresALoadedProject() {
+        PixscapeEngine engine = new PixscapeEngine();
+        try {
+            IllegalStateException failure = Assert.assertThrows(
+                    IllegalStateException.class, () -> engine.hasScene("A"));
+            Assert.assertEquals("loadProject() must be called before hasScene().", failure.getMessage());
+            Assert.assertFalse(engine.isLoaded());
+            Assert.assertNull(engine.getWorld());
+            Assert.assertNull(engine.getActiveSceneMeta());
+        } finally {
+            engine.dispose();
+        }
+    }
+
+    @Test
     public void loadingSceneLessProjectCreatesNoWorldAndExplicitSceneLoadsStayStrict()
             throws Exception {
         FileHandle userRoot = new FileHandle(temporaryFolder.newFolder("user-root"));
@@ -33,6 +48,8 @@ public class PixscapeEngineSceneLessProjectTest {
             Assert.assertNull(engine.config().currentSceneName);
             Assert.assertNull(engine.getActiveSceneMeta());
             Assert.assertNull(engine.getWorld());
+            Assert.assertFalse(engine.hasScene("removed-scene"));
+            Assert.assertFalse(engine.hasScene(""));
             engine.update(1f / 60f);
             engine.render();
 

@@ -398,6 +398,26 @@ public final class PixscapeEngine {
     }
 
     /**
+     * Checks whether the exact, case-sensitive scene name is declared in the loaded project configuration.
+     * This does not check file availability or scene loading state, access disk, load a scene,
+     * change the active scene, or resolve an empty name to the default scene.
+     *
+     * @param sceneName exact configured scene name
+     * @return true if the name is declared in the project configuration
+     * @throws IllegalStateException if {@link #loadProject(FileHandle)} has not completed
+     * @throws IllegalArgumentException if sceneName is null
+     */
+    public boolean hasScene(String sceneName) {
+        if (!loaded) {
+            throw new IllegalStateException("loadProject() must be called before hasScene().");
+        }
+        if (sceneName == null) {
+            throw new IllegalArgumentException("sceneName must not be null.");
+        }
+        return cfg.getSceneMeta(sceneName) != null;
+    }
+
+    /**
      * Loads a scene through the complete FILES, SCENE and RUNTIME readiness pipeline.
      *
      * <p>This is a blocking convenience where the platform can block. HTML cannot
